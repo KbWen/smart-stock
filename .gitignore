@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# Data & Models (Local only)
+storage.db
+storage.db-shm
+storage.db-wal
+model.pkl
+model_sniper.pkl
+model_sniper_*.pkl
+models/
+market_history.json
+models_history.json
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+
+# Private Template Files (AI Brain Infrastructure)
+.agent/
+.agents/
+.antigravity/
+.codex/
+codex/
+AGENTS.md
+MODEL_GUIDE.md
+deploy_brain.sh
+.cursorrules
+SYSTEM_INSTRUCTION.txt
+
+# Local Databases and Debug Scripts
+stocks.db
+debug_*.py
+inspect_db.py
+
+# Template-provided Documentation
+docs/AGENT_PHILOSOPHY.md
+docs/TESTING_PROTOCOL.md
+docs/CODEX_PLATFORM_GUIDE.md
+docs/PROJECT_EXAMPLES.md

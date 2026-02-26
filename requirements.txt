@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pandas
+numpy
+yfinance
+twstock
+scikit-learn
+joblib
+matplotlib
+requests
+pytest
+httpx
+pytest-mock
