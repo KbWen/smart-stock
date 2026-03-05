@@ -1,4 +1,4 @@
-# AgentCortex v3.5.4: The Professional Agentic OS for Google Antigravity & Codex
+# AgentCortex v5: The Professional Agentic OS for Google Antigravity & Codex
 
 > **The Ultimate Multi-Agent Framework for Professional Development.**
 > Optimized for Antigravity Workflows, Codex Platforms, and Token-Efficient AI Reasoning.
@@ -44,6 +44,30 @@ The following commands are prohibited from direct execution without a pre-approv
 - `rm -rf`, `git reset --hard`, `git clean -fdx`
 - `docker system prune -a`, `chown -R`, `chmod -R 777`
 - Pipes to bash (`curl ... | bash`)
+
+### 🛡️ Runtime v5 Anti-Drift Engine
+
+AgentCortex uses a strict **Gate Engine** and **Two-Turn Handshake** protocol to ensure AI agents cannot "skip steps" or hallucinate code blindly. Safe multi-session concurrency and legacy migration are built-in.
+
+```mermaid
+flowchart LR
+    A[User Request] --> B[Natural Language]
+    B --> C[Intent Router]
+    C --> D[Gate Engine]
+
+    D -->|pass| E["Handshake PROCEED-*"]
+    D -->|fail| X["Stop & Report"]
+
+    E --> F[Workflow]
+    F --> G[Execution Skills]
+    G --> H["Evidence / Logs"]
+    H --> I["/ship"]
+    I --> J[Update SSoT]
+    
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef highlight fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    class C,D,E highlight;
+```
 
 ### 🛠️ Professional Multi-Agent Skills
 
@@ -119,6 +143,16 @@ Use the built-in slash commands to drive the AI:
 
 ## ⚙️ Suggested Workflow Cadence
 
+```mermaid
+flowchart LR
+    Idea[Idea] --> Plan["/plan"]
+    Plan --> Impl["/implement"]
+    Impl --> Rev["/review"]
+    Rev --> Test["/test"]
+    Test --> Ship["/ship"]
+    Ship --> SSoT[Update SSoT]
+```
+
 - **Tiny Fixes**: `classify → execute → inline evidence → ship`
 - **Standard Tasks**: `/plan → /implement → /review → /test → /ship`
 - **New Features**: `/brainstorm → /spec → /plan → /implement → /review → /test → /ship`
@@ -150,6 +184,7 @@ AgentCortex supports both **English** (default) and **Traditional Chinese**.
 - [Agent Philosophy](docs/AGENT_PHILOSOPHY.md)
 - [Testing Protocol](docs/TESTING_PROTOCOL.md)
 - [Project Examples](docs/PROJECT_EXAMPLES.md)
+- [Antigravity v5 Runtime Spec](docs/guides/antigravity-v5-runtime.md)
 - [Migration Guide](docs/guides/migration.md)
 - [Token Governance](docs/guides/token-governance.md)
 - [Audit Playbook](docs/guides/audit-guardrails.md)

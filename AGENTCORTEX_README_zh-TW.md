@@ -1,4 +1,4 @@
-# AgentCortex v3.5.4 (vNext Architecture Edition)
+# AgentCortex v5 (Runtime v5 Anti-Drift Edition)
 
 [English Version](README.md)
 
@@ -11,9 +11,9 @@
 我們對齊並優化了 Google Antigravity / Codex Web / Codex App 的使用情境：
 
 - **Self-Managed**：AI 自行分類任務並套用對應的治理閘門。
-- **Parallel-Safe State**：全域狀態 (`current_state.md`) 與任務狀態 (`work/`) 嚴格分離。
+- **Runtime v5 Anti-Drift**：具備強制防跳步驟的 `Gate Engine` 與 `Handshake` 交握機制，封鎖幻覺越權。
+- **Concurrency & Migration Safe**：內建多人協作 Metadata 防撞車與舊專案無痛導入的 `/audit` 工作流。
 - **Token Optimized**：針對不同風險等級自動調整治理強度，`tiny-fix` 走 fast-path 以節省成本。
-- **Context Loss Safety**：強制執行 `/handoff` 以確保長週期任務不因內容遺失而中斷。
 - **Command-first**：用標準化指令觸發 Agent 能力，確保行為一致性。
 
 ## 🔗 參考來源
@@ -63,6 +63,30 @@
 - `.agent/rules/rules.md`：舊版相容副本，內容同步。
 - `codex/rules/default.rules`：Codex 規則擴充入口。
 - `AGENTS.md`：跨平台長期指令，引用 `engineering_guardrails.md`。
+
+### Runtime v5 執行守門員 (Anti-Drift Engine)
+
+這套機制防止 AI 繞過授權與工作流程，確保每一次操作都具備證據與手動確認。
+
+```mermaid
+flowchart LR
+    A[需求輸入] --> B[自然語言]
+    B --> C[Intent Router]
+    C --> D[Gate Engine]
+
+    D -->|pass| E["交握授權 PROCEED-*"]
+    D -->|fail| X["停止並報錯"]
+
+    E --> F[工作流程]
+    F --> G[技能擴充]
+    G --> H[測試證據]
+    H --> I["/ship"]
+    I --> J[更新 SSoT]
+    
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef highlight fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    class C,D,E highlight;
+```
 
 ### 高風險指令安全設定
 
@@ -134,6 +158,16 @@ Fetch and follow instructions from <your-raw-url>/.codex/INSTALL.md
 7. `/ship`：整理 commit / 變更摘要 / 測試結果
 
 ## ⚙️ 建議節奏
+
+```mermaid
+flowchart LR
+    Idea[需求] --> Plan["/plan"]
+    Plan --> Impl["/implement"]
+    Impl --> Rev["/review"]
+    Rev --> Test["/test"]
+    Test --> Ship["/ship"]
+    Ship --> SSoT[狀態更新]
+```
 
 - **小修補（tiny-fix）**：`classify → do → inline evidence → done`
 - **一般修補**：`/plan → /implement → /review → /test`
