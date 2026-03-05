@@ -56,6 +56,12 @@
 
 ## Ship History
 
+### Ship-refactor/backend-route-modular-2026-03-05
+
+- **Feature shipped**: Refactored `backend/routes/stock.py` into a modular service architecture. Extracted logic into `LegacyStockDetailService`, `SmartScanService`, and `HealthService`.
+- **Tests**: Pass (Pytest Backend: 52 passed)
+- **Log**: `docs/context/work/backend-route-refactor.md` (Archived in commit 67d230d)
+
 ### Ship-feat/frontend-cache-opt-2026-03-05
 
 - **Feature shipped**: Finalized and verified bulk API meta fetching integration and frontend SWR caching logic. Refined `useCachedApi` and `StockList` for performance.
