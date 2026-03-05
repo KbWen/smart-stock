@@ -191,3 +191,12 @@ flowchart LR
 
 ---
 詳細變更請見 [CHANGELOG.md](./CHANGELOG.md)
+
+## Windows（無 bash）部署補充
+
+若你的 Windows 環境沒有 `bash`，可使用專案根目錄的 wrapper：
+
+- PowerShell：`powershell -ExecutionPolicy Bypass -File .\deploy_brain.ps1 .`
+- CMD：`deploy_brain.cmd .`
+
+這兩個 wrapper 會轉呼叫 `deploy_brain.sh`，因此仍需要安裝 Git Bash 或 WSL。
