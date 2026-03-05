@@ -1,0 +1,47 @@
+# Work Log: Frontend Testing Infrastructure (V4)
+
+## Session Info
+
+- **Model**: Antigravity (Gemini 1.5 Pro)
+- **Timestamp**: 2026-03-05T12:26:00+08:00
+- **Platform**: VS Code (Antigravity Environment)
+- **Branch**: `feat/frontend-testing`
+- **Plan Reference**: [implementation_plan_testing.md](file:///c:/Users/wen/.gemini/antigravity/brain/a4e2c059-3c87-4179-a4e4-6a3fa7a21683/implementation_plan_testing.md)
+- **Status**: `IMPLEMENTING`
+
+## [2026-03-05] Phase 6 Bootstrapped
+
+**Goal**: Establish a robust testing foundation for the Frontend V4 codebase to ensure component reliability and prevent regressions.
+
+**Classification**: `Feature`
+
+**Key Paths**:
+
+- `frontend/v4/vitest.config.ts`
+- `frontend/v4/src/test/`
+- `frontend/package.json`
+
+**Acceptance Criteria (AC)**:
+
+- [x] AC1: Configure `Vitest` and `React Testing Library`.
+- [x] AC2: At least one core component (`CandidateRow`) has passing unit tests.
+- [x] AC3: Configure `Playwright` for basic E2E smoke tests.
+- [x] AC4: CI scripts (`test:unit`, `test:e2e`) added to `package.json`.
+
+**Non-goals**:
+
+- Visual regression testing.
+- Testing legacy codebases (v1-v3).
+
+**Context**:
+The `/audit` workflow revealed a significant gap in frontend testing coverage. This task aims to establish the infrastructure and provide a baseline for future component development.
+
+## Drift Log
+
+- *(No drift yet)*
+
+## Evidence Log
+
+- [Unit Test]: `npm run test:unit` passed with 1/1 test successful.
+- [Coverage]: Visual HTML report generated in `frontend/v4/coverage/`.
+- [Configuration]: `vitest.config.ts` and `playwright.config.ts` established.

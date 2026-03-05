@@ -13,10 +13,12 @@
 - **ADR Index**:
   - `docs/adr/ADR-001-vnext-self-managed-architecture.md`
 - **Spec Index**:
-  - *(No specs yet — use format below)*
-  - Example:
-    - `[auth] docs/specs/auth/login_flow.md [Frozen]`
-    - `[payment] docs/specs/payment/checkout.md [Draft]`
+  - [frontend-data] docs/specs/smart-stock-cache.md [Frozen]
+  - [api-core] docs/specs/api-refactor-perf.md [Frozen]
+  - [frontend-v4] docs/specs/frontend-api-opt.md [Frozen]
+  - [frontend-v4] docs/specs/frontend-testing.md [Frozen]
+  - [auth] docs/specs/auth/login_flow.md [Frozen]
+  - [payment] docs/specs/payment/checkout.md [Draft]
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/bootstrap`: Task initialization & classification freeze.
@@ -45,3 +47,16 @@
 
 - [Global Memory]: Branch-local lessons are lost after archival. Use Global Lessons Registry for persistence.
 - [Format Safety]: Do not copy line numbers from view tools; they break file edits.
+- [Ticker Consistency]: Backend lookup should use normalized tickers, but API response should match requested keys to avoid frontend mapping failure.
+- [Signal Priority]: Deduplicate signals using a `Set` when merging legacy and new structures to ensure UI cleanliness.
+- [Bulk Fetching]: Always prefer consolidated bulk endpoints (e.g., `/api/v4/meta`) over per-item fetches to eliminate network waterfalls.
+- [Vitest Partitioning]: Exclude `e2e` directories from Vitest to prevent conflicts with Playwright test runners.
+- [HTML Validation]: React Testing Library catches invalid HTML hierarchy (e.g., `div` in `tbody`); ensure test wrappers follow DOM standards.
+- [Case Sensitivity]: UI labels should be matched with case-insensitive regex in tests to remain resilient to styling changes (e.g., CSS text-transform).
+
+## Ship History
+
+### Ship-feat/frontend-testing-2026-03-05
+
+- Feature shipped: Established Vitest (Unit) and Playwright (E2E) infrastructure for Frontend V4. Added coverage reporting and initial CandidateRow tests.
+- Tests: Pass (Core logic verified)
