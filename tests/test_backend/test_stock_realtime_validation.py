@@ -42,11 +42,11 @@ def test_api_stock_quote_matches_live_market_within_half_percent():
 
 def test_stock_verify_endpoint_compares_db_and_realtime(monkeypatch):
     import pandas as pd
-    import backend.main as main
+    import backend.routes.stock as stock_route
 
     monkeypatch.setattr(
-        main,
-        "get_latest_score_for_ticker",
+        stock_route.legacy_stock_detail_service.score_repo,
+        "get_latest_score",
         lambda _ticker, model_version=None: {
             "ticker": "2330",
             "last_price": 100.0,
@@ -71,7 +71,11 @@ def test_stock_verify_endpoint_compares_db_and_realtime(monkeypatch):
             "volume": [1000, 1100],
         }
     )
-    monkeypatch.setattr(main, "fetch_stock_data", lambda *_args, **_kwargs: realtime_df)
+    monkeypatch.setattr(
+        stock_route.legacy_stock_detail_service.stock_repo,
+        "fetch_price_history",
+        lambda *_args, **_kwargs: realtime_df,
+    )
 
     response = client.get("/api/stock/2330/verify")
     assert response.status_code == 200
