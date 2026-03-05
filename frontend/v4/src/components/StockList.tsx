@@ -9,6 +9,57 @@ interface StockListProps {
     selectedTicker?: string | null
 }
 
+interface BulkMetaSignals {
+    squeeze?: boolean
+    golden_cross?: boolean
+    volume_spike?: boolean
+}
+
+interface BulkMetaItem {
+    signals?: BulkMetaSignals
+    trend_score?: number
+    momentum_score?: number
+    volatility_score?: number
+}
+
+interface BulkMetaResponse {
+    data: Record<string, BulkMetaItem>
+}
+
+const buildSignalTags = (signals?: BulkMetaSignals): string[] => {
+    if (!signals) {
+        return []
+    }
+    const tags: string[] = []
+    if (signals.squeeze) tags.push('Squeeze')
+    if (signals.golden_cross) tags.push('Golden Cross')
+    if (signals.volume_spike) tags.push('Volume Spike')
+    return tags
+}
+
+const sameSignalArray = (left?: string[], right?: string[]): boolean => {
+    const leftArr = left ?? []
+    const rightArr = right ?? []
+    if (leftArr.length !== rightArr.length) return false
+    for (let i = 0; i < leftArr.length; i += 1) {
+        if (leftArr[i] !== rightArr[i]) return false
+    }
+    return true
+}
+
+const sameV4Signals = (
+    left?: StockCandidate['v4_signals'],
+    right?: BulkMetaSignals,
+): boolean => {
+    if (!left && !right) return true
+    if (!left || !right) return false
+    return (
+        left.squeeze === !!right.squeeze &&
+        left.golden_cross === !!right.golden_cross &&
+        left.volume_spike === !!right.volume_spike
+    )
+}
+
 const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
     // 1. Fetch initial candidates
     const { data: rawStocks, loading: loadingCandidates, isPlaceholder: isListPlaceholder } = useCachedApi<StockCandidate[]>('/api/v4/sniper/candidates?limit=50', {
@@ -23,7 +74,7 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
     }, [rawStocks, isListPlaceholder])
 
     // 2. Fetch bulk meta indicators for those tickers
-    const { data: bulkMeta, loading: loadingMeta } = useCachedApi<{ data: Record<string, any> }>(
+    const { data: bulkMeta, loading: loadingMeta } = useCachedApi<BulkMetaResponse>(
         tickersStr ? `/api/v4/meta?tickers=${tickersStr}` : '',
         {
             fallbackData: { data: {} },
@@ -33,29 +84,46 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
         }
     )
 
+    const metaByTicker = bulkMeta.data
+
     // 3. Merge meta into stocks
     const enrichedStocks = useMemo(() => {
-        if (!bulkMeta?.data || Object.keys(bulkMeta.data).length === 0) return rawStocks
+        if (isListPlaceholder || Object.keys(metaByTicker).length === 0) {
+            return rawStocks
+        }
 
-        return rawStocks.map(s => {
-            const meta = bulkMeta.data[s.ticker]
-            if (!meta) return s
+        let hasChanges = false
+        const next = rawStocks.map((stock) => {
+            const meta = metaByTicker[stock.ticker]
+            if (!meta) {
+                return stock
+            }
 
-            const signals: string[] = []
-            if (meta.signals.squeeze) signals.push('Squeeze')
-            if (meta.signals.golden_cross) signals.push('Golden Cross')
-            if (meta.signals.volume_spike) signals.push('Volume Spike')
+            const mappedSignals = buildSignalTags(meta.signals)
+            const nextSignals = mappedSignals.length > 0 ? mappedSignals : stock.signals
+            const unchanged =
+                sameV4Signals(stock.v4_signals, meta.signals) &&
+                sameSignalArray(stock.signals, nextSignals) &&
+                stock.trend === meta.trend_score &&
+                stock.momentum === meta.momentum_score &&
+                stock.volatility === meta.volatility_score
 
+            if (unchanged) {
+                return stock
+            }
+
+            hasChanges = true
             return {
-                ...s,
-                v4_signals: meta.signals,
-                signals: signals.length > 0 ? signals : s.signals,
+                ...stock,
+                v4_signals: meta.signals as StockCandidate['v4_signals'],
+                signals: nextSignals,
                 trend: meta.trend_score,
                 momentum: meta.momentum_score,
                 volatility: meta.volatility_score
             }
         })
-    }, [rawStocks, bulkMeta])
+        return hasChanges ? next : rawStocks
+    }, [rawStocks, metaByTicker, isListPlaceholder])
 
     useEffect(() => {
         if (!isListPlaceholder && enrichedStocks.length > 0 && !selectedTicker) {

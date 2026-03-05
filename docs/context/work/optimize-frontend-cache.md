@@ -7,10 +7,22 @@ Owner: wen-session
 
 ## Status
 
-- **Classification**: `feature` (Medium Feature)
-- **Phase**: `implementation`
-- **Executor**: `Codex CLI`
-- **Goal**: Optimize frontend aesthetics (Glassmorphism) and fix data loading/cache bottlenecks.
+- **Classification**: `feature` (Finalization)
+- **Phase**: `verification`
+- **Executor**: Codex CLI
+- **Goal**: Finalize and verify the integration of the bulk API meta fetching and frontend caching logic, utilizing the new testing infrastructure.
+
+## Session Info
+
+- Agent: Antigravity
+- Session: 2026-03-05T12:50:00+08:00
+- Platform: Antigravity
+
+## Drift Log
+
+- Skip Attempt: NO
+- Gate Fail Reason: N/A
+- Token Leak: NO
 
 ## Task Breakdown
 
@@ -25,25 +37,27 @@ Owner: wen-session
   - Modify `useCachedApi` to return `staleData` while `loading` is true.
 - [x] **Step 4: UI Refactoring**
   - Replace hardcoded styles in `Dashboard.tsx` and `SniperCard.tsx` with unified UI components.
-- [/] /review (Performance & SWR Audit)
-- [/] /test (Automated & Manual Evidence)
-- [ ] /handoff (Finalize state)
+- [x] /review (Performance & SWR Audit)
+- [x] /test (Automated & Manual Evidence)
+- [/] /handoff (Finalize state)
 
 ## Resume (Handoff)
 
-- **Current State**: Backend cache optimized (main.py fast-path), Frontend UI updated (Glassmorphism), SWR Hook parity achieved.
+- **Current State**: Backend cache optimized, Frontend SWR hook refined, and API bulk fetch (meta) successfully integrated.
 - **Evidence**:
-  - Backend Perf: 146.1ms (verified via `scripts/verify_cache_perf.py`)
-  - Frontend UI (Port 5174): ![Dashboard UI](file:///c:/Users/wen/.gemini/antigravity/brain/a4e2c059-3c87-4179-a4e4-6a3fa7a21683/top_candidates_list_verify_1772612953733.png)
-  - SniperCard UI (Port 5174): ![SniperCard UI](file:///c:/Users/wen/.gemini/antigravity/brain/a4e2c059-3c87-4179-a4e4-6a3fa7a21683/sniper_card_verify_1772612970321.png)
-- **Next Steps**: Monitor DB storage size as `stock_indicators` grows.
+  - Unit Tests: `src/components/__tests__/CandidateRow.test.tsx` (3 tests passed)
+  - E2E Tests: `e2e/dashboard.spec.ts` (2 tests passed, latency < 300ms verified)
+- **Next Steps**: Ready for `/ship` and merge into master.
 
 ## Lessons
 
-- **Codex Background Execution**: Background execution of `-a untrusted` mode can hang if the model tries to prompt for approval silently. Use `--full-auto` for non-interactive steps or run in-terminal for interactive ones.
-- **Cache SWR Pattern**: Implementing SWR in the hook layer is more robust than at the API level for UX responsiveness.
+- **Playwright 網路設定**: Vite 與 Playwright 之間的連線建議使用 `localhost` 而非 `127.0.0.1`，以避免 IPv4/IPv6 繫結造成的 Connection Refused 錯誤。
+- **Playwright 環境依賴**: 在新環境或執行 E2E 測試前，需確保執行過 `npx playwright install chromium` 下載瀏覽器，否則測試會因找不到執行檔而失敗。
+- **V5 規範執行**: 嚴格遵守 `AGENTS.md` 中的哨兵指令 (SENTINEL: ACX-READ-OK) 與 YAML 閘門 (Gate) 格式，確保合規性。
+- **Codex CLI 交互阻礙**: 當使用 `codex -a untrusted` 進行多檔案修改與測試時，程序可能會在背景等待指令確認，需適時監控並發送輸入（或改用 `--full-auto` 處理非關鍵變更）。
 
 ## Activity Log
 
 - **2026-03-04**: Initial research completed. Identified re-computation bottlenecks in `/api/v4/stock/{ticker}`.
 - **2026-03-04**: Corrected workflow to include formal Spec phase per user request.
+- **2026-03-05**: Merged testing infrastructure. Re-bootstrapping to finalize cache verification.

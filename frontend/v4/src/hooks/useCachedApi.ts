@@ -35,10 +35,16 @@ export function useCachedApi<T>(
     const [error, setError] = useState<Error | null>(null)
     const [isPlaceholder, setIsPlaceholder] = useState<boolean>(true)
     const requestIdRef = useRef(0)
+    const isPlaceholderRef = useRef(true)
     const CACHE_HIT_THRESHOLD_MS = 20
 
+    useEffect(() => {
+        isPlaceholderRef.current = isPlaceholder
+    }, [isPlaceholder])
+
     const fetchData = async (signal?: AbortSignal): Promise<void> => {
-        if (!enabled) {
+        if (!enabled || !endpoint) {
+            setLoading(false)
             return
         }
         const requestId = ++requestIdRef.current
@@ -67,8 +73,8 @@ export function useCachedApi<T>(
                 return
             }
             setError(err as Error)
-            // Only use fallback if we don't already have some data
-            if (isPlaceholder) {
+            // Keep stale data during refresh; only fall back when no resolved data exists.
+            if (isPlaceholderRef.current) {
                 setData(fallbackData)
             }
         } finally {
@@ -79,6 +85,11 @@ export function useCachedApi<T>(
     }
 
     useEffect(() => {
+        if (!enabled || !endpoint) {
+            setLoading(false)
+            return
+        }
+
         const controller = new AbortController()
 
         // SWR: Try to load from cache immediately

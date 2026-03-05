@@ -1,11 +1,57 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test'
 
 test('dashboard loads successfully', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/')
+    await expect(page).toHaveTitle(/Smart Stock Selector/i)
+})
 
-    // Check for the main heading or a specific element
-    await expect(page).toHaveTitle(/Smart Stock Selector/i);
+test('bulk meta fetch is single-call and under 300ms', async ({ page }) => {
+    let metaCallCount = 0
+    const metaDurations: number[] = []
 
-    // Check if the stock list is visible
-    // await expect(page.locator('.stock-list-container')).toBeVisible();
-});
+    await page.route('**/api/v4/sniper/candidates?limit=50', async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([
+                { ticker: '2330.TW', name: 'TSMC', price: 1000, change_percent: 1.2, rise_score: 81, ai_prob: 74 },
+                { ticker: '2317.TW', name: 'Hon Hai', price: 120, change_percent: 0.4, rise_score: 76, ai_prob: 69 },
+            ]),
+        })
+    })
+
+    await page.route('**/api/v4/meta?*', async (route) => {
+        metaCallCount += 1
+        const start = Date.now()
+        await page.waitForTimeout(60)
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                data: {
+                    '2330.TW': {
+                        signals: { squeeze: true, golden_cross: true, volume_spike: false },
+                        trend_score: 0.9,
+                        momentum_score: 0.7,
+                        volatility_score: 0.4,
+                    },
+                    '2317.TW': {
+                        signals: { squeeze: false, golden_cross: false, volume_spike: true },
+                        trend_score: 0.4,
+                        momentum_score: 0.6,
+                        volatility_score: 0.5,
+                    },
+                },
+            }),
+        })
+        metaDurations.push(Date.now() - start)
+    })
+
+    await page.goto('/')
+    await expect(page).toHaveTitle(/Smart Stock Selector/i)
+
+    await expect.poll(() => metaCallCount, { timeout: 3000 }).toBe(1)
+    await page.waitForTimeout(300)
+    expect(metaCallCount).toBe(1)
+    expect(metaDurations[0]).toBeLessThan(300)
+})

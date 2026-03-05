@@ -56,7 +56,8 @@
 
 ## Ship History
 
-### Ship-feat/frontend-testing-2026-03-05
+### Ship-feat/frontend-cache-opt-2026-03-05
 
-- Feature shipped: Established Vitest (Unit) and Playwright (E2E) infrastructure for Frontend V4. Added coverage reporting and initial CandidateRow tests.
-- Tests: Pass (Core logic verified)
+- **Feature shipped**: Finalized and verified bulk API meta fetching integration and frontend SWR caching logic. Refined `useCachedApi` and `StockList` for performance.
+- **Tests**: Pass (Vitest: 3 passed, Playwright: 2 passed)
+- **Log**: `docs/context/work/optimize-frontend-cache.md`

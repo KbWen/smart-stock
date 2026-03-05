@@ -1,0 +1,35 @@
+
+Running 2 tests using 2 workers
+
+  ✘  1 [chromium] › e2e\dashboard.spec.ts:3:1 › dashboard loads successfully (1ms)
+  ✘  2 [chromium] › e2e\dashboard.spec.ts:8:1 › bulk meta fetch is single-call and under 300ms (1ms)
+
+
+  1) [chromium] › e2e\dashboard.spec.ts:3:1 › dashboard loads successfully ─────────────────────────
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\wen\AppData\Local\ms-playwright\chromium_headless_shell-1208\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+
+  2) [chromium] › e2e\dashboard.spec.ts:8:1 › bulk meta fetch is single-call and under 300ms ───────
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\wen\AppData\Local\ms-playwright\chromium_headless_shell-1208\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+
+  2 failed
+    [chromium] › e2e\dashboard.spec.ts:3:1 › dashboard loads successfully ──────────────────────────
+    [chromium] › e2e\dashboard.spec.ts:8:1 › bulk meta fetch is single-call and under 300ms ────────
+
