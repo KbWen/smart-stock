@@ -38,8 +38,37 @@
 }
 
 @layer components {
+  .glass-card {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  }
+
+  .premium-text {
+    background: linear-gradient(90deg, #f8fafc 0%, #93c5fd 45%, #22d3ee 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   .premium-card {
     @apply bg-dark-card/60 backdrop-blur-md border border-dark-border/50 shadow-2xl transition-all duration-300 hover:border-sniper-green/30 hover:shadow-sniper-green/5;
+  }
+
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl transition-all duration-500;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-card:hover {
+    @apply bg-white/10 border-white/20;
+    transform: translateY(-2px);
+  }
+
+  .premium-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-sniper-green to-blue-400 font-bold;
   }
 
   .text-glow-green {

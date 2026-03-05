@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { fetchJsonWithCache } from '../lib/apiClient'
+import { fetchJsonWithCache, getCachedData } from '../lib/apiClient'
 
 interface UseCachedApiOptions<T> {
     fallbackData: T
@@ -35,6 +35,7 @@ export function useCachedApi<T>(
     const [error, setError] = useState<Error | null>(null)
     const [isPlaceholder, setIsPlaceholder] = useState<boolean>(true)
     const requestIdRef = useRef(0)
+    const CACHE_HIT_THRESHOLD_MS = 20
 
     const fetchData = async (signal?: AbortSignal): Promise<void> => {
         if (!enabled) {
@@ -44,10 +45,20 @@ export function useCachedApi<T>(
         setLoading(true)
         setError(null)
         try {
+            const requestStartedAt = Date.now()
             const response = await fetchJsonWithCache<T>(endpoint, ttlMs, throttleMs, signal)
             if (requestId !== requestIdRef.current || signal?.aborted) return
             setData(response)
             setIsPlaceholder(false)
+
+            const isLikelyCacheHit = Date.now() - requestStartedAt <= CACHE_HIT_THRESHOLD_MS
+            if (!isLikelyCacheHit) {
+                return
+            }
+
+            const refreshed = await fetchJsonWithCache<T>(endpoint, 0, 0, signal)
+            if (requestId !== requestIdRef.current || signal?.aborted) return
+            setData(refreshed)
         } catch (err) {
             if (signal?.aborted) {
                 return
@@ -69,6 +80,14 @@ export function useCachedApi<T>(
 
     useEffect(() => {
         const controller = new AbortController()
+
+        // SWR: Try to load from cache immediately
+        const cached = getCachedData<T>(endpoint)
+        if (cached) {
+            setData(cached)
+            setIsPlaceholder(false)
+        }
+
         void fetchData(controller.signal)
         return () => controller.abort()
         // eslint-disable-next-line react-hooks/exhaustive-deps

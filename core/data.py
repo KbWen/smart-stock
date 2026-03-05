@@ -117,6 +117,9 @@ def init_db():
             d_val REAL,
             atr REAL,
             bb_width REAL,
+            rel_vol REAL,
+            is_squeeze INTEGER,
+            kd_cross_flag INTEGER,
             model_version TEXT,
             updated_at TIMESTAMP
         )
@@ -145,6 +148,24 @@ def init_db():
     except sqlite3.OperationalError:
         logger.info("Migrating DB: Adding bb_width to stock_indicators")
         cursor.execute("ALTER TABLE stock_indicators ADD COLUMN bb_width REAL")
+
+    try:
+        cursor.execute("SELECT rel_vol FROM stock_indicators LIMIT 1")
+    except sqlite3.OperationalError:
+        logger.info("Migrating DB: Adding rel_vol to stock_indicators")
+        cursor.execute("ALTER TABLE stock_indicators ADD COLUMN rel_vol REAL")
+
+    try:
+        cursor.execute("SELECT is_squeeze FROM stock_indicators LIMIT 1")
+    except sqlite3.OperationalError:
+        logger.info("Migrating DB: Adding is_squeeze to stock_indicators")
+        cursor.execute("ALTER TABLE stock_indicators ADD COLUMN is_squeeze INTEGER")
+
+    try:
+        cursor.execute("SELECT kd_cross_flag FROM stock_indicators LIMIT 1")
+    except sqlite3.OperationalError:
+        logger.info("Migrating DB: Adding kd_cross_flag to stock_indicators")
+        cursor.execute("ALTER TABLE stock_indicators ADD COLUMN kd_cross_flag INTEGER")
         
     conn.commit()
     conn.close()
@@ -158,8 +179,8 @@ def save_indicators_to_db(ticker, df, **kwargs):
     try:
         cursor.execute('''
             INSERT OR REPLACE INTO stock_indicators (
-                ticker, rsi, macd, macd_signal, ema_20, ema_50, sma_20, sma_60, k_val, d_val, atr, bb_width, model_version, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ticker, rsi, macd, macd_signal, ema_20, ema_50, sma_20, sma_60, k_val, d_val, atr, bb_width, rel_vol, is_squeeze, kd_cross_flag, model_version, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             ticker, 
             safe_float(last.get('rsi')), safe_float(last.get('macd')), safe_float(last.get('macd_signal')),
@@ -168,6 +189,9 @@ def save_indicators_to_db(ticker, df, **kwargs):
             safe_float(last.get('k')), safe_float(last.get('d')),
             safe_float(last.get('atr')),
             safe_float(last.get('bb_width')),
+            safe_float(last.get('rel_vol')),
+            1 if bool(last.get('is_squeeze', False)) else 0,
+            1 if bool(last.get('kd_cross_flag', False)) else 0,
             kwargs.get('model_version'),
             datetime.now()
         ))

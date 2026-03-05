@@ -33,9 +33,9 @@ const Dashboard: React.FC = () => {
             />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <div className="overflow-hidden rounded-xl border border-dark-border bg-dark-card shadow-lg lg:col-span-2">
-                    <div className="flex items-center justify-between border-b border-dark-border p-4">
-                        <h3 className="font-semibold text-white">Top Candidates</h3>
+                <div className="overflow-hidden glass-card lg:col-span-2">
+                    <div className="flex items-center justify-between border-b border-white/10 p-4 bg-white/5">
+                        <h3 className="premium-text">Top Candidates</h3>
                         <span className="text-xs text-dark-muted">Updated: {isLoading ? '...' : lastUpdated}</span>
                     </div>
                     <div className="flex items-center justify-between border-b border-dark-border/60 px-4 py-2 text-xs text-dark-muted">

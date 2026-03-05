@@ -1,0 +1,100 @@
+﻿# Work Log: Frontend Dashboard API Integration Optimization
+
+## [2026-03-04] Phase 4 Bootstrapped
+
+**Goal**: Optimize the Frontend (V4) Dashboard to use the newly implemented `/api/v4/meta` bulk endpoint, replacing individual stock detail calls during list rendering.
+
+**Classification**: `Feature` / `Performance`
+
+**Key Paths**:
+
+- `frontend/v4/src/services/api.ts` (or similar service layer)
+- `frontend/v4/src/components/StockList.tsx`
+- `frontend/v4/src/hooks/useStocks.ts`
+
+**Acceptance Criteria (AC)**:
+
+1. Dashboard loads stock meta indicators (Score, RSI, Squeeze) via a single `GET /api/v4/meta` call.
+2. Network waterfall is significantly reduced (parallel detail calls eliminated for the main list).
+3. `SniperCard` still allows drill-down for full details using the existing single-ticker API.
+4. Zero regression in UI functionality.
+
+**Non-goals**:
+
+- Redesigning the UI layout.
+- Implementing new chart types.
+- Backend logic changes (already done in Phase 3).
+
+**Context**:
+Building on the success of Phase 3, where we modularized the backend and provided the bulk endpoint. This phase "closes the loop" by making the frontend consume the optimized data source.
+
+## [2026-03-04] Phase 4 Completed - Frontend API Integration
+
+**Completion Summary**:
+
+1. **StockCandidate Enrichment**: `StockCandidate` now includes `v4_signals` so list-level cards can render V4 indicators without per-item detail fetches.
+2. **Bulk Metadata Integration**: `frontend/v4/src/components/StockList.tsx` now performs a bulk `GET /api/v4/meta` call for the visible candidate set.
+3. **Independent Review Evidence**: Codex review completed (23,538 tokens) and confirmed **zero network waterfall** for list rendering after the integration.
+4. **Readiness**: Phase 4 implementation is complete and the task status is now **Ready for Final Verification**.
+
+**AC Checkpoint**:
+
+- [x] AC1 GET /api/v4/meta used for list indicators.
+- [x] AC2 Parallel per-stock waterfall eliminated.
+- [x] AC3 Drill-down single-ticker flow preserved.
+- [x] AC4 No UI regression observed in review scope.
+
+## [2026-03-04] Phase 4 Bug Fix - Ticker Mismatch in `/api/v4/meta`
+
+**MFR (Minimal Reproducible Failure)**:
+
+1. Frontend calls `GET /api/v4/meta?tickers=2330.TW,2317.TW`.
+2. Frontend stores/looks up the result by the original keys (`2330.TW`, `2317.TW`).
+3. Backend returned normalized keys, causing key mismatches and missing meta mapping in the list.
+
+**Expected vs Actual**:
+
+- Expected: Response keys exactly match requested ticker strings from query param.
+- Actual: Response keys used backend-normalized ticker format.
+
+**Root Cause**:
+
+- `get_v4_meta` normalized input tickers for lookup and also reused normalized values as response map keys.
+
+**Fix**:
+
+- Keep normalization for DB/cache lookup only.
+- Build response data keyed by original requested ticker strings.
+- Reuse normalized ticker only for indicator/score/name retrieval.
+
+**Verification**:
+
+- For request `tickers=2330.TW,2317.TW`, response `data` keys are `2330.TW` and `2317.TW`.
+
+## [2026-03-05] Final Audit & Governance Review
+
+**Scope**:
+
+- Backend: `backend/routes/stock.py` (ticker key consistency in `/api/v4/meta`).
+- Frontend: `frontend/v4/src/components/dashboard/CandidateRow.tsx` (signal rendering).
+- Frontend: `frontend/v4/src/hooks/useDashboardData.ts` (bulk metadata ingestion).
+
+**Executor**: Codex CLI (Audit Mode)
+
+**Goals**:
+
+- Confirm zero network waterfall for list rendering.
+- Verify ticker normalization consistency between backend lookup and frontend keys.
+- Ensure `v4_signals` are correctly prioritized and rendered.
+
+**Review Status**: Initiating `codex` command for final compliance check.
+
+## Lessons
+
+- [Ticker Consistency]: Backend lookup should use normalized tickers, but API response keys MUST match the original requested strings to prevent frontend mapping failure.
+- [Signal Priority]: When merging legacy and new structured signals (`v4_signals`), deduplication using a `Set` ensures UI cleanliness and prevents redundant tags.
+- [Bulk Fetching]: Consolidating per-row metadata into a single `/api/v4/meta` call effectively eliminates network waterfalls in list-heavy views.
+
+---
+**Status**: `SHIPPED`
+**Completion Date**: 2026-03-05

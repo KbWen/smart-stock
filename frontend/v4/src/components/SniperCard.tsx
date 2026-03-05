@@ -21,7 +21,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
 
     if (!ticker) {
         return (
-            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-xl border border-dark-border bg-dark-card p-8 text-dark-muted shadow-xl">
+            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted">
                 <Crosshair size={48} className="opacity-20" />
                 <div className="text-center">
                     <p className="mb-1 text-lg font-semibold text-white">No Stock Selected</p>
@@ -33,7 +33,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
 
     if (loading) {
         return (
-            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-xl border border-dark-border bg-dark-card p-8 text-dark-muted shadow-xl">
+            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted">
                 <Loader2 size={40} className="animate-spin text-sniper-green" />
                 <p className="animate-pulse text-sm font-medium">Scanning AI Models for {ticker}...</p>
             </div>
@@ -42,7 +42,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
 
     if (error) {
         return (
-            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-3 rounded-xl border border-dark-border bg-dark-card p-8 text-red-500 shadow-xl">
+            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-3 glass-card p-8 text-red-500">
                 <AlertTriangle size={48} className="opacity-80" />
                 <p className="text-lg font-semibold">Error Loading Data</p>
                 <p className="text-center text-sm text-red-400 opacity-80">Failed to load details for {ticker}. Ensure backend is running and try again.</p>
@@ -51,7 +51,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
     }
 
     return (
-        <div className="sticky top-24 rounded-xl border border-dark-border bg-dark-card p-6 shadow-xl overflow-hidden ring-1 ring-white/5">
+        <div className="sticky top-24 glass-card p-6 overflow-hidden ring-1 ring-white/5">
             <DetailHeader
                 ticker={data.ticker}
                 name={data.name}

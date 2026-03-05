@@ -20,8 +20,20 @@ export interface StockCandidate {
     change_percent?: number
     rise_score: number
     ai_prob: number
-    signals?: string[]
+    signals?: string[]      // Legacy support for string tags
+    v4_signals?: {          // New structured signals
+        squeeze: boolean
+        golden_cross: boolean
+        volume_spike: boolean
+        rsi: number
+        macd_diff: number
+        rel_vol: number
+    }
     updated_at?: string
+    // Simplified breakdown if merged
+    trend?: number
+    momentum?: number
+    volatility?: number
 }
 
 export interface CandidateMeta {

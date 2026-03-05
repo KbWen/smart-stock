@@ -72,3 +72,7 @@ export function invalidateApiCache(endpointPrefix: string): void {
         }
     }
 }
+
+export function getCachedData<T>(endpoint: string): T | undefined {
+    return (responseCache.get(endpoint) as CacheRecord<T> | undefined)?.data
+}
