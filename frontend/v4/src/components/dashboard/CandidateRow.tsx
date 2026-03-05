@@ -14,8 +14,16 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
         return change > 0 ? 'text-red-500' : 'text-sniper-green'
     }
 
-    const visibleSignals = stock.signals?.slice(0, 1) ?? []
-    const hiddenSignalCount = Math.max((stock.signals?.length ?? 0) - visibleSignals.length, 0)
+    const v4Signals: string[] = []
+    if (stock.v4_signals) {
+        if (stock.v4_signals.squeeze) v4Signals.push('Squeeze')
+        if (stock.v4_signals.golden_cross) v4Signals.push('Golden Cross')
+        if (stock.v4_signals.volume_spike) v4Signals.push('Volume Spike')
+    }
+    // Combine and unique
+    const allSignals = Array.from(new Set([...(stock.signals ?? []), ...v4Signals]))
+    const visibleSignals = allSignals.slice(0, 1)
+    const hiddenSignalCount = Math.max(allSignals.length - visibleSignals.length, 0)
 
     return (
         <div
