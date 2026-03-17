@@ -1,8 +1,31 @@
 import { test, expect } from '@playwright/test'
 
+/**
+ * E2E Smoke & Performance Tests
+ * Spec: docs/specs/frontend-testing.md — AC#3 (Playwright E2E)
+ * Spec: docs/specs/frontend-api-opt.md — AC#1 (Single Batch Fetch), AC#3 (<300ms)
+ */
+
 test('dashboard loads successfully', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveTitle(/Smart Stock Selector/i)
+})
+
+test('renders three MarketStatusHeader cards', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByText('大盤多空比')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('AI 情緒指數')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('風險等級')).toBeVisible({ timeout: 10_000 })
+})
+
+test('Top Candidates panel renders without crash', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByText('Top Candidates')).toBeVisible({ timeout: 10_000 })
+    // No uncaught JS error should appear
+    const errors: string[] = []
+    page.on('pageerror', (err) => errors.push(err.message))
+    await page.waitForTimeout(1000)
+    expect(errors.filter(e => !e.includes('ResizeObserver'))).toHaveLength(0)
 })
 
 test('bulk meta fetch is single-call and under 300ms', async ({ page }) => {

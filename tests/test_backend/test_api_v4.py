@@ -407,3 +407,227 @@ def test_mark_sync_completed_sets_epoch_and_timestamp():
     assert after_snapshot["is_syncing"] is False
     assert isinstance(after_snapshot["last_updated"], str)
     assert after_snapshot["sync_epoch"] == before + 1
+
+
+# ── Schema Parity Tests (backend-refactor-modular AC#8) ───────────────────────
+
+
+def test_v4_candidates_schema_parity(monkeypatch):
+    """All field names and types of /api/v4/sniper/candidates must match the contract."""
+    import backend.routes.stock as stock_route
+
+    sample_score = [{
+        "ticker": "2330.TW",
+        "model_version": "v4.1",
+        "last_price": 580.0,
+        "change_percent": 1.5,
+        "total_score": 82.0,
+        "ai_probability": 0.75,
+        "trend_score": 30.0,
+        "momentum_score": 32.0,
+        "volatility_score": 20.0,
+        "updated_at": "2026-03-17",
+    }]
+    sample_inds = {
+        "2330.TW": {"rsi": 58.0, "macd": 1.2, "macd_signal": 0.8, "rel_vol": 1.3}
+    }
+
+    monkeypatch.setattr(stock_route.score_repo, "get_top_scores", lambda *a, **kw: sample_score)
+    monkeypatch.setattr(stock_route.stock_repo, "get_stock_name", lambda _t: "TSMC")
+    monkeypatch.setattr(stock_route.indicator_repo, "load_for_tickers", lambda _t: sample_inds)
+    monkeypatch.setattr(stock_route.v4_candidates_service.system_repo, "get_sync_epoch", lambda: 0)
+    stock_route.clear_api_caches()
+
+    resp = client.get("/api/v4/sniper/candidates?limit=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list) and len(data) == 1
+
+    c = data[0]
+    str_fields = ["ticker", "name"]
+    num_fields = [
+        "price", "change_percent", "rise_score", "ai_prob",
+        "trend", "momentum", "volatility", "rsi_14", "macd_diff", "volume_ratio",
+    ]
+    for f in str_fields:
+        assert f in c and isinstance(c[f], str), f"Field '{f}' missing or wrong type; got {type(c.get(f))}"
+    for f in num_fields:
+        assert f in c and isinstance(c[f], (int, float)), f"Field '{f}' missing or wrong type; got {type(c.get(f))}"
+    assert "updated_at" in c
+
+
+def test_v4_stock_detail_schema_parity(monkeypatch):
+    """All field names and types of /api/v4/stock/{ticker} must match the documented contract."""
+    import pandas as pd
+    import backend.routes.stock as stock_route
+    stock_route.clear_api_caches()
+
+    df = pd.DataFrame({
+        "date": pd.date_range("2024-01-01", periods=80, freq="D"),
+        "open": [100.0] * 80,
+        "high": [101.0] * 80,
+        "low": [99.0] * 80,
+        "close": [100.0 + i * 0.1 for i in range(80)],
+        "volume": [1000] * 80,
+    })
+
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.score_repo, "get_latest_score", lambda _t: None)
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.indicator_repo, "load_for_ticker", lambda _t: {})
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", lambda _t: df.copy())
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.system_repo, "get_sync_epoch", lambda: 0)
+    monkeypatch.setattr(stock_route.v4_stock_detail_service, "predict_prob", lambda _df: {"prob": 0.65})
+
+    from core import indicators_v2, rise_score_v2
+    monkeypatch.setattr(
+        indicators_v2, "compute_v4_indicators",
+        lambda in_df: in_df.assign(
+            trend_alignment=1, sma20_slope=0.5, rsi=55.0,
+            is_squeeze=False, rel_vol=1.2, kd_cross_flag=False,
+        ),
+    )
+    monkeypatch.setattr(
+        rise_score_v2, "calculate_rise_score_v2",
+        lambda in_df: in_df.assign(
+            total_score_v2=80.0, trend_score_v2=30.0,
+            momentum_score_v2=30.0, volatility_score_v2=20.0,
+        ),
+    )
+
+    resp = client.get("/api/v4/stock/2330")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    # Top-level primitive fields
+    assert isinstance(body["ticker"], str), "ticker must be str"
+    assert isinstance(body["name"], str), "name must be str"
+    assert isinstance(body["price"], (int, float)), "price must be numeric"
+    assert isinstance(body["ai_probability"], (int, float)), "ai_probability must be numeric"
+    assert isinstance(body["analyst_summary"], str), "analyst_summary must be str"
+    assert body.get("updated_at") is None or isinstance(body["updated_at"], str)
+
+    # rise_score_breakdown sub-object
+    rb = body["rise_score_breakdown"]
+    assert isinstance(rb, dict), "rise_score_breakdown must be a dict"
+    for key in ["total", "trend", "momentum", "volatility"]:
+        assert key in rb and isinstance(rb[key], (int, float)), \
+            f"rise_score_breakdown.{key} missing or wrong type"
+
+    # signals sub-object
+    sig = body["signals"]
+    assert isinstance(sig, dict), "signals must be a dict"
+    for key in ["squeeze", "golden_cross", "volume_spike"]:
+        assert key in sig and isinstance(sig[key], bool), \
+            f"signals.{key} missing or wrong type; got {type(sig.get(key))}"
+
+
+def test_v4_meta_schema_parity(monkeypatch):
+    """All field names and types of /api/v4/meta response must match the documented contract."""
+    import backend.routes.stock as stock_route
+
+    score_row = {
+        "total_score": 80.0, "trend_score": 30.0, "momentum_score": 30.0,
+        "volatility_score": 20.0, "last_price": 580.0, "change_percent": 1.2,
+        "ai_probability": 0.7, "updated_at": "2026-03-17", "model_version": "v4.1",
+    }
+    ind_row = {
+        "rsi": 55.0, "macd": 1.5, "macd_signal": 1.0, "rel_vol": 1.8,
+        "is_squeeze": True, "kd_cross_flag": False,
+    }
+
+    monkeypatch.setattr(
+        stock_route.v4_meta_service.score_repo,
+        "load_latest_scores_for_tickers",
+        lambda tickers: {t: score_row for t in tickers},
+    )
+    monkeypatch.setattr(
+        stock_route.v4_meta_service.indicator_repo,
+        "load_for_tickers",
+        lambda tickers: {t: ind_row for t in tickers},
+    )
+    monkeypatch.setattr(stock_route.v4_meta_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+
+    resp = client.get("/api/v4/meta?tickers=2330")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert "data" in body and isinstance(body["data"], dict), "Response must have 'data' dict"
+    assert len(body["data"]) == 1
+
+    entry = next(iter(body["data"].values()))
+    num_fields = [
+        "total_score", "trend_score", "momentum_score", "volatility_score",
+        "last_price", "change_percent", "ai_prob",
+    ]
+    for f in num_fields:
+        assert f in entry and isinstance(entry[f], (int, float)), \
+            f"data[ticker].{f} missing or wrong type; got {type(entry.get(f))}"
+    assert isinstance(entry["name"], str), "name must be str"
+    assert isinstance(entry["model_version"], str), "model_version must be str"
+
+    sig = entry["signals"]
+    assert isinstance(sig, dict), "signals must be a dict"
+    for key in ["squeeze", "golden_cross", "volume_spike"]:
+        assert key in sig and isinstance(sig[key], bool), \
+            f"signals.{key} missing or wrong type; got {type(sig.get(key))}"
+    for key in ["rsi", "macd_diff", "rel_vol"]:
+        assert key in sig and isinstance(sig[key], (int, float)), \
+            f"signals.{key} missing or wrong type; got {type(sig.get(key))}"
+
+
+# ── Performance Benchmark (api-refactor-perf AC#3) ───────────────────────────
+
+
+def test_v4_meta_bulk_50_tickers_single_batch_and_under_500ms(monkeypatch):
+    """GET /api/v4/meta with 50 tickers must use exactly 1 batch DB call and finish < 500ms."""
+    import time
+    import backend.routes.stock as stock_route
+
+    tickers = [f"STOCK{i:02d}" for i in range(50)]
+    tickers_param = ",".join(tickers)
+
+    batch_calls = {"score": 0, "indicator": 0}
+
+    def fake_scores(t_list):
+        batch_calls["score"] += 1
+        return {
+            t: {
+                "total_score": 70.0, "trend_score": 25.0, "momentum_score": 25.0,
+                "volatility_score": 20.0, "last_price": 100.0, "change_percent": 0.5,
+                "ai_probability": 0.6, "updated_at": "2026-03-17", "model_version": "v4.1",
+            }
+            for t in t_list
+        }
+
+    def fake_indicators(t_list):
+        batch_calls["indicator"] += 1
+        return {
+            t: {"rsi": 50.0, "macd": 0.5, "macd_signal": 0.3, "rel_vol": 1.0,
+                "is_squeeze": False, "kd_cross_flag": False}
+            for t in t_list
+        }
+
+    monkeypatch.setattr(
+        stock_route.v4_meta_service.score_repo, "load_latest_scores_for_tickers", fake_scores
+    )
+    monkeypatch.setattr(
+        stock_route.v4_meta_service.indicator_repo, "load_for_tickers", fake_indicators
+    )
+    monkeypatch.setattr(stock_route.v4_meta_service.stock_repo, "get_stock_name", lambda _t: "TestCo")
+
+    t0 = time.perf_counter()
+    resp = client.get(f"/api/v4/meta?tickers={tickers_param}")
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert len(data) == 50, f"Expected 50 entries, got {len(data)}"
+
+    # Proves O(1) batch DB access — not 50 individual round-trips
+    assert batch_calls["score"] == 1, \
+        f"Expected 1 batch score call, got {batch_calls['score']} (sequential per-ticker calls detected)"
+    assert batch_calls["indicator"] == 1, \
+        f"Expected 1 batch indicator call, got {batch_calls['indicator']} (sequential per-ticker calls detected)"
+
+    # With mocked repos the overhead is pure Python/FastAPI — must be well under 500ms
+    assert elapsed_ms < 500, f"50-ticker meta took {elapsed_ms:.1f}ms; must be < 500ms"

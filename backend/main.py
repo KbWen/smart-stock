@@ -43,12 +43,29 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
+# CORS allowed origins: configure via env var CORS_ORIGINS (comma-separated).
+# Wildcard ("*") + allow_credentials=True is intentionally avoided — browsers
+# reject this combination and it is an OWASP A05 Security Misconfiguration.
+def _get_allowed_origins() -> list[str]:
+    env_val = os.environ.get("CORS_ORIGINS", "").strip()
+    if env_val:
+        return [o.strip() for o in env_val.split(",") if o.strip()]
+    return [
+        "http://localhost:5174",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_get_allowed_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept", "Authorization"],
 )
 
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")

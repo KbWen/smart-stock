@@ -20,7 +20,7 @@ class V4StockDetailService:
         indicator_repo: Optional[IndicatorRepository] = None,
         stock_repo: Optional[StockRepository] = None,
         system_repo: Optional[SystemRepository] = None,
-        cache_ttl_seconds: int = 60,
+        cache_ttl_seconds: int = 300,  # 5 min: reduces redundant DB reads for repeat ticker lookups
     ) -> None:
         self.score_repo = score_repo or ScoreRepository()
         self.indicator_repo = indicator_repo or IndicatorRepository()

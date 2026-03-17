@@ -10,12 +10,12 @@ Establish a robust testing foundation for the Frontend V4 codebase to ensure com
 
 ## 2. Acceptance Criteria (AC)
 
-- [ ] **Unit Testing**: Configure `Vitest` and `React Testing Library`.
-- [ ] **Component Verification**: At least one core component (e.g., `CandidateRow` or `CandidateTable`) must have unit tests covering rendering and signal logic.
-- [ ] **E2E Testing**: Configure `Playwright` for cross-browser testing.
-- [ ] **Data Mocking**: Implement a standard pattern for mocking API calls in tests (using `msw` or internal mocks).
-- [ ] **CI Readiness**: Add `test:unit` and `test:e2e` scripts to `package.json`.
-- [ ] **Coverage Reporting**: Generate a visual coverage report demonstrating > 40% initial coverage for V4 components.
+- [x] **Unit Testing**: Configure `Vitest` and `React Testing Library`. _(vite.config.ts test block + jsdom env + setupTests.ts)_
+- [x] **Component Verification**: At least one core component (e.g., `CandidateRow` or `CandidateTable`) must have unit tests covering rendering and signal logic. _(CandidateRow×3, StatCard×5, MarketStatusHeader×6, StockList×5 tests)_
+- [x] **E2E Testing**: Configure `Playwright` for cross-browser testing. _(playwright.config.ts + e2e/dashboard.spec.ts with route mocking + perf assertions)_
+- [x] **Data Mocking**: Implement a standard pattern for mocking API calls in tests (using `msw` or internal mocks). _(vi.spyOn(global,'fetch') in apiClient.test.ts; vi.mock useCachedApi pattern in hooks/__tests__ and components/__tests__)_
+- [x] **CI Readiness**: Add `test:unit` and `test:e2e` scripts to `package.json`. _(both scripts present in package.json)_
+- [ ] **Coverage Reporting**: Generate a visual coverage report demonstrating > 40% initial coverage for V4 components. _(pending: run `npm run test:coverage`; estimated ~35-45% with current 6 test files)_
 
 ## 3. Non-goals
 
