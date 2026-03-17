@@ -16,14 +16,14 @@ This refactor must preserve current API behavior for existing v4 frontend consum
 
 ## 2. Acceptance Criteria (AC)
 
-- [ ] **Layer split exists**: New modules are introduced under `backend/services/` and `backend/repositories/`, and route handlers in `backend/routes/stock.py` become thin wrappers (REQ/RES only).
-- [ ] **No direct DB in routes**: Route handlers do not call `get_db_connection`, raw SQL, or persistence helpers directly.
-- [ ] **No scoring/business computation in routes**: Route handlers do not run indicator/score/AI orchestration logic directly.
-- [ ] **Stable v4 API contracts**: `GET /api/v4/sniper/candidates`, `GET /api/v4/stock/{ticker}`, and `GET /api/v4/meta` return backward-compatible JSON structures (field names/types preserved).
-- [ ] **Ticker-key compatibility kept**: `/api/v4/meta` continues to return `data` keyed by the requested ticker token (not only normalized ticker), preserving frontend key mapping behavior.
-- [ ] **Error semantics preserved**: Existing HTTP status behavior for validation/not-found/server errors remains equivalent.
-- [ ] **Cache behavior preserved**: Existing API cache semantics (TTL/sync-epoch invalidation) remain functionally equivalent after extraction.
-- [ ] **Regression coverage**: API-level tests verify response schema parity for v4 endpoints before/after modularization.
+- [x] **Layer split exists**: New modules are introduced under `backend/services/` and `backend/repositories/`, and route handlers in `backend/routes/stock.py` become thin wrappers (REQ/RES only). _(done: services/v4_*_service.py + repositories/*)_
+- [x] **No direct DB in routes**: Route handlers do not call `get_db_connection`, raw SQL, or persistence helpers directly. _(done: routes delegate to service layer)_
+- [x] **No scoring/business computation in routes**: Route handlers do not run indicator/score/AI orchestration logic directly. _(done: computation in services/core)_
+- [x] **Stable v4 API contracts**: `GET /api/v4/sniper/candidates`, `GET /api/v4/stock/{ticker}`, and `GET /api/v4/meta` return backward-compatible JSON structures (field names/types preserved). _(done: confirmed by frontend working)_
+- [x] **Ticker-key compatibility kept**: `/api/v4/meta` continues to return `data` keyed by the requested ticker token. _(done: v4_meta_service preserves key format)_
+- [x] **Error semantics preserved**: Existing HTTP status behavior for validation/not-found/server errors remains equivalent. _(done: HTTPException pattern preserved)_
+- [x] **Cache behavior preserved**: Existing API cache semantics (TTL/sync-epoch invalidation) remain functionally equivalent after extraction. _(done: cache logic in service constructors)_
+- [x] **Regression coverage**: API-level tests verify response schema parity for v4 endpoints before/after modularization. _(done: test_v4_candidates_schema_parity, test_v4_stock_detail_schema_parity, test_v4_meta_schema_parity added 2026-03-17 — all 3 v4 endpoints verified field names + types)_
 
 ## 3. Non-goals
 
