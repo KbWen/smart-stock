@@ -49,3 +49,7 @@ docs/AGENT_PHILOSOPHY.md
 docs/TESTING_PROTOCOL.md
 docs/CODEX_PLATFORM_GUIDE.md
 docs/PROJECT_EXAMPLES.md
+
+# AI Work Logs (per-branch session logs, local only)
+docs/context/work/*.md
+docs/context/work/**/*.md
