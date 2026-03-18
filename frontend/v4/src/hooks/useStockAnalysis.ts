@@ -43,7 +43,7 @@ export const useStockAnalysis = (ticker: string | null) => {
             return { text: 'STRONG BUY', color: 'bg-sniper-green/10 text-sniper-green border-sniper-green/20' }
         }
         if (data.ai_probability >= 50) {
-            return { text: 'HOLD', color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' }
+            return { text: 'BUY', color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' }
         }
         return { text: 'HIGH RISK', color: 'bg-red-500/10 text-red-500 border-red-500/20' }
     }, [data.ai_probability])

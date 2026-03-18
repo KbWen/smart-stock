@@ -12,7 +12,7 @@ import shutil
 import json
 import glob
 from datetime import datetime
-from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS
+from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS
 
 def prepare_features(df, is_training=True):
     """
@@ -357,11 +357,28 @@ def train_and_save(all_dfs):
     history.append(history_entry)
     with open(history_path, 'w') as f: json.dump(history[-50:], f, indent=2)
     
-    # Rotation
-    pattern = os.path.join(base_dir, f"{name_part}_*{ext_part}")
-    files = sorted(glob.glob(pattern))
-    if len(files) > 5:
-        for f in files[:-5]:
-            try: os.remove(f)
-            except: pass
+    # Rotation: keep MAX_SAVED_MODELS best-performing models by profit_factor (AC1, AC2, AC4)
+    def _pf_sort_key(h):
+        pf = h.get('backtest_30d', {}).get('profit_factor')
+        return float(pf) if pf is not None else -1.0  # AC2: None ranked last
+
+    keep_timestamps = {h['timestamp'] for h in sorted(history, key=_pf_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
+    keep_timestamps.add(timestamp)  # AC4: always protect freshly-trained model
+
+    try:
+        active_realpath = os.path.realpath(MODEL_PATH)
+    except Exception:
+        active_realpath = None
+
+    for fpath in glob.glob(os.path.join(base_dir, f"{name_part}_*{ext_part}")):
+        ts_part = os.path.basename(fpath)[len(name_part) + 1: -len(ext_part)]
+        if ts_part in keep_timestamps:
+            continue
+        try:
+            if active_realpath and os.path.realpath(fpath) == active_realpath:
+                continue  # AC4: never delete the active model file
+            os.remove(fpath)
+        except Exception:
+            pass
+
     print(f"Model trained and saved as {version_tag}")

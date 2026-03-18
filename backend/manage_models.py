@@ -2,7 +2,7 @@
 import sys, os, json, shutil, argparse, glob
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from core.ai.common import MODEL_PATH
+from core.ai.common import MODEL_PATH, MAX_SAVED_MODELS
 
 HISTORY_PATH = os.path.join(os.path.dirname(MODEL_PATH), "models_history.json")
 
@@ -89,15 +89,19 @@ def cmd_delete(version):
         save_history(new_history)
         print(f"🧹 Removed {version} from models_history.json")
 
-def cmd_prune(keep=5):
+def cmd_prune(keep=MAX_SAVED_MODELS):
     """Keep top N models by profit factor, delete the rest."""
     history = load_history()
     if len(history) <= keep:
         print(f"Only {len(history)} models exist, nothing to prune (keep={keep}).")
         return
-    # Sort by profit factor (descending), keep top N
-    # Models without a valid profit factor will be considered 0
-    scored = sorted(history, key=lambda h: float(h.get('backtest_30d', {}).get('profit_factor') or 0), reverse=True)
+    # Sort by profit factor (descending), keep top N.
+    # AC2: None profit_factor (backtest failed) ranks below any real score, including 0.0.
+    def _pf_key(h):
+        pf = h.get('backtest_30d', {}).get('profit_factor')
+        return float(pf) if pf is not None else -1.0
+
+    scored = sorted(history, key=_pf_key, reverse=True)
     to_keep = set(h['version'] for h in scored[:keep])
     to_delete = [h for h in history if h['version'] not in to_keep]
     for h in to_delete:
@@ -113,7 +117,7 @@ if __name__ == "__main__":
     dl = sub.add_parser("delete", help="Delete a model version")
     dl.add_argument("version", help="Model version tag")
     pr = sub.add_parser("prune", help="Delete low-scoring models")
-    pr.add_argument("--keep", type=int, default=5, help="Number of models to keep")
+    pr.add_argument("--keep", type=int, default=MAX_SAVED_MODELS, help="Number of models to keep")
 
     args = parser.parse_args()
     if args.command == "list": cmd_list()

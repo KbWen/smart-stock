@@ -4,7 +4,6 @@ from backend.repositories.indicator_repo import IndicatorRepository
 from backend.repositories.score_repo import ScoreRepository
 from backend.repositories.stock_repo import StockRepository
 from core.ai import get_model_version
-from core.data import standardize_ticker
 from core.utils import safe_float
 
 
@@ -31,21 +30,25 @@ class V4MetaService:
             return value.strip().lower() in {"1", "true", "yes", "y"}
         return False
 
-    def get_meta(self, tickers: str) -> dict[str, dict[str, dict[str, Any]]]:
-        raw = [item.strip() for item in tickers.split(",")]
-        requested_pairs: list[tuple[str, str]] = []
-        normalized: list[str] = []
-        seen: set[str] = set()
+    def get_meta(
+        self,
+        requested_pairs: list[tuple[str, str]],
+    ) -> dict[str, dict[str, dict[str, Any]]]:
+        """
+        Build enriched meta payload for a list of tickers.
 
-        for ticker in raw:
-            if not ticker:
-                continue
-            normalized_ticker = standardize_ticker(ticker.upper())
-            requested_pairs.append((ticker, normalized_ticker))
-            if normalized_ticker in seen:
-                continue
-            seen.add(normalized_ticker)
-            normalized.append(normalized_ticker)
+        Args:
+            requested_pairs: Pre-normalized list of (original_ticker, normalized_ticker)
+                             tuples produced by the route handler. Caller is responsible
+                             for normalization and deduplication (B1 — single-pass).
+        """
+        # Unique normalized tickers (preserve insertion order for deterministic queries)
+        seen: set[str] = set()
+        normalized: list[str] = []
+        for _, norm in requested_pairs:
+            if norm not in seen:
+                seen.add(norm)
+                normalized.append(norm)
 
         indicators_map = self.indicator_repo.load_for_tickers(normalized)
         latest_scores = self.score_repo.load_latest_scores_for_tickers(normalized)
@@ -77,7 +80,11 @@ class V4MetaService:
                     "rel_vol": rel_vol,
                 },
                 "updated_at": score.get("updated_at") or indicators.get("updated_at"),
-                "model_version": score.get("model_version") or indicators.get("model_version") or get_model_version(),
+                "model_version": (
+                    score.get("model_version")
+                    or indicators.get("model_version")
+                    or get_model_version()
+                ),
                 "name": self.stock_repo.get_stock_name(normalized_ticker),
             }
 
