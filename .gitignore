@@ -27,17 +27,16 @@ Thumbs.db
 # Logs
 logs/
 
-# Private Template Files (AI Brain Infrastructure)
-.agent/
-.agents/
+# Private Template Files (AI Brain Infrastructure — only non-committed items)
 .antigravity/
 .codex/
 codex/
-AGENTS.md
 MODEL_GUIDE.md
-deploy_brain.sh
 .cursorrules
 SYSTEM_INSTRUCTION.txt
+
+# AgentCortex bootstrap cache (not committed)
+.agentcortex-src/
 
 # Local Databases and Debug Scripts
 stocks.db
