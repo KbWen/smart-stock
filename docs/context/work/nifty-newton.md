@@ -205,10 +205,41 @@ Created: 2026-03-17
 
 ---
 
-## Resume
-State: IMPLEMENTING (Session 3 complete) → next: REVIEWED → TESTED → SHIPPED
+## Session 4 (2026-03-18) — PR #2 Review + Test
 
-Remaining open: C2 (frontend coverage report) before /ship.
+### Scope: `fix/agentcortex-gitignore-and-readme` → `master`
+4 commits: README restore, gitignore fix, AgentCortex v5.2.0 correct install (128 files)
+
+### /review Verdict: ✅ READY
+- 0 CRITICAL / 0 HIGH / 0 MEDIUM security findings
+- All 128 changed files in scope (framework install + README/gitignore fixes)
+- No application code (Python/TS) changed → zero compatibility risk
+
+### /test Results
+
+**Test Files**: `tests/test_backend/` (56 tests)
+
+**Backend (pytest)**:
+```
+56 passed in 3.91s
+```
+Command: `python -m pytest tests/test_backend/ -v`
+
+**Frontend (vitest)**:
+- PR #2 changes **zero frontend files** — confirmed via `git diff origin/master...HEAD --name-only | grep frontend/` → empty
+- Pre-existing: 5 failures in `StockList.test.tsx` (present on master before this PR; out of scope)
+- 28 frontend tests pass, 5 pre-existing failures (known C2 backlog)
+
+### Test Verdict: ✅ PASS (in-scope tests)
+
+Pre-existing `StockList.test.tsx` failures are tracked as C2 backlog (frontend-testing AC#6), not introduced by this PR.
+
+---
+
+## Resume
+State: REVIEWED + TESTED → ready for merge (PR #2)
+
+Remaining open: C2 (frontend StockList mock fix + coverage >40%) — separate task, next session.
 
 ## Lessons
 - [Format Safety]: Do not copy line numbers from Read tool output into edits
