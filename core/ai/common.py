@@ -21,6 +21,9 @@ MIN_PREDICT_ROWS = config.MIN_PREDICT_ROWS  # Minimum rows for prediction (more 
 # Backtest Filtering
 BACKTEST_AI_THRESHOLD = config.BACKTEST_AI_THRESHOLD
 
+# Model Lifecycle
+MAX_SAVED_MODELS = 5  # Max versioned .pkl files retained; shared by trainer.py rotation and manage_models.py prune
+
 # ===== FEATURE ENGINEERING =====
 FEATURE_COLS = [
     'rsi', 'macd_rel', 'macd_hist_rel',

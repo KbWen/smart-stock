@@ -4,29 +4,67 @@ import joblib
 import os
 import json
 import logging
+import threading
+from collections import OrderedDict
 from typing import Optional
 from core.ai.common import FEATURE_COLS, MODEL_PATH
 
-# Global variable to track the currently loaded model version
-CURRENT_MODEL_VERSION = "unknown"
-_model_cache = {}
+# ---------------------------------------------------------------------------
+# Thread-safe model version state (B2)
+# ---------------------------------------------------------------------------
+_version_lock = threading.Lock()
+_current_model_version = "unknown"
+
+# LRU model cache capped at _MAX_CACHED_MODELS entries (B3)
+_cache_lock = threading.Lock()
+_model_cache: OrderedDict = OrderedDict()
+_MAX_CACHED_MODELS = 3
+
 logger = logging.getLogger(__name__)
 
-def get_model_version():
+
+def _set_model_version(version: str) -> None:
+    """Thread-safe write to current model version."""
+    global _current_model_version
+    with _version_lock:
+        _current_model_version = version
+
+
+def _cache_get(path: str):
+    """Return cached model data and bump to MRU position, or None if absent."""
+    with _cache_lock:
+        if path in _model_cache:
+            _model_cache.move_to_end(path)
+            return _model_cache[path]
+    return None
+
+
+def _cache_put(path: str, model_data) -> None:
+    """Insert model data into LRU cache, evicting oldest entry when full."""
+    with _cache_lock:
+        _model_cache[path] = model_data
+        _model_cache.move_to_end(path)
+        while len(_model_cache) > _MAX_CACHED_MODELS:
+            _model_cache.popitem(last=False)
+
+
+def get_model_version() -> str:
     """Returns the current model version string, loading it if necessary."""
-    global CURRENT_MODEL_VERSION
-    if CURRENT_MODEL_VERSION == "unknown":
-        if os.path.exists(MODEL_PATH):
-            try:
-                import joblib
-                model_data_all = joblib.load(MODEL_PATH)
-                if isinstance(model_data_all, dict) and 'version' in model_data_all:
-                    CURRENT_MODEL_VERSION = model_data_all['version']
-                else:
-                    CURRENT_MODEL_VERSION = "legacy"
-            except Exception:
-                pass
-    return CURRENT_MODEL_VERSION
+    with _version_lock:
+        if _current_model_version != "unknown":
+            return _current_model_version
+    # Load outside the lock — joblib.load is expensive
+    if os.path.exists(MODEL_PATH):
+        try:
+            model_data_all = joblib.load(MODEL_PATH)
+            if isinstance(model_data_all, dict) and 'version' in model_data_all:
+                _set_model_version(model_data_all['version'])
+            else:
+                _set_model_version("legacy")
+        except Exception:
+            pass
+    with _version_lock:
+        return _current_model_version
 
 
 def list_available_models():
@@ -36,16 +74,16 @@ def list_available_models():
         try:
             with open(history_path, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return []
     return []
+
 
 def predict_prob(df, version: Optional[str] = None):
     """
     Predicts buy probability. Supports specific version loading with caching.
+    Thread-safe: model version is updated via _set_model_version (lock-protected).
     """
-    global CURRENT_MODEL_VERSION
-    
     # 1. Determine Path
     target_path = MODEL_PATH
     if version and version != "latest":
@@ -53,76 +91,73 @@ def predict_prob(df, version: Optional[str] = None):
         ts = version.split('.')[-1] if '.' in version else version
         base_dir = os.path.dirname(MODEL_PATH)
         name_part = os.path.splitext(os.path.basename(MODEL_PATH))[0]
-        
-        # Consistent filename: model_sniper_20260213_2240.pkl
+
         versioned_filename = f"{name_part}_{ts}.pkl"
         target_path = os.path.join(base_dir, versioned_filename)
-        
+
         if not os.path.exists(target_path):
             logger.warning("Version %s not found at %s. Falling back to default.", version, target_path)
             target_path = MODEL_PATH
 
-    # 2. Load Model (with Cache)
-    if target_path in _model_cache:
-        model_data_all = _model_cache[target_path]
-    else:
+    # 2. Load Model (with LRU Cache)
+    model_data_all = _cache_get(target_path)
+    if model_data_all is None:
         if not os.path.exists(target_path):
             return None
         try:
             model_data_all = joblib.load(target_path)
-            _model_cache[target_path] = model_data_all
+            _cache_put(target_path, model_data_all)
         except Exception:
             return None
 
-    # 3. Extract Model components
+    # 3. Extract Model components + update version (thread-safe)
     if isinstance(model_data_all, dict) and 'ensemble' in model_data_all:
-        CURRENT_MODEL_VERSION = model_data_all.get('version', 'unknown')
+        _set_model_version(model_data_all.get('version', 'unknown'))
         model_data = model_data_all['ensemble']
     else:
-        CURRENT_MODEL_VERSION = "legacy"
+        _set_model_version("legacy")
         model_data = model_data_all
-    
+
     if df.empty or len(df) < 60:
         return None
-    
+
     # --- Feature Extraction ---
     try:
         from core.ai.trainer import prepare_features
         X_df, _ = prepare_features(df, is_training=False)
-        
+
         if X_df.empty:
             return None
-            
+
         # Take only the latest row for prediction
-        X_single = X_df.iloc[[-1]] 
+        X_single = X_df.iloc[[-1]]
         X_single = X_single.replace([np.inf, -np.inf], np.nan).fillna(0)
-        
+
         if isinstance(model_data, dict):
             # Ensemble Voting
             probs = {}
             total_prob = 0
             count = 0
             for name, clf in model_data.items():
-                # --- Robust Feature Mapping ---
-                # Use model's own feature requirements if available (sklearn 1.0+)
+                # Robust Feature Mapping (sklearn 1.0+ feature_names_in_)
                 if hasattr(clf, "feature_names_in_"):
                     X_clf = X_single.reindex(columns=clf.feature_names_in_, fill_value=0)
                 else:
                     X_clf = X_single
-                
+
                 p_array = clf.predict_proba(X_clf)[0]
-                
+
                 # 3-Class System Breakdown
                 sb_prob = float(p_array[2]) if len(p_array) > 2 else 0.0
-                b_prob = float(p_array[1]) if len(p_array) > 1 else 0.0
-                h_prob = float(p_array[0]) if len(p_array) > 0 else 0.0
-                
+                b_prob  = float(p_array[1]) if len(p_array) > 1 else 0.0
+                h_prob  = float(p_array[0]) if len(p_array) > 0 else 0.0
+
                 win_p = sb_prob + b_prob
                 probs[name] = {
                     "win_prob": win_p,
                     "strong_buy_prob": sb_prob,
                     "buy_prob": b_prob,
-                    "hold_prob": h_prob
+                    "hold_prob": h_prob,
                 }
                 total_prob += win_p
                 count += 1
@@ -131,19 +166,19 @@ def predict_prob(df, version: Optional[str] = None):
             # Single model (Legacy support)
             clf = model_data
             if hasattr(clf, "feature_names_in_"):
-                 X_clf = X_single.reindex(columns=clf.feature_names_in_, fill_value=0)
+                X_clf = X_single.reindex(columns=clf.feature_names_in_, fill_value=0)
             else:
-                 X_clf = X_single
-            p_vec = clf.predict_proba(X_clf)[0]
-            win_p = float(np.sum(p_vec[1:])) if len(p_vec) > 1 else 0.0
+                X_clf = X_single
+            p_vec  = clf.predict_proba(X_clf)[0]
+            win_p  = float(np.sum(p_vec[1:])) if len(p_vec) > 1 else 0.0
             sb_prob = float(p_vec[2]) if len(p_vec) > 2 else 0.0
-            b_prob = float(p_vec[1]) if len(p_vec) > 1 else 0.0
-            h_prob = float(p_vec[0]) if len(p_vec) > 0 else 0.0
+            b_prob  = float(p_vec[1]) if len(p_vec) > 1 else 0.0
+            h_prob  = float(p_vec[0]) if len(p_vec) > 0 else 0.0
             return {"prob": win_p, "details": {"legacy": {
                 "win_prob": win_p,
                 "strong_buy_prob": sb_prob,
                 "buy_prob": b_prob,
-                "hold_prob": h_prob
+                "hold_prob": h_prob,
             }}}
     except Exception as e:
         import traceback

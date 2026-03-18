@@ -183,4 +183,5 @@ def get_v4_meta(tickers: str = Query(..., min_length=1, description="Comma-separ
         raise HTTPException(status_code=422, detail="At least one ticker is required")
     if len(normalized) > 100:
         raise HTTPException(status_code=422, detail="Maximum 100 tickers per request")
-    return v4_meta_service.get_meta(tickers=tickers)
+    # Pass pre-normalized pairs — service no longer re-normalizes (B1: single-pass)
+    return v4_meta_service.get_meta(requested_pairs=requested_pairs)

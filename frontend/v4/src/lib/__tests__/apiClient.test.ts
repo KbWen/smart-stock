@@ -17,7 +17,7 @@ import {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const mockFetch = (payload: unknown, status = 200) => {
-    return vi.spyOn(global, 'fetch').mockResolvedValue({
+    return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: status >= 200 && status < 300,
         status,
         json: async () => payload,

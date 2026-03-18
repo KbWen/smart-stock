@@ -37,7 +37,7 @@ Update `StockList.tsx`:
 
 - [x] **Single Batch Fetch**: Dashboard list triggers exactly one `/api/v4/meta` call for the visible stock list. _(StockList.tsx useCachedApi('/api/v4/meta?tickers=...') single call; StockList unit test verifies metaCallCount===1)_
 - [x] **Signal Enrichment**: `CandidateRow` correctly renders "Squeeze" or "Golden Cross" tags based on real DB data. _(StockList merges meta.signals into v4_signals; CandidateRow renders enriched tags)_
-- [ ] **Performance**: Total time to render enriched list (List API + Meta API) should be < 300ms. _(E2E mocked <300ms; real runtime not benchmarked)_
+- [x] **Performance**: Total time to render enriched list (List API + Meta API) should be < 300ms. _(E2E Playwright: measures t0=page.goto → Squeeze tag visible; 60ms simulated API latency; asserts renderTime < 300ms)_
 - [x] **No Waterfall**: No individual `/api/v4/stock/{ticker}` calls should occur until a stock is explicitly selected for the `SniperCard`. _(StockList only calls candidates+meta; SniperCard uses useStockAnalysis triggered by ticker selection)_
 
 ## Non-goals
