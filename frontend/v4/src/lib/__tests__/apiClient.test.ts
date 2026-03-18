@@ -7,7 +7,7 @@
  * Pattern: Use vi.spyOn(global, 'fetch') to intercept requests, then restore
  * with vi.restoreAllMocks() in afterEach.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     fetchJsonWithCache,
     getCachedData,

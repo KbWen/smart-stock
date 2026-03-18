@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import CandidateRow from '../dashboard/CandidateRow'
+import type { StockCandidate } from '../../hooks/useDashboardData'
 
-const createStock = (overrides: Record<string, unknown> = {}) => ({
+const createStock = (overrides: Partial<StockCandidate> = {}): StockCandidate => ({
     ticker: '2330.TW',
     name: 'TSMC',
     price: 1000,
@@ -34,7 +35,7 @@ describe('CandidateRow', () => {
                         macd_diff: 1.2,
                         rel_vol: 1.1,
                     },
-                }) as any}
+                })}
                 isSelected={false}
                 onSelect={() => {}}
                 rowHeight={50}
@@ -58,7 +59,7 @@ describe('CandidateRow', () => {
                         macd_diff: 0.8,
                         rel_vol: 1.0,
                     },
-                }) as any}
+                })}
                 isSelected={false}
                 onSelect={() => {}}
                 rowHeight={50}
@@ -81,7 +82,7 @@ describe('CandidateRow', () => {
                         macd_diff: 1.7,
                         rel_vol: 1.3,
                     },
-                }) as any}
+                })}
                 isSelected={false}
                 onSelect={() => {}}
                 rowHeight={50}
