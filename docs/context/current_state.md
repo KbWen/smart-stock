@@ -16,7 +16,7 @@
   - `[api-perf] docs/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
   - `[backend] docs/specs/backend-refactor-modular.md [Frozen] — ✅ ALL 8 ACs done (schema parity tests added 2026-03-17)`
   - `[frontend-api] docs/specs/frontend-api-opt.md [Frozen] — 3/4 ACs ✅; AC#3 E2E <300ms mocked only`
-  - `[frontend-test] docs/specs/frontend-testing.md [Frozen] — 5/6 ACs ✅; AC#6 coverage % needs runtime verify`
+  - `[frontend-test] docs/specs/frontend-testing.md [Frozen] — ✅ ALL 6 ACs done (82.12% coverage confirmed 2026-03-18)`
   - `[cache] docs/specs/smart-stock-cache.md [Frozen] — ✅ ALL 5 ACs done (GlassCard+Button extracted 2026-03-17)`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:

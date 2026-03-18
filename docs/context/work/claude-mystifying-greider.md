@@ -74,6 +74,20 @@ Created: 2026-03-18
 
 ---
 
+## Session 3 (2026-03-18) — ESLint Cleanup + Spec AC#6
+
+| ID | File | Fix |
+|----|------|-----|
+| L1 | `CandidateRow.test.tsx` | Import `StockCandidate`, type `createStock()` as `Partial<StockCandidate>` → `StockCandidate`; remove 3 `as any` casts |
+| L2 | `apiClient.test.ts` | Remove unused `beforeEach` import |
+| L3 | `docs/specs/frontend-testing.md` | Mark AC#6 ✅ (82.12% Stmts confirmed 2026-03-18) |
+
+### Evidence
+- Tests: **33/33 passed**
+- Pushed: `85c17aa` → origin/master
+
+---
+
 ## Drift Log
 
 *(none)*
