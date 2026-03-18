@@ -5,18 +5,19 @@
  *       AC#2 (signal enrichment from bulk meta)
  * Spec: docs/specs/frontend-testing.md — AC#4 (Data Mocking standard)
  *
- * Mock strategy: vi.mock useCachedApi; return controlled fixtures per test.
+ * Mock strategy: vi.hoisted + vi.mock useCachedApi; return controlled fixtures per test.
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import StockList from '../StockList'
 
 // ─── Mock useCachedApi ───────────────────────────────────────────────────────
+// vi.hoisted ensures mockUseCachedApi is initialized before vi.mock() factory runs.
 
-const mockUseCachedApi = vi.fn()
+const mockUseCachedApi = vi.hoisted(() => vi.fn())
 
 vi.mock('../../hooks/useCachedApi', () => ({
-    useCachedApi: (...args: unknown[]) => mockUseCachedApi(...args),
+    useCachedApi: mockUseCachedApi,
 }))
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -81,8 +82,10 @@ const setupMock = ({
     loadingCandidates?: boolean
     loadingMeta?: boolean
 } = {}) => {
-    mockUseCachedApi.mockImplementation((endpoint: string) => {
-        if (endpoint.includes('/api/v4/sniper/candidates')) {
+    mockUseCachedApi.mockImplementation((endpoint: unknown) => {
+        // Guard: vitest/runner may invoke the mock with undefined during act() flush
+        const ep = typeof endpoint === 'string' ? endpoint : ''
+        if (ep.includes('/api/v4/sniper/candidates')) {
             return {
                 data: candidates,
                 loading: loadingCandidates,
@@ -91,7 +94,7 @@ const setupMock = ({
                 refetch: vi.fn(),
             }
         }
-        // bulk meta
+        // bulk meta (or empty-string / undefined call)
         return {
             data: meta,
             loading: loadingMeta,
@@ -117,10 +120,9 @@ describe('StockList — rendering', () => {
     })
 
     it('shows loading state when candidates are loading', () => {
-        setupMock({ loadingCandidates: true })
-        // Override isPlaceholder to true
-        mockUseCachedApi.mockImplementation((endpoint: string) => {
-            if (endpoint.includes('/api/v4/sniper/candidates')) {
+        mockUseCachedApi.mockImplementation((endpoint: unknown) => {
+            const ep = typeof endpoint === 'string' ? endpoint : ''
+            if (ep.includes('/api/v4/sniper/candidates')) {
                 return { data: [], loading: true, error: null, isPlaceholder: true, refetch: vi.fn() }
             }
             return { data: { data: {} }, loading: false, error: null, isPlaceholder: false, refetch: vi.fn() }
@@ -130,21 +132,7 @@ describe('StockList — rendering', () => {
     })
 
     it('shows empty state when no candidates', () => {
-        mockUseCachedApi.mockImplementation(() => ({
-            data: endpoint?.includes?.('/api/v4/sniper') ? [] : { data: {} },
-            loading: false,
-            error: null,
-            isPlaceholder: false,
-            refetch: vi.fn(),
-        }))
-        // Both return empty for simplicity
-        mockUseCachedApi.mockReturnValue({
-            data: [],
-            loading: false,
-            error: null,
-            isPlaceholder: false,
-            refetch: vi.fn(),
-        })
+        setupMock({ candidates: [] })
         render(<StockList onSelect={() => {}} selectedTicker={null} />)
         expect(screen.getByText(/No candidates found/i)).toBeInTheDocument()
     })
