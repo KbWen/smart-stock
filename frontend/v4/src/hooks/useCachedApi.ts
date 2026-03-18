@@ -36,7 +36,6 @@ export function useCachedApi<T>(
     const [isPlaceholder, setIsPlaceholder] = useState<boolean>(true)
     const requestIdRef = useRef(0)
     const isPlaceholderRef = useRef(true)
-    const CACHE_HIT_THRESHOLD_MS = 20
 
     useEffect(() => {
         isPlaceholderRef.current = isPlaceholder
@@ -51,20 +50,10 @@ export function useCachedApi<T>(
         setLoading(true)
         setError(null)
         try {
-            const requestStartedAt = Date.now()
             const response = await fetchJsonWithCache<T>(endpoint, ttlMs, throttleMs, signal)
             if (requestId !== requestIdRef.current || signal?.aborted) return
             setData(response)
             setIsPlaceholder(false)
-
-            const isLikelyCacheHit = Date.now() - requestStartedAt <= CACHE_HIT_THRESHOLD_MS
-            if (!isLikelyCacheHit) {
-                return
-            }
-
-            const refreshed = await fetchJsonWithCache<T>(endpoint, 0, 0, signal)
-            if (requestId !== requestIdRef.current || signal?.aborted) return
-            setData(refreshed)
         } catch (err) {
             if (signal?.aborted) {
                 return

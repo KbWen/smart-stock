@@ -69,9 +69,10 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
     })
 
     const tickersStr = useMemo(() => {
-        if (isListPlaceholder) return ''
+        // Use whatever tickers are available (mock or real) so bulk-meta fetch
+        // starts immediately instead of waiting for candidates to resolve first.
         return rawStocks.map(s => s.ticker).join(',')
-    }, [rawStocks, isListPlaceholder])
+    }, [rawStocks])
 
     // 2. Fetch bulk meta indicators for those tickers
     const { data: bulkMeta, loading: loadingMeta } = useCachedApi<BulkMetaResponse>(

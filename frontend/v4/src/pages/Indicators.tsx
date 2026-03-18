@@ -35,7 +35,8 @@ const Indicators: React.FC = () => {
     const [filter, setFilter] = useState<'ALL' | 'HIGH SCORE' | 'HIGH AI'>('ALL')
 
     useEffect(() => {
-        fetch('/api/v4/sniper/candidates?limit=100')
+        const controller = new AbortController()
+        fetch('/api/v4/sniper/candidates?limit=100', { signal: controller.signal })
             .then(res => {
                 if (!res.ok) throw new Error('API Request Failed')
                 return res.json()
@@ -57,6 +58,7 @@ const Indicators: React.FC = () => {
                 setLoading(false)
             })
             .catch(err => {
+                if ((err as Error).name === 'AbortError') return
                 console.error("Scanner fetch error:", err)
                 const mockFormatted = MOCK_CANDIDATES.map(s => ({
                     ...s,
@@ -66,6 +68,7 @@ const Indicators: React.FC = () => {
                 setStocks(mockFormatted)
                 setLoading(false)
             })
+        return () => controller.abort()
     }, [])
 
     const filteredStocks = stocks

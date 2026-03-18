@@ -56,6 +56,24 @@ Created: 2026-03-18
 
 ---
 
+---
+
+## Session 2 (2026-03-18) — Frontend Perf + Sync Hotfixes
+
+### Issues Fixed
+
+| ID | Severity | File | Fix |
+|----|----------|------|-----|
+| P1 | HIGH | `StockList.tsx:71-74` | Remove `isListPlaceholder` guard → meta fetch starts with mock tickers immediately (no waterfall) |
+| P2 | HIGH | `useCachedApi.ts:60-67` | Remove double-fetch on cache-hit (was firing uncached request every time TTL resolved in ≤20ms) |
+| P3 | MED | `Indicators.tsx:37-69` | Add `AbortController` + `AbortError` guard → no memory leak on unmount |
+
+### Evidence
+- TypeScript: clean (0 errors)
+- Tests: **33/33 passed**
+
+---
+
 ## Drift Log
 
 *(none)*
