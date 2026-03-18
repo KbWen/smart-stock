@@ -28,9 +28,6 @@ Thumbs.db
 logs/
 
 # Private Template Files (AI Brain Infrastructure — only non-committed items)
-.antigravity/
-.codex/
-codex/
 MODEL_GUIDE.md
 .cursorrules
 SYSTEM_INSTRUCTION.txt
