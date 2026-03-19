@@ -1,3 +1,5 @@
+import hashlib
+import io
 import numpy as np
 import pandas as pd
 import joblib
@@ -7,20 +9,54 @@ import logging
 import threading
 from collections import OrderedDict
 from typing import Optional
-from core.ai.common import FEATURE_COLS, MODEL_PATH
+from core.ai.common import FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE, validate_version_string
+from core import config as _cfg
 
 # ---------------------------------------------------------------------------
-# Thread-safe model version state (B2)
+# Thread-safe model version state
 # ---------------------------------------------------------------------------
 _version_lock = threading.Lock()
 _current_model_version = "unknown"
 
-# LRU model cache capped at _MAX_CACHED_MODELS entries (B3)
+# LRU model cache capped at _MAX_CACHED_MODELS entries
 _cache_lock = threading.Lock()
 _model_cache: OrderedDict = OrderedDict()
-_MAX_CACHED_MODELS = 3
+_MAX_CACHED_MODELS = MAX_PREDICTION_CACHE_SIZE
 
 logger = logging.getLogger(__name__)
+
+
+def _read_sidecar(path: str) -> Optional[str]:
+    """Read a sidecar file, returning its stripped content or None if absent/unreadable."""
+    try:
+        return open(path, 'r').read().strip()
+    except FileNotFoundError:
+        return None  # no sidecar — legacy model, allow load
+    except Exception as exc:
+        logger.warning("Cannot read sidecar %s: %s", path, exc)
+        return None  # unreadable — allow load
+
+
+def _verify_checksum(path: str, model_bytes: Optional[bytes] = None) -> bool:
+    """Return True if SHA256 sidecar matches the file, or if no sidecar exists (legacy).
+
+    Pass model_bytes to skip re-reading the file (avoids double I/O when HMAC is active).
+    """
+    expected = _read_sidecar(path + '.sha256')
+    if expected is None:
+        return True  # no sidecar — legacy model, allow load
+    try:
+        if model_bytes is None:
+            model_bytes = open(path, 'rb').read()
+        actual = hashlib.sha256(model_bytes).hexdigest()
+    except Exception as exc:
+        logger.warning("Cannot hash model file %s: %s", path, exc)
+        return False
+    if actual != expected:
+        logger.warning("Checksum mismatch for %s — expected %s got %s", path, expected, actual)
+        return False
+    return True
+
 
 
 def _set_model_version(version: str) -> None:
@@ -56,6 +92,8 @@ def get_model_version() -> str:
     # Load outside the lock — joblib.load is expensive
     if os.path.exists(MODEL_PATH):
         try:
+            if not _verify_checksum(MODEL_PATH):
+                return _current_model_version  # checksum mismatch — skip load
             model_data_all = joblib.load(MODEL_PATH)
             if isinstance(model_data_all, dict) and 'version' in model_data_all:
                 _set_model_version(model_data_all['version'])
@@ -87,8 +125,11 @@ def predict_prob(df, version: Optional[str] = None):
     # 1. Determine Path
     target_path = MODEL_PATH
     if version and version != "latest":
-        # Extract timestamp: supports both 'v4.20260213_2240' and '20260213_2240'
-        ts = version.split('.')[-1] if '.' in version else version
+        if not validate_version_string(version):
+            logger.warning("Rejected invalid version string: %r", version)
+            return None
+        # Extract timestamp: supports 'v4.20260213_2240' → '20260213_2240'
+        ts = version.split('.')[-1]
         base_dir = os.path.dirname(MODEL_PATH)
         name_part = os.path.splitext(os.path.basename(MODEL_PATH))[0]
 
@@ -105,6 +146,8 @@ def predict_prob(df, version: Optional[str] = None):
         if not os.path.exists(target_path):
             return None
         try:
+            if not _verify_checksum(target_path):
+                return None  # SHA256 mismatch — refuse to load
             model_data_all = joblib.load(target_path)
             _cache_put(target_path, model_data_all)
         except Exception:

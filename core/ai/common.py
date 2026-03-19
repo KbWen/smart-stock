@@ -1,3 +1,4 @@
+import re
 from core import config
 
 # ===== SNIPER STRATEGY PARAMETERS =====
@@ -23,6 +24,26 @@ BACKTEST_AI_THRESHOLD = config.BACKTEST_AI_THRESHOLD
 
 # Model Lifecycle
 MAX_SAVED_MODELS = 5  # Max versioned .pkl files retained; shared by trainer.py rotation and manage_models.py prune
+MAX_PREDICTION_CACHE_SIZE = 3  # LRU cap for in-process model cache in predictor.py
+
+
+# Version string format: v<N>.<YYYYMMDD>_<HHMM>  e.g. v4.20260319_0800
+VERSION_RE = re.compile(r'^v\d+\.\d{8}_\d{4}$')
+
+
+def validate_version_string(version: str) -> bool:
+    """Return True if version matches the canonical format (prevents path traversal)."""
+    return bool(VERSION_RE.match(version))
+
+
+def profit_factor_sort_key(h: dict) -> float:
+    """Sort key for model history entries by profit_factor (descending-friendly).
+
+    None profit_factor (backtest failed) ranks below any real score, including 0.0.
+    Use with ``sorted(..., key=profit_factor_sort_key, reverse=True)``.
+    """
+    pf = h.get('backtest_30d', {}).get('profit_factor')
+    return float(pf) if pf is not None else -1.0
 
 # ===== FEATURE ENGINEERING =====
 FEATURE_COLS = [

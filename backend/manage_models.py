@@ -2,7 +2,9 @@
 import sys, os, json, shutil, argparse, glob
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from core.ai.common import MODEL_PATH, MAX_SAVED_MODELS
+from core.ai.common import MODEL_PATH, MAX_SAVED_MODELS, profit_factor_sort_key, validate_version_string
+
+_validate_version = validate_version_string  # local alias for CLI readability
 
 HISTORY_PATH = os.path.join(os.path.dirname(MODEL_PATH), "models_history.json")
 
@@ -60,7 +62,10 @@ def cmd_list():
 
 def cmd_activate(version):
     """Copy a specific version's .pkl to the main MODEL_PATH."""
-    ts = version.split('.')[-1] if '.' in version else version
+    if not _validate_version(version):
+        print(f"❌ Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
+        return
+    ts = version.split('.')[-1]
     base_dir = os.path.dirname(MODEL_PATH)
     name_part = os.path.splitext(os.path.basename(MODEL_PATH))[0]
     src = os.path.join(base_dir, f"{name_part}_{ts}.pkl")
@@ -72,7 +77,10 @@ def cmd_activate(version):
 
 def cmd_delete(version):
     """Delete a specific model version."""
-    ts = version.split('.')[-1] if '.' in version else version
+    if not _validate_version(version):
+        print(f"❌ Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
+        return
+    ts = version.split('.')[-1]
     base_dir = os.path.dirname(MODEL_PATH)
     name_part = os.path.splitext(os.path.basename(MODEL_PATH))[0]
     target = os.path.join(base_dir, f"{name_part}_{ts}.pkl")
@@ -97,11 +105,7 @@ def cmd_prune(keep=MAX_SAVED_MODELS):
         return
     # Sort by profit factor (descending), keep top N.
     # AC2: None profit_factor (backtest failed) ranks below any real score, including 0.0.
-    def _pf_key(h):
-        pf = h.get('backtest_30d', {}).get('profit_factor')
-        return float(pf) if pf is not None else -1.0
-
-    scored = sorted(history, key=_pf_key, reverse=True)
+    scored = sorted(history, key=profit_factor_sort_key, reverse=True)
     to_keep = set(h['version'] for h in scored[:keep])
     to_delete = [h for h in history if h['version'] not in to_keep]
     for h in to_delete:

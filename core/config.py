@@ -31,6 +31,11 @@ USE_GPU = os.getenv("USE_GPU", "auto").lower() in ("true", "1", "auto")
 CACHE_DURATION = int(os.getenv("CACHE_DURATION", 3600))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+# Model Integrity
+# Optional HMAC signing key for model files. If set, trainer signs .pkl on save
+# and predictor verifies the signature before loading. Leave unset for local dev.
+MODEL_SIGNING_KEY: str = os.getenv("MODEL_SIGNING_KEY", "")
+
 # Rise Score Weights (Sum should be 1.0)
 WEIGHT_TREND = float(os.getenv("WEIGHT_TREND", 0.40))
 WEIGHT_MOMENTUM = float(os.getenv("WEIGHT_MOMENTUM", 0.30))

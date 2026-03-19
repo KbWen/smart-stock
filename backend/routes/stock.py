@@ -1,8 +1,19 @@
+import re
 import time
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from backend.limiter import limiter
+
+# Ticker validation: 1-15 chars, uppercase alphanumeric + . ^ -
+# Covers TW (e.g. 2330.TW), US (AAPL), index (^TWII), crypto (BTC-USD)
+_TICKER_RE = re.compile(r'^[A-Z0-9.\^\-]{1,15}$')
+
+# Rate limit tiers (per-IP, per-minute)
+_RATE_CANDIDATES = "60/minute"
+_RATE_META = "30/minute"
+_RATE_BACKTEST = "20/minute"
 
 from backend.backtest import run_time_machine
 from backend.repositories.indicator_repo import IndicatorRepository
@@ -118,6 +129,8 @@ def get_top_picks(sort: str = "score", version: Optional[str] = None):
 
 @router.get("/api/stock/{ticker}")
 def get_stock_detail(ticker: str):
+    if not _TICKER_RE.match(ticker.upper()):
+        raise HTTPException(status_code=422, detail=f"Invalid ticker format: {ticker!r}")
     return legacy_stock_detail_service.get_stock_detail(ticker=ticker)
 
 
@@ -127,16 +140,22 @@ def verify_stock_detail(ticker: str, refresh_db: bool = False):
 
 
 @router.get("/api/backtest")
-def run_backtest_simulation(days: int = 30, version: Optional[str] = None):
+@limiter.limit(_RATE_BACKTEST)
+def run_backtest_simulation(request: Request, days: int = 30, version: Optional[str] = None):
     try:
         return run_time_machine(days_ago=days, limit=100, version=version)
     except Exception as e:
         logger.error("Backtest API Error: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/smart_scan")
-def smart_scan(criteria: list[str] = []):
+def smart_scan(request: Request, criteria: list[str] = []):
+    # Lightweight CSRF defense: require XMLHttpRequest header on POST (M5).
+    # The app has no cookie auth, so full CSRF tokens are not needed, but this
+    # header blocks naive cross-site form submissions and direct browser POSTs.
+    if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+        raise HTTPException(status_code=403, detail="Missing X-Requested-With header")
     return smart_scan_service.smart_scan(criteria=criteria)
 
 
@@ -146,7 +165,8 @@ def health_check():
 
 
 @router.get("/api/v4/sniper/candidates")
-def get_v4_candidates(limit: int = 50, sort: str = "score", version: Optional[str] = None):
+@limiter.limit(_RATE_CANDIDATES)
+def get_v4_candidates(request: Request, limit: int = 50, sort: str = "score", version: Optional[str] = None):
     try:
         if sort not in {"score", "ai"}:
             raise HTTPException(status_code=422, detail="sort must be one of: score, ai")
@@ -155,16 +175,19 @@ def get_v4_candidates(limit: int = 50, sort: str = "score", version: Optional[st
         raise
     except Exception as e:
         logger.error("API ERROR: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/v4/stock/{ticker}")
 def get_v4_stock_detail(ticker: str):
+    if not _TICKER_RE.match(ticker.upper()):
+        raise HTTPException(status_code=422, detail=f"Invalid ticker format: {ticker!r}")
     return v4_stock_detail_service.get_stock_detail(ticker=ticker)
 
 
 @router.get("/api/v4/meta")
-def get_v4_meta(tickers: str = Query(..., min_length=1, description="Comma-separated ticker list")):
+@limiter.limit(_RATE_META)
+def get_v4_meta(request: Request, tickers: str = Query(..., min_length=1, description="Comma-separated ticker list")):
     raw = [item.strip() for item in tickers.split(",")]
     requested_pairs: list[tuple[str, str]] = []
     normalized: list[str] = []
@@ -172,7 +195,10 @@ def get_v4_meta(tickers: str = Query(..., min_length=1, description="Comma-separ
     for ticker in raw:
         if not ticker:
             continue
-        normalized_ticker = standardize_ticker(ticker.upper())
+        upper = ticker.upper()
+        if not _TICKER_RE.match(upper):
+            raise HTTPException(status_code=422, detail=f"Invalid ticker format: {ticker!r}")
+        normalized_ticker = standardize_ticker(upper)
         requested_pairs.append((ticker, normalized_ticker))
         if normalized_ticker in seen:
             continue

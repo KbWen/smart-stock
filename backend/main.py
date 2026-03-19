@@ -6,6 +6,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from backend.limiter import limiter
 
 # Add parent directory to path - MUST BE FIRST for core imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,6 +23,8 @@ from core.logger import setup_logger
 logger = setup_logger("backend")
 
 app = FastAPI(title="Smart Stock Selector")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.exception_handler(Exception)
@@ -29,7 +34,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={
             "status": "error",
-            "message": f"Server Side Error: {str(exc)}",
+            "message": "Internal server error",
             "path": request.url.path,
         },
     )
