@@ -1,6 +1,5 @@
 import re
 import time
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -8,7 +7,7 @@ from backend.limiter import limiter
 
 # Ticker validation: 1-15 chars, uppercase alphanumeric + . ^ -
 # Covers TW (e.g. 2330.TW), US (AAPL), index (^TWII), crypto (BTC-USD)
-_TICKER_RE = re.compile(r'^[A-Z0-9.\^\-]{1,15}$')
+_TICKER_RE = re.compile(r'^[A-Z0-9.^-]{1,15}$')
 
 # Rate limit tiers (per-IP, per-minute)
 _RATE_CANDIDATES = "60/minute"
@@ -141,7 +140,7 @@ def verify_stock_detail(ticker: str, refresh_db: bool = False):
 
 @router.get("/api/backtest")
 @limiter.limit(_RATE_BACKTEST)
-def run_backtest_simulation(request: Request, days: int = 30, version: Optional[str] = None):
+def run_backtest_simulation(request: Request, days: int = Query(30, ge=1, le=365), version: Optional[str] = None):
     try:
         return run_time_machine(days_ago=days, limit=100, version=version)
     except Exception as e:
@@ -166,7 +165,7 @@ def health_check():
 
 @router.get("/api/v4/sniper/candidates")
 @limiter.limit(_RATE_CANDIDATES)
-def get_v4_candidates(request: Request, limit: int = 50, sort: str = "score", version: Optional[str] = None):
+def get_v4_candidates(request: Request, limit: int = Query(50, ge=1, le=500), sort: str = "score", version: Optional[str] = None):
     try:
         if sort not in {"score", "ai"}:
             raise HTTPException(status_code=422, detail="sort must be one of: score, ai")

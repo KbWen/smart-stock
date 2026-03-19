@@ -13,6 +13,7 @@ import pytest
 import tempfile
 import shutil
 from unittest.mock import patch
+from core.ai.common import profit_factor_sort_key, MAX_SAVED_MODELS
 
 
 # ---------------------------------------------------------------------------
@@ -123,11 +124,7 @@ def _run_rotation(tmpdir, history, current_ts, name_part='sniper_model', ext='.p
     active_realpath = os.path.realpath(model_path) if model_path and os.path.exists(model_path) else None
 
     # --- Rotation logic (mirrors trainer.py) ---
-    def _pf_sort_key(h):
-        pf = h.get('backtest_30d', {}).get('profit_factor')
-        return float(pf) if pf is not None else -1.0
-
-    keep_timestamps = {h['timestamp'] for h in sorted(history, key=_pf_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
+    keep_timestamps = {h['timestamp'] for h in sorted(history, key=profit_factor_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
     keep_timestamps.add(current_ts)
 
     for fpath in globlib.glob(os.path.join(tmpdir, f"{name_part}_*{ext}")):

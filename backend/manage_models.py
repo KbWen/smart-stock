@@ -34,7 +34,8 @@ def cmd_list():
         try:
             data = joblib.load(MODEL_PATH)
             active_version = data.get('version', 'unknown') if isinstance(data, dict) else 'unknown'
-        except: pass
+        except Exception:
+            pass
 
     print(f"\n{'='*95}")
     print(f"{'Version':<25} {'Samples':>8} {'Acc':>6} {'P(SB)':>6} {'R(SB)':>6} {'PF(bt)':>6} {'WR(bt)':>7} {'Active':>7}")

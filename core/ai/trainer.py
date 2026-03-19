@@ -353,7 +353,8 @@ def train_and_save(all_dfs):
     if os.path.exists(history_path):
         try:
             with open(history_path, 'r') as f: history = json.load(f)
-        except: pass
+        except Exception:
+            pass
     history.append(history_entry)
     with open(history_path, 'w') as f: json.dump(history[-50:], f, indent=2)
     

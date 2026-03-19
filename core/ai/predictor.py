@@ -10,7 +10,6 @@ import threading
 from collections import OrderedDict
 from typing import Optional
 from core.ai.common import FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE, validate_version_string
-from core import config as _cfg
 
 # ---------------------------------------------------------------------------
 # Thread-safe model version state
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 def _read_sidecar(path: str) -> Optional[str]:
     """Read a sidecar file, returning its stripped content or None if absent/unreadable."""
     try:
-        return open(path, 'r').read().strip()
+        return open(path, 'r', encoding='utf-8').read().strip()
     except FileNotFoundError:
         return None  # no sidecar — legacy model, allow load
     except Exception as exc:
@@ -56,7 +55,6 @@ def _verify_checksum(path: str, model_bytes: Optional[bytes] = None) -> bool:
         logger.warning("Checksum mismatch for %s — expected %s got %s", path, expected, actual)
         return False
     return True
-
 
 
 def _set_model_version(version: str) -> None:

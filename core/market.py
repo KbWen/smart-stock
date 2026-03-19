@@ -80,7 +80,7 @@ def save_market_history(status):
         try:
             with open(history_path, 'r') as f:
                 history = json.load(f)
-        except:
+        except Exception:
             history = []
             
     # Append current
@@ -117,6 +117,6 @@ def get_market_history():
         try:
             with open(history_path, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return []
     return []
