@@ -1,5 +1,4 @@
 import hashlib
-import io
 import numpy as np
 import pandas as pd
 import joblib
@@ -52,7 +51,7 @@ def _verify_checksum(path: str, model_bytes: Optional[bytes] = None) -> bool:
         logger.warning("Cannot hash model file %s: %s", path, exc)
         return False
     if actual != expected:
-        logger.warning("Checksum mismatch for %s — expected %s got %s", path, expected, actual)
+        logger.warning("Checksum mismatch for %s (actual: %s)", path, actual)
         return False
     return True
 

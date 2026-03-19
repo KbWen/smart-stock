@@ -135,6 +135,8 @@ def get_stock_detail(ticker: str):
 
 @router.get("/api/stock/{ticker}/verify")
 def verify_stock_detail(ticker: str, refresh_db: bool = False):
+    if not _TICKER_RE.match(ticker.upper()):
+        raise HTTPException(status_code=422, detail=f"Invalid ticker format: {ticker!r}")
     return legacy_stock_detail_service.verify_stock_detail(ticker=ticker, refresh_db=refresh_db)
 
 
