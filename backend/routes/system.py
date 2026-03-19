@@ -24,6 +24,6 @@ def health_check():
         health_status["db"] = "connected"
     except Exception as e:
         health_status["status"] = "error"
-        health_status["db"] = str(e)
+        health_status["db"] = "disconnected"
         
     return health_status

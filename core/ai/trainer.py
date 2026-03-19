@@ -12,7 +12,7 @@ import shutil
 import json
 import glob
 from datetime import datetime
-from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS
+from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, profit_factor_sort_key
 
 def prepare_features(df, is_training=True):
     """
@@ -353,16 +353,13 @@ def train_and_save(all_dfs):
     if os.path.exists(history_path):
         try:
             with open(history_path, 'r') as f: history = json.load(f)
-        except: pass
+        except Exception:
+            pass
     history.append(history_entry)
     with open(history_path, 'w') as f: json.dump(history[-50:], f, indent=2)
     
     # Rotation: keep MAX_SAVED_MODELS best-performing models by profit_factor (AC1, AC2, AC4)
-    def _pf_sort_key(h):
-        pf = h.get('backtest_30d', {}).get('profit_factor')
-        return float(pf) if pf is not None else -1.0  # AC2: None ranked last
-
-    keep_timestamps = {h['timestamp'] for h in sorted(history, key=_pf_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
+    keep_timestamps = {h['timestamp'] for h in sorted(history, key=profit_factor_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
     keep_timestamps.add(timestamp)  # AC4: always protect freshly-trained model
 
     try:

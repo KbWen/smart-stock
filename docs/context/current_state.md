@@ -23,6 +23,7 @@
   - `[meta-norm] docs/specs/meta-normalization.md [Frozen] — ✅ ALL 3 ACs done (single-pass normalization, route passes requested_pairs to service 2026-03-18)`
   - `[predictor-ts] docs/specs/predictor-thread-safety.md [Frozen] — ✅ ALL 3 ACs done (threading.Lock + OrderedDict LRU cache maxsize=3 2026-03-18)`
   - `[meta-tests] docs/specs/meta-service-tests.md [Frozen] — ✅ ALL 5 ACs done (23 new tests: _to_bool, signals, safe defaults, updated_at fallback 2026-03-18)`
+  - `[api-security] docs/specs/api-security-hardening.md [Frozen] — ✅ ALL 12 ACs done (path traversal, info-leak, rate limits, ticker validation, bare excepts, SHA256 integrity 2026-03-19)`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/bootstrap`: Task initialization & classification freeze.
@@ -60,6 +61,10 @@
 ### Ship-claude-jovial-elion-2026-03-18
 - Feature shipped: Close `[frontend-api]` AC#3 — fix E2E render-time measurement (t0 = candidates-fire → Squeeze-visible); verified < 300ms on production build. Also fixed pre-existing build blockers (`vite.config.ts` import, `globalThis` in test).
 - Tests: Pass (33 unit, 4 E2E)
+
+### Ship-claude-fervent-poincare-2026-03-19
+- Feature shipped: API security hardening — [api-security] 12 ACs: path traversal via VERSION_RE, SHA256 integrity check on model load, slowapi rate limits on 3 endpoints, ticker regex on all {ticker} routes, CSRF header on POST, param bounds (days/limit), info-leak removed from 500s and health endpoint, all bare excepts fixed, shared utilities (validate_version_string, profit_factor_sort_key, MAX_PREDICTION_CACHE_SIZE) extracted to common.
+- Tests: Pass (124/124, 3.38s)
 
 ### Ship-claude-jovial-elion-audit-2026-03-18
 - Feature shipped: 5 quick-wins from three-area audit — [ml-rotation] profit_factor-aware model rotation + `MAX_SAVED_MODELS` shared constant; [predictor-ts] thread-safe version tracking + LRU cache (OrderedDict, cap=3); [meta-norm] single-pass ticker normalization (route owns, service consumes); [meta-tests] 23 new V4MetaService unit tests + 9 ML rotation tests; [fe-lazy] confirmed + BUY label fix.
