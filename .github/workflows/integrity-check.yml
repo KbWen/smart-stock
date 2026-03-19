@@ -24,9 +24,11 @@ jobs:
           import os, sys
           root = '.'
           exts = {'.md', '.sh', '.rules', '.txt', '.yml', '.yaml'}
+          # Exclude frontend build artifacts which may contain binary files
+          skip_dirs = {'.git', 'frontend', 'node_modules', '__pycache__'}
           failed = False
           for r, dirs, files in os.walk(root):
-              if '.git' in r: continue
+              dirs[:] = [d for d in dirs if d not in skip_dirs]
               for f in files:
                   if any(f.endswith(ext) for ext in exts):
                       path = os.path.join(r, f)
