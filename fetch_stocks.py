@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import io
 import urllib3
+from datetime import datetime, timedelta
 
 # 關閉 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -35,7 +36,9 @@ def get_twse_info():
 
 # ── 2. 從 TPEX 抓上櫃股票資訊 ──────────────────
 def get_tpex_info():
-    url = "https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?d=115/03/11&o=csv"
+    today = datetime.now()
+    roc_date = f"{today.year - 1911}/{today.month:02d}/{today.day:02d}"
+    url = f"https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?d={roc_date}&o=csv"
     try:
         response = requests.get(url, timeout=30, verify=False)
         content = response.content.decode('cp950', errors='ignore')
@@ -61,24 +64,36 @@ def get_tpex_info():
         return {}
 
 # ── 3. 批次下載，比對兩天收盤價 ───────────────
-def compare_prices(all_info, date_new="2026-03-11", date_old="2026-03-02", min_volume=100000):
+def compare_prices(all_info, date_new=None, date_old=None, min_volume=100000):
+    today = datetime.now()
+    if date_new is None:
+        # 取最近的工作日（週一至週五）
+        date_new_dt = today - timedelta(days=max(0, today.weekday() - 4) if today.weekday() >= 5 else 0)
+        date_new = date_new_dt.strftime('%Y-%m-%d')
+    if date_old is None:
+        date_old = (datetime.strptime(date_new, '%Y-%m-%d') - timedelta(days=9)).strftime('%Y-%m-%d')
+
     tickers = sorted(list(all_info.keys()))
-    
+
     # 流動性過濾
     filtered_tickers = [t for t in tickers if all_info[t]["成交量"] >= min_volume]
     print(f"原始股票數: {len(tickers)}, 流動性符合 (成交量 >= {min_volume}): {len(filtered_tickers)}")
-    
+    print(f"比對區間: {date_old} → {date_new}")
+
     if not filtered_tickers:
         return pd.DataFrame()
-    
+
+    dl_start = (datetime.strptime(date_old, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
+    dl_end = (datetime.strptime(date_new, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
     chunk_size = 50
     results = []
-    
+
     for i in range(0, len(filtered_tickers), chunk_size):
         batch = filtered_tickers[i:i+chunk_size]
         print(f"下載第 {i+1} 至 {min(i+chunk_size, len(filtered_tickers))} 檔資料...")
         try:
-            data = yf.download(batch, start="2026-03-01", end="2026-03-13",
+            data = yf.download(batch, start=dl_start, end=dl_end,
                                progress=False, auto_adjust=True)
             
             if data.empty: continue
