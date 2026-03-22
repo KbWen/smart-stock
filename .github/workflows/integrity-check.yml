@@ -47,7 +47,7 @@ jobs:
           files=(
             "README.md"
             "AGENTS.md"
-            "docs/context/current_state.md"
+            ".agentcortex/context/current_state.md"
             ".agent/rules/engineering_guardrails.md"
           )
           for f in "${files[@]}"; do
@@ -64,5 +64,5 @@ jobs:
         # explicitly gitignored and cannot be committed. This step is advisory.
         continue-on-error: true
         run: |
-          chmod +x ./tools/validate.sh
-          ./tools/validate.sh
+          chmod +x ./.agentcortex/bin/validate.sh
+          ./.agentcortex/bin/validate.sh
