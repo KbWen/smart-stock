@@ -3,6 +3,13 @@ import { useCachedApi } from './useCachedApi'
 import { invalidateApiCache } from '../lib/apiClient'
 import { MOCK_MARKET_STATUS } from '../mockData'
 
+export interface MarketHistory {
+    timestamp: string
+    bull_ratio: number
+    market_temp: number
+    ai_sentiment: number
+}
+
 export interface MarketStatus {
     bull_ratio: number
     market_temp: number
@@ -10,7 +17,7 @@ export interface MarketStatus {
     risk_level: string
     total_stocks: number
     model_version: string
-    history?: { timestamp: string }[]
+    history?: MarketHistory[]
 }
 
 export interface StockCandidate {
@@ -76,6 +83,7 @@ export const useDashboardData = () => {
 
     const refreshCandidates = useCallback(async () => {
         invalidateApiCache('/api/v4/sniper/candidates')
+        invalidateApiCache('/api/v4/meta')
         await refetchCandidates()
     }, [refetchCandidates])
 

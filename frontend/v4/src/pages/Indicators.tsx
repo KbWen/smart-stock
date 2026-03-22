@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { MOCK_CANDIDATES } from '../mockData'
 import { Info } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
+import { useCachedApi } from '../hooks/useCachedApi'
 
 interface StockTechnical {
     ticker: string
@@ -29,60 +30,48 @@ interface ApiCandidate {
     signals?: string[]
 }
 
+const INDICATORS_SCORE_THRESHOLD = 80
+const INDICATORS_AI_THRESHOLD = 60
+
 const Indicators: React.FC = () => {
-    const [stocks, setStocks] = useState<StockTechnical[]>([])
-    const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<'ALL' | 'HIGH SCORE' | 'HIGH AI'>('ALL')
 
-    useEffect(() => {
-        const controller = new AbortController()
-        fetch('/api/v4/sniper/candidates?limit=100', { signal: controller.signal })
-            .then(res => {
-                if (!res.ok) throw new Error('API Request Failed')
-                return res.json()
-            })
-            .then((data: ApiCandidate[]) => {
-                const enhancedData: StockTechnical[] = data.map((s) => ({
-                    ticker: s.ticker,
-                    name: s.name,
-                    price: s.price,
-                    change_pct: s.change_percent || 0,
-                    rise_score: s.rise_score || 0,
-                    ai_prob: s.ai_prob || 0,
-                    trend: s.trend || 0,
-                    momentum: s.momentum || 0,
-                    volatility: s.volatility || 0,
-                    signals: s.signals || []
-                }))
-                setStocks(enhancedData)
-                setLoading(false)
-            })
-            .catch(err => {
-                if ((err as Error).name === 'AbortError') return
-                console.error("Scanner fetch error:", err)
-                const mockFormatted = MOCK_CANDIDATES.map(s => ({
-                    ...s,
-                    change_pct: s.change_percent || 0,
-                    signals: s.signals || []
-                }))
-                setStocks(mockFormatted)
-                setLoading(false)
-            })
-        return () => controller.abort()
-    }, [])
+    const { data: rawData, loading, isPlaceholder } = useCachedApi<ApiCandidate[]>(
+        '/api/v4/sniper/candidates?limit=100',
+        { fallbackData: MOCK_CANDIDATES as ApiCandidate[], ttlMs: 30_000, throttleMs: 1_000 },
+    )
 
-    const filteredStocks = stocks
-        .filter(s => {
-            if (filter === 'HIGH SCORE') return s.rise_score > 80
-            if (filter === 'HIGH AI') return s.ai_prob >= 60
-            return true
-        })
-        .sort((a, b) => {
-            if (filter === 'HIGH AI') return b.ai_prob - a.ai_prob
-            return b.rise_score - a.rise_score
-        })
+    const stocks = useMemo<StockTechnical[]>(() =>
+        rawData.map((s) => ({
+            ticker: s.ticker,
+            name: s.name,
+            price: s.price,
+            change_pct: s.change_percent ?? 0,
+            rise_score: s.rise_score ?? 0,
+            ai_prob: s.ai_prob ?? 0,
+            trend: s.trend ?? 0,
+            momentum: s.momentum ?? 0,
+            volatility: s.volatility ?? 0,
+            signals: s.signals ?? [],
+        })),
+        [rawData],
+    )
 
-    if (loading) return <div className="p-6 text-dark-muted">Loading Technical Scanner...</div>
+    const filteredStocks = useMemo(() =>
+        stocks
+            .filter(s => {
+                if (filter === 'HIGH SCORE') return s.rise_score > INDICATORS_SCORE_THRESHOLD
+                if (filter === 'HIGH AI') return s.ai_prob >= INDICATORS_AI_THRESHOLD
+                return true
+            })
+            .sort((a, b) => {
+                if (filter === 'HIGH AI') return b.ai_prob - a.ai_prob
+                return b.rise_score - a.rise_score
+            }),
+        [stocks, filter],
+    )
+
+    if (loading && isPlaceholder) return <div className="p-6 text-dark-muted">Loading Technical Scanner...</div>
 
     return (
         <div className="space-y-6">
@@ -153,7 +142,7 @@ const Indicators: React.FC = () => {
                                         {stock.change_pct >= 0 ? '+' : ''}{stock.change_pct.toFixed(2)}%
                                     </td>
                                     <td className="p-4 text-right">
-                                        <span className={`px-2 py-1 rounded font-bold ${stock.rise_score > 80 ? 'bg-sniper-green/10 text-sniper-green' : 'text-dark-muted'}`}>
+                                        <span className={`px-2 py-1 rounded font-bold ${stock.rise_score > INDICATORS_SCORE_THRESHOLD ? 'bg-sniper-green/10 text-sniper-green' : 'text-dark-muted'}`}>
                                             {stock.rise_score.toFixed(1)}
                                         </span>
                                     </td>

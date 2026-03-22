@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 from core.ai import predict_prob, prepare_features
 from core.features import compute_all_indicators
 
@@ -18,9 +18,11 @@ def test_prepare_features(sample_stock_data):
     assert len(X) == len(y)
     assert not X.isna().any().any()
 
+@patch('core.ai.predictor._read_sidecar', return_value=None)
+@patch('builtins.open', new=mock_open(read_data=b''))
 @patch('joblib.load')
 @patch('os.path.exists')
-def test_predict_prob_mocked(mock_exists, mock_load, sample_stock_data):
+def test_predict_prob_mocked(mock_exists, mock_load, _mock_sidecar, sample_stock_data):
     """Test prediction logic with a mocked model."""
     mock_exists.return_value = True
     
@@ -56,10 +58,12 @@ def test_predict_prob_mocked(mock_exists, mock_load, sample_stock_data):
     # Ave: (0.2 + 0.3 + 0.4) / 3 = 0.3
     assert pytest.approx(result['prob'], 0.01) == 0.3
 
+@patch('core.ai.predictor._read_sidecar', return_value=None)
+@patch('builtins.open', new=mock_open(read_data=b''))
 @patch('core.ai.trainer.prepare_features')
 @patch('joblib.load')
 @patch('os.path.exists')
-def test_predict_prob_legacy_model_handles_missing_features(mock_exists, mock_load, mock_prepare):
+def test_predict_prob_legacy_model_handles_missing_features(mock_exists, mock_load, mock_prepare, _mock_sidecar):
     """Legacy model path should reindex missing features to zero instead of KeyError."""
     import numpy as np
     from core.ai.predictor import _model_cache

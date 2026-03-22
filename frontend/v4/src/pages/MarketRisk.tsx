@@ -1,27 +1,12 @@
 import React, { Suspense, lazy, useMemo } from 'react'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { Activity, Cpu, Database, Info, ShieldAlert, Thermometer } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import { useCachedApi } from '../hooks/useCachedApi'
 import { MOCK_MARKET_STATUS } from '../mockData'
+import type { MarketStatus } from '../hooks/useDashboardData'
 
 const MarketRiskHistoryChart = lazy(() => import('../components/charts/MarketRiskHistoryChart'))
-
-interface MarketHistory {
-    timestamp: string
-    bull_ratio: number
-    market_temp: number
-    ai_sentiment: number
-}
-
-interface MarketStatus {
-    bull_ratio: number
-    market_temp: number
-    ai_sentiment: number
-    risk_level: string
-    total_stocks: number
-    model_version: string
-    history: MarketHistory[]
-}
 
 const MarketRisk: React.FC = () => {
     const { data, loading } = useCachedApi<MarketStatus>('/api/market_status', {
@@ -107,9 +92,11 @@ const MarketRisk: React.FC = () => {
                 </div>
             </div>
 
+            <ErrorBoundary>
             <Suspense fallback={<div className="rounded-xl border border-dark-border bg-dark-card p-6 text-dark-muted">Loading risk history chart...</div>}>
                 {data.history && data.history.length > 0 ? <MarketRiskHistoryChart history={data.history} /> : null}
             </Suspense>
+            </ErrorBoundary>
         </div>
     )
 }

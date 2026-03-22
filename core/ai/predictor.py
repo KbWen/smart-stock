@@ -1,4 +1,6 @@
 import hashlib
+import hmac as _hmac
+import io
 import numpy as np
 import pandas as pd
 import joblib
@@ -9,6 +11,7 @@ import threading
 from collections import OrderedDict
 from typing import Optional
 from core.ai.common import FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE, validate_version_string
+from core import config as _cfg
 
 # ---------------------------------------------------------------------------
 # Thread-safe model version state
@@ -51,7 +54,26 @@ def _verify_checksum(path: str, model_bytes: Optional[bytes] = None) -> bool:
         logger.warning("Cannot hash model file %s: %s", path, exc)
         return False
     if actual != expected:
-        logger.warning("Checksum mismatch for %s (actual: %s)", path, actual)
+        logger.warning("Checksum mismatch for %s — expected %s got %s", path, expected, actual)
+        return False
+    return True
+
+
+def _verify_hmac(path: str, model_bytes: bytes) -> bool:
+    """Verify HMAC-SHA256 signature if MODEL_SIGNING_KEY is set and a .sig sidecar exists.
+
+    Returns True if signing is not configured, no sidecar exists, or signature matches.
+    Returns False only on an explicit mismatch when a key is configured.
+    """
+    signing_key = _cfg.MODEL_SIGNING_KEY
+    if not signing_key:
+        return True  # signing not configured
+    expected = _read_sidecar(path + '.sig')
+    if expected is None:
+        return True  # no sidecar — legacy model, allow load
+    actual = _hmac.new(signing_key.encode(), model_bytes, hashlib.sha256).hexdigest()
+    if not _hmac.compare_digest(actual, expected):
+        logger.warning("HMAC signature mismatch for %s — possible tampering", path)
         return False
     return True
 
@@ -87,17 +109,19 @@ def get_model_version() -> str:
         if _current_model_version != "unknown":
             return _current_model_version
     # Load outside the lock — joblib.load is expensive
-    if os.path.exists(MODEL_PATH):
-        try:
-            if not _verify_checksum(MODEL_PATH):
-                return _current_model_version  # checksum mismatch — skip load
-            model_data_all = joblib.load(MODEL_PATH)
-            if isinstance(model_data_all, dict) and 'version' in model_data_all:
-                _set_model_version(model_data_all['version'])
-            else:
-                _set_model_version("legacy")
-        except Exception:
-            pass
+    try:
+        model_bytes = open(MODEL_PATH, 'rb').read()
+        if not _verify_checksum(MODEL_PATH, model_bytes):
+            return _current_model_version  # checksum mismatch — skip load
+        model_data_all = joblib.load(io.BytesIO(model_bytes))
+        if isinstance(model_data_all, dict) and 'version' in model_data_all:
+            _set_model_version(model_data_all['version'])
+        else:
+            _set_model_version("legacy")
+    except FileNotFoundError:
+        pass  # model not yet trained
+    except Exception as exc:
+        logger.warning("Failed to load model version from %s: %s", MODEL_PATH, exc)
     with _version_lock:
         return _current_model_version
 
@@ -140,14 +164,19 @@ def predict_prob(df, version: Optional[str] = None):
     # 2. Load Model (with LRU Cache)
     model_data_all = _cache_get(target_path)
     if model_data_all is None:
-        if not os.path.exists(target_path):
-            return None
         try:
-            if not _verify_checksum(target_path):
+            # Read bytes once; reuse for checksum + optional HMAC + load (no double I/O)
+            model_bytes = open(target_path, 'rb').read()
+            if not _verify_checksum(target_path, model_bytes):
                 return None  # SHA256 mismatch — refuse to load
-            model_data_all = joblib.load(target_path)
+            if not _verify_hmac(target_path, model_bytes):
+                return None  # HMAC mismatch — refuse to load
+            model_data_all = joblib.load(io.BytesIO(model_bytes))
             _cache_put(target_path, model_data_all)
-        except Exception:
+        except FileNotFoundError:
+            return None  # model not found or not yet trained
+        except Exception as exc:
+            logger.warning("Failed to load model from %s: %s", target_path, exc)
             return None
 
     # 3. Extract Model components + update version (thread-safe)

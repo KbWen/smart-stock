@@ -15,8 +15,15 @@ import pytest
 import pandas as pd
 import numpy as np
 import sqlite3
-import os
 from unittest.mock import MagicMock
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "integration: mark test as a live-market integration test (deselect with -m 'not integration')",
+    )
+
 
 @pytest.fixture
 def sample_stock_data():

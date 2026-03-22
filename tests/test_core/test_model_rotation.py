@@ -208,3 +208,79 @@ def test_rotation_none_pf_models_deleted_first(tmp_path):
         assert f'sniper_model_{ts}.pkl' not in remaining, f"None-PF model {ts} must be deleted first"
     assert 'sniper_model_ts7.pkl' in remaining
     assert 'sniper_model_ts1.pkl' in remaining
+
+
+# ---------------------------------------------------------------------------
+# Sidecar handling: cmd_activate and cmd_delete copy/clean sidecar files
+# ---------------------------------------------------------------------------
+
+def test_cmd_activate_copies_sidecars(tmp_path, monkeypatch):
+    """cmd_activate must copy .sha256 and .sig sidecars alongside the .pkl."""
+    import backend.manage_models as mm
+
+    # Create versioned model files (pkl + sidecars)
+    base = str(tmp_path)
+    name = "sniper_model"
+    ts = "20260321_0000"
+    src_pkl = os.path.join(base, f"{name}_{ts}.pkl")
+    src_sha = src_pkl + ".sha256"
+    src_sig = src_pkl + ".sig"
+    open(src_pkl, 'wb').close()
+    open(src_sha, 'w').write("deadbeef")
+    open(src_sig, 'w').write("cafebabe")
+
+    dst_pkl = os.path.join(base, f"{name}.pkl")
+
+    monkeypatch.setattr(mm, "MODEL_PATH", dst_pkl)
+
+    mm.cmd_activate(f"v4.{ts}")
+
+    assert os.path.exists(dst_pkl), ".pkl must be copied"
+    assert os.path.exists(dst_pkl + ".sha256"), ".sha256 sidecar must be copied on activate"
+    assert os.path.exists(dst_pkl + ".sig"), ".sig sidecar must be copied on activate"
+    assert open(dst_pkl + ".sha256").read() == "deadbeef"
+    assert open(dst_pkl + ".sig").read() == "cafebabe"
+
+
+def test_cmd_activate_skips_missing_sidecars(tmp_path, monkeypatch):
+    """cmd_activate works cleanly when no sidecar files exist (legacy model)."""
+    import backend.manage_models as mm
+
+    base = str(tmp_path)
+    name = "sniper_model"
+    ts = "20260321_0001"
+    src_pkl = os.path.join(base, f"{name}_{ts}.pkl")
+    open(src_pkl, 'wb').close()
+
+    dst_pkl = os.path.join(base, f"{name}.pkl")
+    monkeypatch.setattr(mm, "MODEL_PATH", dst_pkl)
+
+    mm.cmd_activate(f"v4.{ts}")  # must not raise even with no sidecars
+
+    assert os.path.exists(dst_pkl)
+    assert not os.path.exists(dst_pkl + ".sha256")
+    assert not os.path.exists(dst_pkl + ".sig")
+
+
+def test_cmd_delete_removes_sidecars(tmp_path, monkeypatch):
+    """cmd_delete must remove .sha256 and .sig sidecar files alongside the .pkl."""
+    import backend.manage_models as mm
+
+    base = str(tmp_path)
+    name = "sniper_model"
+    ts = "20260321_0002"
+    target_pkl = os.path.join(base, f"{name}_{ts}.pkl")
+    target_sha = target_pkl + ".sha256"
+    target_sig = target_pkl + ".sig"
+    open(target_pkl, 'wb').close()
+    open(target_sha, 'w').write("deadbeef")
+    open(target_sig, 'w').write("cafebabe")
+
+    monkeypatch.setattr(mm, "MODEL_PATH", os.path.join(base, f"{name}.pkl"))
+    monkeypatch.setattr(mm, "HISTORY_PATH", os.path.join(base, "models_history.json"))
+
+    mm.cmd_delete(f"v4.{ts}")
+
+    assert not os.path.exists(target_pkl), ".pkl must be removed"
+    assert not os.path.exists(target_sha), ".sha256 sidecar must be removed on delete"
+    assert not os.path.exists(target_sig), ".sig sidecar must be removed on delete"

@@ -32,6 +32,48 @@ def test_api_sync_status():
     assert 'is_syncing' in data
 
 
+def test_smart_scan_requires_xhr_header():
+    """smart_scan POST must reject requests without X-Requested-With: XMLHttpRequest (CSRF guard)."""
+    response = client.post("/api/smart_scan", json=[])
+    assert response.status_code == 403
+
+
+def test_smart_scan_accepts_xhr_header():
+    """smart_scan POST with correct header must return 200 and a list."""
+    response = client.post(
+        "/api/smart_scan",
+        json=[],
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_api_init_returns_expected_keys():
+    """Smoke test: /api/init returns all dashboard keys."""
+    response = client.get("/api/init")
+    assert response.status_code == 200
+    data = response.json()
+    for key in ("market", "top_picks", "models", "sync", "perf_ms"):
+        assert key in data, f"Missing key in /api/init response: {key!r}"
+    assert isinstance(data["top_picks"], list)
+    assert isinstance(data["models"], list)
+    assert isinstance(data["perf_ms"], int)
+
+
+def test_api_search_returns_list():
+    """Smoke test: /api/search?q=<term> returns a list."""
+    response = client.get("/api/search?q=2330")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_api_search_rejects_empty_query():
+    """/api/search?q= (empty) must be rejected with 422 (min_length=1)."""
+    response = client.get("/api/search?q=")
+    assert response.status_code == 422
+
+
 def test_root_serves_legacy_index_when_default_missing(monkeypatch, tmp_path):
     import backend.main as main
 

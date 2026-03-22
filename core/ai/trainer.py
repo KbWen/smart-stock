@@ -6,12 +6,15 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
+import hashlib
+import hmac as _hmac
 import joblib
 import os
 import shutil
 import json
 import glob
 from datetime import datetime
+from core import config as _cfg
 from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, profit_factor_sort_key
 
 def prepare_features(df, is_training=True):
@@ -306,7 +309,19 @@ def train_and_save(all_dfs):
     name_part, ext_part = os.path.splitext(os.path.basename(MODEL_PATH))
     versioned_path = os.path.join(base_dir, f"{name_part}_{timestamp}{ext_part}")
     joblib.dump(model_metadata, versioned_path)
+    # Write SHA256 checksum sidecar for integrity verification (H1)
+    model_bytes = open(versioned_path, 'rb').read()
+    sha256 = hashlib.sha256(model_bytes).hexdigest()
+    with open(versioned_path + '.sha256', 'w') as _f:
+        _f.write(sha256)
+    # Write HMAC-SHA256 signature sidecar if MODEL_SIGNING_KEY is configured (L1)
+    if _cfg.MODEL_SIGNING_KEY:
+        sig = _hmac.new(_cfg.MODEL_SIGNING_KEY.encode(), model_bytes, hashlib.sha256).hexdigest()
+        with open(versioned_path + '.sig', 'w') as _f:
+            _f.write(sig)
+        shutil.copy(versioned_path + '.sig', MODEL_PATH + '.sig')
     shutil.copy(versioned_path, MODEL_PATH)
+    shutil.copy(versioned_path + '.sha256', MODEL_PATH + '.sha256')
 
     print("\n📊 Running post-training benchmark backtest (30 days)...")
     try:
@@ -323,7 +338,7 @@ def train_and_save(all_dfs):
         }
     except Exception as e:
         print(f"⚠️ Backtest scoring failed: {e}")
-        backtest_score = {'profit_factor': 0, 'win_rate': 0, 'sniper_hit_rate': 0, 'avg_return': 0}
+        backtest_score = {'profit_factor': None, 'win_rate': 0, 'sniper_hit_rate': 0, 'avg_return': 0}
 
     # History Log
     history_path = os.path.join(base_dir, "models_history.json")

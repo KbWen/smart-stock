@@ -1,4 +1,5 @@
 import React, { Suspense, useMemo, useState } from 'react'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { Info } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import { useCachedApi } from '../hooks/useCachedApi'
@@ -129,9 +130,11 @@ const Backtest: React.FC = () => {
                     </div>
 
                     <div className={`transition-opacity duration-300 ${showLoadingOverlay ? 'opacity-20' : 'opacity-100'}`}>
+                        <ErrorBoundary>
                         <Suspense fallback={<div className="rounded-xl border border-dark-border bg-dark-card p-6 text-dark-muted">Loading chart...</div>}>
                             {data.history && data.history.length > 0 ? <BacktestEquityChart history={data.history} /> : null}
                         </Suspense>
+                        </ErrorBoundary>
 
                         {data.top_picks && data.top_picks.length > 0 && (
                             <BacktestTable picks={data.top_picks} />

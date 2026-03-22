@@ -86,6 +86,36 @@ describe('invalidateApiCache', () => {
     })
 })
 
+describe('invalidateApiCache — in-flight eviction', () => {
+    afterEach(() => {
+        vi.restoreAllMocks()
+        invalidateApiCache('/test')
+    })
+
+    it('prevents a completing in-flight request from re-populating cache after invalidation', async () => {
+        // Arrange: never-resolving fetch so we can invalidate while request is in-flight
+        let resolveFetch!: (value: Response) => void
+        vi.spyOn(globalThis, 'fetch').mockReturnValue(
+            new Promise<Response>((resolve) => { resolveFetch = resolve }),
+        )
+
+        // Start an in-flight request (does not await — intentionally hanging)
+        const pending = fetchJsonWithCache<{ v: number }>('/test/inflight', 60_000, 0)
+
+        // Invalidate while still in-flight
+        invalidateApiCache('/test/inflight')
+
+        // Now resolve the fetch with new data
+        resolveFetch({ ok: true, json: async () => ({ v: 99 }) } as Response)
+
+        // The promise resolves to the data…
+        await expect(pending).resolves.toEqual({ v: 99 })
+
+        // …but after invalidation, cache must NOT contain the stale in-flight result
+        expect(getCachedData('/test/inflight')).toBeUndefined()
+    })
+})
+
 describe('getCachedData', () => {
     afterEach(() => {
         vi.restoreAllMocks()

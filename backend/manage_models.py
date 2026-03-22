@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.ai.common import MODEL_PATH, MAX_SAVED_MODELS, profit_factor_sort_key, validate_version_string
 
 _validate_version = validate_version_string  # local alias for CLI readability
+_SIDECAR_EXTS = ('.sha256', '.sig')  # integrity sidecar extensions written by trainer
 
 HISTORY_PATH = os.path.join(os.path.dirname(MODEL_PATH), "models_history.json")
 
@@ -74,6 +75,9 @@ def cmd_activate(version):
         print(f"❌ Model file not found: {src}")
         return
     shutil.copy(src, MODEL_PATH)
+    for ext in _SIDECAR_EXTS:
+        if os.path.exists(src + ext):
+            shutil.copy(src + ext, MODEL_PATH + ext)
     print(f"✅ Activated model {version} -> {MODEL_PATH}")
 
 def cmd_delete(version):
@@ -89,6 +93,10 @@ def cmd_delete(version):
         print(f"❌ Model file not found: {target}")
     else:
         os.remove(target)
+        for ext in _SIDECAR_EXTS:
+            sidecar = target + ext
+            if os.path.exists(sidecar):
+                os.remove(sidecar)
         print(f"🗑️ Deleted model file for {version}")
         
     # Remove from history even if file is missing (cleanup)

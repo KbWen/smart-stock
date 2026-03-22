@@ -24,8 +24,12 @@ vi.mock('../../lib/apiClient', () => ({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const TODAY = new Date().toISOString().split('T')[0]
-const YESTERDAY = new Date(Date.now() - 86_400_000).toISOString().split('T')[0]
+// Use local date (not UTC ISO) to match the hook's toDateString() comparison.
+// toLocaleDateString('en-CA') returns YYYY-MM-DD in local timezone — no manual padding needed.
+const _now = new Date()
+const TODAY = _now.toLocaleDateString('en-CA')
+const _yest = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate() - 1)
+const YESTERDAY = _yest.toLocaleDateString('en-CA')
 
 const makeStockDetail = (overrides = {}) => ({
     ticker: '2330.TW',

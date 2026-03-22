@@ -70,7 +70,7 @@ app.add_middleware(
     allow_origins=_get_allowed_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Accept", "Authorization"],
+    allow_headers=["Content-Type", "Accept", "Authorization", "X-Requested-With"],
 )
 
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")

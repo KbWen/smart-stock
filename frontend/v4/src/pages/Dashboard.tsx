@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useCallback, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import MarketStatusHeader from '../components/dashboard/MarketStatusHeader'
 import { useDashboardData } from '../hooks/useDashboardData'
+import ErrorBoundary from '../components/ErrorBoundary'
 
 const StockList = lazy(() => import('../components/StockList'))
 const SniperCard = lazy(() => import('../components/SniperCard'))
@@ -56,15 +57,19 @@ const Dashboard: React.FC = () => {
                             偵測到資料非當日，顯示內容可能有延遲。
                         </div>
                     )}
+                    <ErrorBoundary>
                     <Suspense fallback={<div className="p-6 text-center text-dark-muted">Loading candidates...</div>}>
                         <StockList onSelect={handleSelectTicker} selectedTicker={selectedTicker} />
                     </Suspense>
+                    </ErrorBoundary>
                 </div>
 
                 <div className="lg:col-span-1">
+                    <ErrorBoundary>
                     <Suspense fallback={<div className="p-6 text-center text-dark-muted">Loading detail card...</div>}>
                         <SniperCard ticker={selectedTicker} />
                     </Suspense>
+                    </ErrorBoundary>
                 </div>
             </div>
         </div>
