@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CANONICAL="$SCRIPT_DIR/agentcortex/bin/deploy.sh"
+CANONICAL="$SCRIPT_DIR/.agentcortex/bin/deploy.sh"
 
 # If canonical deploy exists locally, use it (normal path)
 if [[ -f "$CANONICAL" ]]; then
@@ -44,9 +44,9 @@ else
     git clone --quiet "$ACX_SOURCE" "$ACX_CACHE"
 fi
 
-CACHED_CANONICAL="$ACX_CACHE/agentcortex/bin/deploy.sh"
+CACHED_CANONICAL="$ACX_CACHE/.agentcortex/bin/deploy.sh"
 if [[ ! -f "$CACHED_CANONICAL" ]]; then
-    echo "Cached source does not contain agentcortex/bin/deploy.sh — aborting." >&2
+    echo "Cached source does not contain .agentcortex/bin/deploy.sh — aborting." >&2
     exit 1
 fi
 

@@ -6,7 +6,7 @@ Execute the canonical workflow: `.agent/workflows/plan.md`
 
 1. `AGENTS.md` — global directives
 2. `.agent/rules/engineering_guardrails.md` — gate rules (§4 Design Before Implementation)
-3. Active Work Log at `docs/context/work/<worklog-key>.md`
+3. Active Work Log at `.agentcortex/context/work/<worklog-key>.md`
 
 ## Execution
 

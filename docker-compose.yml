@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist database and model files outside the container
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      DB_PATH: /app/data/storage.db
+      MODEL_PATH: /app/data/model_sniper.pkl
+      LOG_LEVEL: INFO
+      # Set your allowed frontend origins (comma-separated)
+      # CORS_ORIGINS: https://your-frontend.example.com
+      # Optional: enable HMAC model signing
+      # MODEL_SIGNING_KEY: your-secret-key-here
+    restart: unless-stopped

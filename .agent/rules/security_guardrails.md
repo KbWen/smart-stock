@@ -63,7 +63,7 @@ When security issues are found, output using this structure:
 - **`/implement` Post-Execution**: Run §1 Always-On checks (A01–A03) + §3 Secret Detection on all changed files. Append findings to Post-Execution Report.
 - **`/review`**: Run full §1 scan (A01–A10 as applicable) + §3 + §4. Security findings MUST appear before "Ready to commit?" verdict.
 - **`/ship`**: If any unresolved HIGH/CRITICAL security finding exists in the Work Log, ship gate = FAIL.
-- **Work Log**: Security findings MUST be recorded in `docs/context/work/<worklog-key>.md` under a `## Security Findings` section. Unresolved findings remain in the log until resolved.
+- **Work Log**: Security findings MUST be recorded in `.agentcortex/context/work/<worklog-key>.md` under a `## Security Findings` section. Unresolved findings remain in the log until resolved.
 
 ## 7. Boundaries
 

@@ -20,7 +20,7 @@ Read-only logic. DOES NOT change state. Hard completion gate for non-`tiny-fix` 
 ## 2. Platform Specialization
 
 - **Codex Web**: MUST output full summary directly in chat.
-- **Antigravity / Codex App**: Auto-write to `docs/context/work/<worklog-key>.md`.
+- **Antigravity / Codex App**: Auto-write to `.agentcortex/context/work/<worklog-key>.md`.
 - If the active Work Log is missing, resolve or create the current `<worklog-key>` log first. If the previous log was archived after a prior ship, create a follow-up active log and note that recovery in the delta.
 
 ## 3. Required Output Blocks
@@ -77,7 +77,7 @@ MUST include ALL of the following:
 
 1. At least 1 docs/ file path
 2. At least 1 code file path
-3. Corresponding Work Log path (`docs/context/work/<worklog-key>.md`)
+3. Corresponding Work Log path (`.agentcortex/context/work/<worklog-key>.md`)
 
 If requirements unsatisfied, COMPLETION AND `/ship` ARE STRICTLY PROHIBITED.
 
@@ -87,17 +87,12 @@ If requirements unsatisfied, COMPLETION AND `/ship` ARE STRICTLY PROHIBITED.
 - DO NOT restate old background unless it is required for a decision or rollback.
 - If context repeats, link to the previous section instead of re-writing full paragraphs.
 
-## 6. Work Log Compaction Trigger (Portable Defaults)
+## 6. Work Log Compaction Trigger
 
-If either threshold is hit:
+Thresholds are defined in `.agent/config.yaml` §worklog. If either is hit (`max_lines` or `max_kb`), MUST compact the Work Log:
 
-- `WORKLOG_MAX_LINES` (default: `300`), or
-- `WORKLOG_MAX_KB` (default: `12`)
-
-MUST compact the Work Log:
-
-1. Keep `## Session Info`, latest `## Resume`, latest `## Risks`, and the latest `N` delta entries (`WORKLOG_KEEP_RECENT_ENTRIES`, default: `5`).
-2. Move older details to `docs/context/archive/work/<worklog-key>-<YYYYMMDD>.md`.
+1. Keep `## Session Info`, latest `## Resume`, latest `## Risks`, and the latest N delta entries (see `keep_recent_entries` in config).
+2. Move older details to `.agentcortex/context/archive/work/<worklog-key>-<YYYYMMDD>.md`.
 3. Add one line in current log: `Compacted: [date], archive: [path]`.
 
 ## 7. Token & Efficiency Reflection

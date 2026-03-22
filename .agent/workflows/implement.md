@@ -17,7 +17,7 @@ For `feature` or `architecture-change` classification:
 
 ## Work Log Compaction Check
 
-Before implementation, check the active Work Log size. If it exceeds compaction thresholds (`WORKLOG_MAX_LINES=300` or `WORKLOG_MAX_KB=12`), compact per `/handoff` §6 BEFORE proceeding. This prevents bloated logs from inflating token costs during the implementation phase.
+Before implementation, check the active Work Log size. If it exceeds compaction thresholds (see `.agent/config.yaml` §worklog), compact per `/handoff` §6 BEFORE proceeding. This prevents bloated logs from inflating token costs during the implementation phase.
 
 ## Pre-Execution Check (Mandatory)
 

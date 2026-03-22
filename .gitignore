@@ -45,3 +45,25 @@ docs/AGENT_PHILOSOPHY.md
 docs/TESTING_PROTOCOL.md
 docs/CODEX_PLATFORM_GUIDE.md
 docs/PROJECT_EXAMPLES.md
+
+
+# AgentCortex Template - Downstream Ignore Defaults
+
+# Runtime State (work logs are session-local; private is never committed)
+.agentcortex/context/work/*.md
+!.agentcortex/context/work/.gitkeep
+.agentcortex/context/private/
+.agent/private/
+
+# Deploy Artifacts
+.agentcortex-src/
+*.acx-incoming
+
+# Third-party AI Tool Local State
+.openrouter/
+.claude-chat/
+.cursor/
+.antigravity/scratch/
+
+# End AgentCortex Template - Downstream Ignore Defaults
+

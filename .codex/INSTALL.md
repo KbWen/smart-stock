@@ -15,7 +15,7 @@ chmod +x deploy_brain.sh
 ## 2) Verification
 
 ```bash
-./tools/validate.sh
+.agentcortex/bin/validate.sh
 ```
 
 ## 3) Codex Opening Commands (Recommended paste)

@@ -1,6 +1,5 @@
 param(
     [string]$Target = '.',
-    [switch]$Untrack,
     [string]$Source = ''
 )
 
@@ -34,7 +33,7 @@ $scriptDir = $PSScriptRoot
 if (-not $scriptDir) { $scriptDir = Split-Path -Parent $PSCommandPath }
 if (-not $scriptDir) { $scriptDir = (Get-Location).Path }
 $scriptDir = Normalize-PathString $scriptDir
-$canonical = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($scriptDir, 'agentcortex', 'bin', 'deploy.ps1'))
+$canonical = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($scriptDir, '.agentcortex', 'bin', 'deploy.ps1'))
 
 $bashLauncher = Resolve-BashLauncher
 if (-not $bashLauncher) {
@@ -44,7 +43,6 @@ if (-not $bashLauncher) {
 
 # Build argument list
 $bashArgs = @()
-if ($Untrack) { $bashArgs += '--untrack' }
 if ($Source) { $bashArgs += '--source'; $bashArgs += $Source }
 $bashArgs += $Target
 

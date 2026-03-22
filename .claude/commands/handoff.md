@@ -5,7 +5,7 @@ Execute the canonical workflow: `.agent/workflows/handoff.md`
 ## Required reads before execution
 
 1. `AGENTS.md` — global directives
-2. Active Work Log at `docs/context/work/<worklog-key>.md`
+2. Active Work Log at `.agentcortex/context/work/<worklog-key>.md`
 
 ## Execution
 

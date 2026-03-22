@@ -5,7 +5,16 @@ description: Workflow for review
 
 Conduct strict review of current changes.
 
-Minimum Checks:
+## Skill-Aware Review (Pre-Check)
+
+IF the active Work Log contains a `Recommended Skills` entry AND those skills list `/review` in their `phases:` metadata:
+1. READ those SKILL.md files now (if not already loaded during /implement).
+2. Apply each skill's **"During /review:"** checklist items as additional review criteria.
+3. Explicitly state: "Reviewing with [skill-name] checklist applied."
+
+This ensures domain-specific review criteria (API conventions, frontend patterns, DB safety, auth compliance) are enforced — not just generic code review.
+
+## Minimum Checks
 
 - Logic correctness
 - Compatibility risks
@@ -27,6 +36,23 @@ Execute `.agent/rules/security_guardrails.md` §1–§4 against all changed file
 - **LOW** findings → Informational only.
 - Output findings using format defined in security_guardrails.md §5.
 
+## Red Team Scan (Auto-Triggered — Classification-Based)
+
+After completing the Security Scan above, AI MUST check the task classification from the active Work Log and apply the Red Team skill if applicable.
+
+**Auto-Trigger Logic**:
+1. Read `Classification:` from `.agentcortex/context/work/<worklog-key>.md`.
+2. Apply the auto-trigger matrix defined in `.agents/skills/red-team-adversarial/SKILL.md` §When to Use.
+3. Execute the corresponding mode from that skill file.
+
+### Red Team Verdict (separate from Security Verdict)
+
+- **CRITICAL** Red Team finding → Review verdict = **Not Ready**. MUST fix before proceeding.
+- **HIGH** Red Team finding → Does NOT block. MUST record risk decision in Work Log `## Red Team Findings` section. Recommend using `/decide` to document accept/defer rationale.
+- **MEDIUM / LOW** Red Team finding → Advisory only.
+
+Output findings using the Red Team Report format defined in the skill file.
+
 ## Self-Check Protocol (Auto — Before Presenting Results)
 
 AI MUST verify its own review before outputting:
@@ -39,12 +65,13 @@ AI MUST verify its own review before outputting:
 
 - Issues found (with severity)
 - Security findings (per §5 format above)
+- Red Team findings (if triggered — per Red Team Report format)
 - Fix suggestions
-- Ready to commit? (Yes/No — blocked if unresolved CRITICAL/HIGH security findings)
+- Ready to commit? (Yes/No — blocked if unresolved CRITICAL/HIGH security findings OR CRITICAL Red Team findings)
 
 ## Spec Compliance Check (MANDATORY for feature / architecture-change)
 
-- Cross-reference implementation against EVERY AC in the referenced `docs/specs/<feature>.md`.
+- Cross-reference implementation against EVERY AC in the referenced `.agentcortex/specs/<feature>.md`.
 - For each AC, mark: ✅ Met / ⚠️ Partially Met (explain) / ❌ Not Met.
 - If any AC is ❌: STOP. Cannot proceed to `/test` until resolved.
 - `tiny-fix`, `quick-win`, and `hotfix` are EXEMPT from this check.

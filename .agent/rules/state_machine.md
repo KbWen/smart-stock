@@ -12,7 +12,7 @@ AI MUST self-enforce this phase order. Users may trigger transitions via slash c
 - `INIT` --(context loaded)--> `BOOTSTRAPPED` [if frozen external spec exists, bootstrap reads it directly — Bootstrap Lite path]
 - `BOOTSTRAPPED` --(task classified)--> `CLASSIFIED`  [Sets: Guardrails Mode (Full|Quick|Lite), Context Budget tier]
 - `CLASSIFIED` --(research / brainstorm iteration)--> `CLASSIFIED`
-- `CLASSIFIED` --(spec artifact created in `docs/specs/`)--> `SPECIFIED`
+- `CLASSIFIED` --(spec artifact created in `.agentcortex/specs/`)--> `SPECIFIED`
 - `SPECIFIED` --(plan produced)--> `PLANNED`
 - `CLASSIFIED` --(plan produced)--> `PLANNED`  [ONLY for: `tiny-fix`, `quick-win`, `hotfix`]
 - `PLANNED` --(gate pass)--> `IMPLEMENTABLE`
@@ -24,7 +24,7 @@ AI MUST self-enforce this phase order. Users may trigger transitions via slash c
 ## Spec Gate (Hard)
 
 - Classifications `feature` and `architecture-change` MUST reach `SPECIFIED` before planning.
-- `SPECIFIED` requires a corresponding `docs/specs/<feature>.md` artifact with `status: draft` or `status: frozen`.
+- `SPECIFIED` requires a corresponding `.agentcortex/specs/<feature>.md` artifact with `status: draft` or `status: frozen`.
 - `tiny-fix`, `quick-win`, and `hotfix` may transition directly from `CLASSIFIED` to `PLANNED`.
 
 ## Read-Only Actions (No State Change)
@@ -34,9 +34,9 @@ AI MUST self-enforce this phase order. Users may trigger transitions via slash c
 ## Hard Gates
 
 - Non-`tiny-fix` tasks MUST complete a handoff phase before `SHIPPED`. Required references:
-  1. ✅ `docs/` artifact path
+  1. ✅ `.agentcortex/` artifact path
   2. ✅ modified code path
-  3. Resolved active work log path (`docs/context/work/<worklog-key>.md`)
+  3. Resolved active work log path (`.agentcortex/context/work/<worklog-key>.md`)
 - `tiny-fix` allows fast-path but MUST provide minimal evidence (diff + one-line verification).
 
 ## Legacy State Mapping (Migration)

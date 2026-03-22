@@ -1,4 +1,14 @@
-version: 1
-display_name: receiving-code-review
-short_description: Effectively receive reviewer feedback, categorize blocking and suggestive items, and avoid losing focus due to back-and-forth.
-icon_small: wrench
+---
+name: receiving-code-review
+description: Process reviewer feedback systematically — categorize into blocking vs suggestive, address blocking items first, avoid scope creep from suggestions. Auto-activate when review comments are received.
+phases: [review]
+trigger: auto (when PR review comments are received)
+---
+
+# Receiving Code Review
+
+Full instructions: `.agents/skills/receiving-code-review/SKILL.md`.
+
+- **Trigger**: Auto — when review feedback arrives (PR comments, inline suggestions)
+- **First step**: Categorize all feedback into blocking (must fix) vs suggestive (consider)
+- **Key rule**: Address blocking items before touching suggestive ones
