@@ -331,7 +331,7 @@ def train_and_save(all_dfs):
         bt_result = run_time_machine(days_ago=30, limit=20)
         bt_summary = bt_result.get('summary', {})
         backtest_score = {
-            'profit_factor': bt_summary.get('profit_factor', 0),
+            'profit_factor': bt_summary.get('profit_factor', None),
             'win_rate': round(bt_summary.get('win_rate', 0), 3),
             'sniper_hit_rate': round(bt_summary.get('sniper_hit_rate', 0), 3),
             'avg_return': round(bt_summary.get('avg_return', 0), 4),
