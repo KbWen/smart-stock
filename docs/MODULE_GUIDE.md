@@ -44,6 +44,13 @@ This document provides a detailed breakdown of the key Python modules in the sys
 
 ## Backend Modules (`backend/`)
 
+### `backend/services/v4_stock_detail_service.py`
+
+**Purpose**: Per-ticker detail computation and caching.
+
+* `get_stock_history(ticker, days=90)`: Returns a list of `{date, close, is_squeeze, golden_cross, volume_spike}` dicts for the past N days. Runs `compute_v4_indicators` + `calculate_rise_score_v2` on the raw df (no DB cache path) and stores results with a 60s TTL cache key `history:{ticker}`.
+* `_write_cache(key, value, ttl=None)`: Extended with optional `ttl` parameter so individual endpoints can override the default 300s TTL.
+
 ### `backend/main.py`
 
 **Purpose**: The FastAPI application entry point.

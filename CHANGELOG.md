@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased] - 2026-03-27
+
+### ✨ 視覺衝擊力升級 Phase 1 — 買入信號視覺化 + AI 計數動畫
+
+- **PriceSignalChart**: 每張 SniperCard 新增 90 天收盤價折線圖，Recharts ComposedChart + ReferenceDot 標注三種 AI 訊號（⚡Squeeze 黃、✦Golden Cross 藍、▲Volume Spike 紫）
+- **AI Probability count-up**: ScoreBreakdown 的 AI 勝率數字加入 requestAnimationFrame 計數動畫（ease-out cubic，~1 秒），強化 AI 計算感
+- **History Endpoint**: 新增 `GET /api/v4/stock/{ticker}/history`，回傳 90 天 OHLC + 訊號陣列，獨立 60s in-memory cache
+- **Race condition 保護**: PriceSignalChart 走 `useCachedApi (enabled flag)` 模式，快速切換 ticker 不殘留舊資料
+- **Tests**: Backend 143/143 ✅ Frontend 38/38 ✅ Production build ✅
+
 ## [5.0.0] - 2026-03-05
 
 ### 🛡️ Runtime v5 Anti-Drift & Concurrency Release

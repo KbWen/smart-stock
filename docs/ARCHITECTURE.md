@@ -119,4 +119,5 @@ graph TD
 
 - **Candidates API (`/api/v4/sniper/candidates`)** returns summary fields optimized for ranking lists and excludes per-ticker signal expansion to avoid N+1 work.
 - **Detail API (`/api/v4/stock/{ticker}`)** computes richer analysis only when the user drills into a single ticker.
+- **History API (`/api/v4/stock/{ticker}/history`)** returns 90-day OHLC + signal array for charting. Uses an independent 60s in-memory cache (key: `history:{ticker}`) separate from the main 300s detail cache. Route registered before the `{ticker}` wildcard to prevent path shadowing.
 - Server-side cache keys include `limit`, `sort`, and `version` dimensions to avoid cross-query cache pollution.

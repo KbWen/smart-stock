@@ -1,73 +1,64 @@
-# React + TypeScript + Vite
+# Smart Stock — Frontend V4
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+台灣股市 AI 分析儀表板的現代化前端，使用 React + TypeScript + Vite + Tailwind CSS 打造。
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 18** + **TypeScript**
+- **Vite** (開發/打包)
+- **Tailwind CSS** (玻璃擬態深色主題)
+- **Recharts v3.7** (PriceSignalChart — ComposedChart + ReferenceDot)
+- **React Router** (頁面路由)
+- **Vitest** + **@testing-library/react** (單元測試)
 
-## React Compiler
+## 主要元件
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| 元件 | 說明 |
+| :--- | :--- |
+| `SniperCard` | 每支股票的主卡片，整合 ScoreBreakdown + PriceSignalChart + AIAnalyst |
+| `PriceSignalChart` | 90 天收盤價折線 + 訊號 ReferenceDot（⚡Squeeze / ✦Golden Cross / ▲Vol Spike） |
+| `ScoreBreakdown` | Rise Score 細項 + AI Probability count-up 動畫 (useCountUp hook) |
+| `ErrorBoundary` | 全站 Suspense 錯誤邊界，防止單一元件爆炸影響整頁 |
+| `useCachedApi` | SWR 風格快取 hook，含 generation counter 防競態 |
 
-## Expanding the ESLint configuration
+## 開發
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+```bash
+# 安裝依賴
+npm install
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# 啟動開發伺服器 (需後端 API 運行在 localhost:8000)
+npm run dev
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+# 執行測試
+npm run test
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 測試覆蓋率報告
+npm run coverage
+
+# Production 建置 (包含 tsc -b 嚴格型別檢查)
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 測試
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+# 執行所有單元測試
+npm run test
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 覆蓋率 (目標 ≥80% statements)
+npm run coverage
 ```
+
+目前覆蓋率：**82.7% stmts**，38 tests pass。
+
+## API 端點
+
+前端透過 `useCachedApi` 消費以下後端端點：
+
+| 端點 | 說明 | 快取 TTL |
+| :--- | :--- | :---: |
+| `GET /api/v4/sniper/candidates` | 排名候選股票列表 | 30s |
+| `GET /api/v4/stock/{ticker}` | 單股詳細分析 | 300s |
+| `GET /api/v4/stock/{ticker}/history` | 90 天 OHLC + 訊號陣列 | 60s |
+| `GET /api/v4/meta` | 市場元資料 | 60s |
