@@ -179,6 +179,13 @@ def get_v4_candidates(request: Request, limit: int = Query(50, ge=1, le=500), so
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/api/v4/stock/{ticker}/history")
+def get_v4_stock_history(ticker: str):
+    if not _TICKER_RE.match(ticker.upper()):
+        raise HTTPException(status_code=422, detail=f"Invalid ticker format: {ticker!r}")
+    return v4_stock_detail_service.get_stock_history(ticker=ticker)
+
+
 @router.get("/api/v4/stock/{ticker}")
 def get_v4_stock_detail(ticker: str):
     if not _TICKER_RE.match(ticker.upper()):

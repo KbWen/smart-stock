@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 interface ScoreBreakdownProps {
     scores: {
@@ -10,7 +10,46 @@ interface ScoreBreakdownProps {
     aiProbability: number
 }
 
+function useCountUp(target: number, duration = 1000): number {
+    const [display, setDisplay] = useState(0)
+    const rafRef = useRef<number | null>(null)
+    const startRef = useRef<number | null>(null)
+    const fromRef = useRef(0)
+
+    useEffect(() => {
+        // Capture current display as animation start point (smooth mid-animation transition).
+        // `display` intentionally omitted from deps — re-running on display changes would loop.
+        fromRef.current = display
+        startRef.current = null
+
+        if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+        }
+
+        const animate = (timestamp: number) => {
+            if (startRef.current === null) startRef.current = timestamp
+            const elapsed = timestamp - startRef.current
+            const progress = Math.min(elapsed / duration, 1)
+            const eased = 1 - Math.pow(1 - progress, 3)
+            setDisplay(parseFloat((fromRef.current + (target - fromRef.current) * eased).toFixed(1)))
+            if (progress < 1) {
+                rafRef.current = requestAnimationFrame(animate)
+            }
+        }
+
+        rafRef.current = requestAnimationFrame(animate)
+        return () => {
+            if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [target, duration])
+
+    return display
+}
+
 const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability }) => {
+    const displayProb = useCountUp(aiProbability)
+
     const renderProgressBar = (label: string, value: number, max: number, colorClass: string) => {
         const percentage = Math.min(100, Math.max(0, (value / max) * 100))
         return (
@@ -37,7 +76,7 @@ const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability }
                 </div>
                 <div>
                     <div className="mb-1 text-[10px] uppercase tracking-wider font-bold text-dark-muted">AI Probability</div>
-                    <div className="text-3xl font-bold font-mono text-sniper-gold">{aiProbability.toFixed(1)}%</div>
+                    <div className="text-3xl font-bold font-mono text-sniper-gold">{displayProb.toFixed(1)}%</div>
                 </div>
             </div>
 

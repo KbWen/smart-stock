@@ -76,12 +76,51 @@ class V4StockDetailService:
                 return None
             return item["value"]
 
-    def _write_cache(self, key: str, value: Any) -> None:
+    _HISTORY_CACHE_TTL_SECONDS: int = 60  # spec: visual-upgrade-phase1 AC2
+
+    def _write_cache(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         with self._cache_lock:
             self._cache[key] = {
                 "value": value,
-                "expires_at": time.time() + self.cache_ttl_seconds,
+                "expires_at": time.time() + (ttl if ttl is not None else self.cache_ttl_seconds),
             }
+
+    def get_stock_history(self, ticker: str, days: int = 90) -> list[dict[str, Any]]:
+        cache_key = f"history:{ticker}"
+        cached = self._read_cache(cache_key)
+        if cached is not None:
+            return cached
+
+        from core.indicators_v2 import compute_v4_indicators
+        from core.rise_score_v2 import calculate_rise_score_v2
+
+        df = self.stock_repo.load_price_history(ticker)
+        if df.empty:
+            df = self.stock_repo.fetch_price_history(ticker)
+        if df.empty:
+            raise HTTPException(status_code=404, detail="Stock not found")
+
+        df = compute_v4_indicators(df)
+        df = calculate_rise_score_v2(df)
+        df = df.tail(days)
+
+        result = []
+        for _, row in df.iterrows():
+            date_val = row.get("date")
+            if hasattr(date_val, "strftime"):
+                date_str = date_val.strftime("%Y-%m-%d")
+            else:
+                date_str = str(date_val)[:10]
+            result.append({
+                "date": date_str,
+                "close": round(safe_float(row.get("close", 0)), 2),
+                "is_squeeze": self._to_bool(row.get("is_squeeze", False)),
+                "golden_cross": self._to_bool(row.get("kd_cross_flag", False)),
+                "volume_spike": bool(safe_float(row.get("rel_vol", 1.0)) > 1.5),
+            })
+
+        self._write_cache(cache_key, result, ttl=self._HISTORY_CACHE_TTL_SECONDS)
+        return result
 
     def get_stock_detail(self, ticker: str) -> dict[str, Any]:
         cache_version = self.system_repo.get_sync_epoch()

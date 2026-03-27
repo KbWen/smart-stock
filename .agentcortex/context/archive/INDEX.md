@@ -44,6 +44,12 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - frontend/v4/src/components/StockList.tsx: [claude-mystifying-greider-2026-03-18.md] CI fix + StockList mock fix; coverage >40%
 - .github/workflows/, frontend coverage: [nifty-newton-2026-03-17.md] AgentCortex v5.2.0 install + project audit; all 5 specs frozen
 
+- backend/routes/stock.py: [master-visual-upgrade-2026-03-27.md] GET /api/v4/stock/{ticker}/history — registered BEFORE {ticker} catch-all to avoid route shadowing
+- backend/services/v4_stock_detail_service.py: [master-visual-upgrade-2026-03-27.md] get_stock_history() + _write_cache optional ttl param; history uses 60s TTL separate from main 300s cache
+- frontend/v4/src/components/charts/PriceSignalChart.tsx: [master-visual-upgrade-2026-03-27.md] new component — Recharts ComposedChart, Line + ReferenceDot; skeleton only on first fetch (loading && isPlaceholder); empty on error
+- frontend/v4/src/components/dashboard/ScoreBreakdown.tsx: [master-visual-upgrade-2026-03-27.md] useCountUp hook — rAF ease-out cubic; `display` intentionally omitted from deps to prevent loop
+- frontend/v4/src/components/SniperCard.tsx: [master-visual-upgrade-2026-03-27.md] PriceSignalChart integrated between ScoreBreakdown and AIAnalyst
+
 ## By Pattern
 
 <!-- Format: - [<pattern-tag>]: <archived-log>(s) -->
@@ -63,6 +69,10 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - [cache-race-generation-counter]: master-audit-2026-03-22.md
 - [error-boundary-suspense]: master-audit-2026-03-22.md
 - [timezone-local-date]: master-audit-2026-03-22.md
+- [recharts-composedchart-signals]: master-visual-upgrade-2026-03-27.md
+- [raf-count-up-animation]: master-visual-upgrade-2026-03-27.md
+- [cache-ttl-per-endpoint]: master-visual-upgrade-2026-03-27.md
+- [skeleton-isplaceholder-state-machine]: master-visual-upgrade-2026-03-27.md
 
 ## By Decision
 
@@ -79,3 +89,6 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - D: "TOCTOU in FastAPI server: remove os.path.exists() guards before open(); use try/except FileNotFoundError instead" → master-audit-2026-03-22.md
 - D: "apiClient invalidation race: generation counter in .then() prevents in-flight writes after cache clear; delete entry after successful write" → master-audit-2026-03-22.md
 - D: "Test date helpers: use toLocaleDateString('en-CA') not toISOString() when hook compares via toDateString() — UTC drift at UTC+8 midnight" → master-audit-2026-03-22.md
+- D: "FastAPI route order: specific paths like /history must come before {ticker} wildcard or 'history' is matched as ticker" → master-visual-upgrade-2026-03-27.md
+- D: "Recharts Tooltip formatter must accept `undefined` (Recharts v3 internal type); use `Number(value ?? 0)` to pass tsc -b" → master-visual-upgrade-2026-03-27.md
+- D: "isPlaceholder never set false on error in useCachedApi — skeleton guard must be `loading && isPlaceholder`, not `loading || isPlaceholder`" → master-visual-upgrade-2026-03-27.md

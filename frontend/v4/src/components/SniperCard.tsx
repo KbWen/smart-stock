@@ -4,6 +4,7 @@ import { useStockAnalysis } from '../hooks/useStockAnalysis'
 import DetailHeader from './dashboard/DetailHeader'
 import ScoreBreakdown from './dashboard/ScoreBreakdown'
 import AIAnalyst from './dashboard/AIAnalyst'
+import PriceSignalChart from './charts/PriceSignalChart'
 
 interface SniperCardProps {
     ticker: string | null
@@ -78,6 +79,8 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
                     scores={data.rise_score_breakdown}
                     aiProbability={data.ai_probability}
                 />
+
+                <PriceSignalChart ticker={ticker} />
 
                 <AIAnalyst
                     summary={data.analyst_summary}

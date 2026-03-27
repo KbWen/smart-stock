@@ -409,6 +409,110 @@ def test_mark_sync_completed_sets_epoch_and_timestamp():
     assert after_snapshot["sync_epoch"] == before + 1
 
 
+# ── History Endpoint Tests (visual-upgrade-phase1) ───────────────────────────
+
+
+def _make_history_df():
+    import pandas as pd
+    n = 100
+    return pd.DataFrame({
+        "date": pd.date_range("2024-01-01", periods=n, freq="D"),
+        "open": [100.0] * n,
+        "high": [101.0] * n,
+        "low": [99.0] * n,
+        "close": [100.0 + i * 0.1 for i in range(n)],
+        "volume": [1000] * n,
+    })
+
+
+def test_api_v4_stock_history_returns_90_days(monkeypatch):
+    """History endpoint returns up to 90 data points with required fields."""
+    import backend.routes.stock as stock_route
+    stock_route.clear_api_caches()
+
+    df = _make_history_df()
+
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", lambda _t: df.copy())
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+
+    from core import indicators_v2, rise_score_v2
+    monkeypatch.setattr(
+        indicators_v2, "compute_v4_indicators",
+        lambda in_df: in_df.assign(
+            trend_alignment=1, sma20_slope=0.5, rsi=55.0,
+            is_squeeze=False, rel_vol=1.2, kd_cross_flag=True,
+        ),
+    )
+    monkeypatch.setattr(
+        rise_score_v2, "calculate_rise_score_v2",
+        lambda in_df: in_df.assign(
+            total_score_v2=80.0, trend_score_v2=30.0,
+            momentum_score_v2=30.0, volatility_score_v2=20.0,
+        ),
+    )
+
+    resp = client.get("/api/v4/stock/2330/history")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) == 90
+    point = data[0]
+    assert "date" in point and isinstance(point["date"], str)
+    assert "close" in point and isinstance(point["close"], float)
+    assert "is_squeeze" in point and isinstance(point["is_squeeze"], bool)
+    assert "golden_cross" in point and isinstance(point["golden_cross"], bool)
+    assert "volume_spike" in point and isinstance(point["volume_spike"], bool)
+
+
+def test_api_v4_stock_history_404_for_unknown_ticker(monkeypatch):
+    """History endpoint returns 404 when no price data exists."""
+    import pandas as pd
+    import backend.routes.stock as stock_route
+    stock_route.clear_api_caches()
+
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", lambda _t: pd.DataFrame())
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "fetch_price_history", lambda _t, **kw: pd.DataFrame())
+
+    resp = client.get("/api/v4/stock/UNKNOWN/history")
+    assert resp.status_code == 404
+
+
+def test_api_v4_stock_history_cache_prevents_recompute(monkeypatch):
+    """Second identical request hits cache; df compute runs only once."""
+    import backend.routes.stock as stock_route
+    stock_route.clear_api_caches()
+
+    df = _make_history_df()
+    load_calls = {"count": 0}
+
+    def fake_load(_t):
+        load_calls["count"] += 1
+        return df.copy()
+
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", fake_load)
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+
+    from core import indicators_v2, rise_score_v2
+    monkeypatch.setattr(
+        indicators_v2, "compute_v4_indicators",
+        lambda in_df: in_df.assign(
+            trend_alignment=0, sma20_slope=0.0, rsi=50.0,
+            is_squeeze=False, rel_vol=1.0, kd_cross_flag=False,
+        ),
+    )
+    monkeypatch.setattr(
+        rise_score_v2, "calculate_rise_score_v2",
+        lambda in_df: in_df.assign(
+            total_score_v2=70.0, trend_score_v2=25.0,
+            momentum_score_v2=25.0, volatility_score_v2=20.0,
+        ),
+    )
+
+    client.get("/api/v4/stock/2330/history")
+    client.get("/api/v4/stock/2330/history")
+    assert load_calls["count"] == 1
+
+
 # ── Schema Parity Tests (backend-refactor-modular AC#8) ───────────────────────
 
 

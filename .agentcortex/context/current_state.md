@@ -28,6 +28,7 @@
   - `[meta-tests] .agentcortex/specs/meta-service-tests.md [Frozen] — ✅ ALL 5 ACs done (23 new tests: _to_bool, signals, safe defaults, updated_at fallback 2026-03-18)`
   - `[api-security] .agentcortex/specs/api-security-hardening.md [Frozen] — ✅ ALL 12 ACs done (path traversal, info-leak, rate limits, ticker validation, bare excepts, SHA256 integrity 2026-03-19)`
   - `[audit-doc-test] .agentcortex/specs/audit-doc-test-supplement.md [Frozen] — ✅ ALL 9 ACs done (HMAC tests 9/9, model-signing.md, rate-limiting.md 2026-03-21)`
+  - `[visual-upgrade-p1] .agentcortex/specs/visual-upgrade-phase1.md [Frozen] — ✅ ALL 6 ACs done (history endpoint + PriceSignalChart + count-up animation 2026-03-27)`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.
@@ -57,7 +58,7 @@
 >
 > 3-5 high-value patterns max. Reviewed during /bootstrap.
 
-- [Global Memory]: Branch-local lessons are lost after archival. Use Global Lessons Registry for persistence.
+- [Build Mode Strictness]: `tsc --noEmit` may pass while `npm run build` (`tsc -b`) fails on stricter generic type constraints (e.g., Recharts Formatter). Always run full production build as final validation before shipping.
 - [Format Safety]: Do not copy line numbers from view tools; they break file edits.
 - [E2E Perf Testing]: E2E performance tests must run against production build (`vite preview`), not dev server. React StrictMode double-invocation in dev inflates timing 3-6×, masking true render performance.
 - [Work Log Lag]: Evidence must be written to Work Log during each phase (implement/review/test), not accumulated for ship. Stale logs block the ship gate and require recovery before proceeding.
@@ -88,3 +89,7 @@
 ### Ship-master-audit-2026-03-22
 - Feature shipped: Multi-area audit quick-wins — Backend: TOCTOU fix in predictor.py (EAFP + single byte-read for checksum/HMAC/load), sidecar file management in manage_models.py (_SIDECAR_EXTS, copy/delete on activate/delete), CORS X-Requested-With header, backtest profit_factor: None on failure, integration marker + 8 new backend tests. Frontend: apiClient.ts in-flight race fix (generation counter + bounded cleanup), Indicators.tsx raw fetch→useCachedApi rewrite, ErrorBoundary component + integrated into all 4 pages, Dashboard refresh also invalidates /api/v4/meta, MarketStatus/MarketHistory type dedup, useStockAnalysis HOLD badge fix, timezone-safe test date helper.
 - Tests: Pass (Backend 140/140, Frontend 34/34, Coverage 82.7%)
+
+### Ship-master-visual-upgrade-2026-03-27
+- Feature shipped: 視覺衝擊力升級 Phase 1 — Backend: GET /api/v4/stock/{ticker}/history endpoint (90d OHLC + signals, 60s TTL cache). Frontend: PriceSignalChart component (Recharts ComposedChart + ReferenceDot for squeeze/golden_cross/volume_spike signals), useCountUp animation hook for AI Probability count-up effect, SniperCard integration. Review found and fixed: production build type error (Tooltip formatter undefined), skeleton-forever bug on fetch error (isPlaceholder state machine), cache TTL spec mismatch (300s→60s).
+- Tests: Pass (Backend 143/143, Frontend 38/38, Production build ✅)
