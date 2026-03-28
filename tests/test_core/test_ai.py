@@ -93,14 +93,17 @@ def test_prepare_features_target_labeling_buy_before_stop():
     from core.ai.common import FEATURE_COLS
 
     n = 320
-    close = np.full(n, 100.0)
-    high = np.full(n, 101.0)
-    low = np.full(n, 99.0)
+    # Use linspace prices (not constant) so RSI is computable.
+    # FIX-WARMUP-DROP: dropna removes rows where FEATURE_COLS have NaN; constant prices
+    # produce all-NaN RSI, causing all rows to be dropped.
+    close = np.linspace(99.5, 100.5, n)
+    high = close + 1.0
+    low = close - 1.0
     volume = np.full(n, 1000.0)
 
-    # Entry at idx 280: +10% hit at day +2, +15% never hit, stop at day +5 (after buy target)
-    high[282] = 111.0
-    low[285] = 94.0
+    # Entry at idx 280 (close ≈ 100.38): +10% hit at day +2, +15% never hit, stop at day +5
+    high[282] = 111.0   # > 100.38 * 1.10 = 110.42  → triggers BUY target
+    low[285] = 94.0     # < 100.38 * 0.95 = 95.36   → would trigger stop, but after BUY
 
     df = pd.DataFrame({
         'close': close, 'high': high, 'low': low, 'volume': volume,
@@ -157,10 +160,13 @@ def test_prepare_features_does_not_backfill_training_from_future_values():
 
     X, y = prepare_features(df, is_training=True)
 
-    # Leading NaNs should not be backfilled from row 3's value.
-    assert X.loc[0, 'rsi'] == 0
-    assert X.loc[1, 'rsi'] == 0
-    assert X.loc[2, 'rsi'] == 0
+    # FIX-WARMUP-DROP: rows with NaN features are now DROPPED entirely during training
+    # (not filled with 0). This is strictly safer than fill-with-0 because it avoids
+    # feeding fake-zero features to the model. Both SMA240 warmup rows AND the manually
+    # injected NaN RSI rows (0-2) must be absent from the output.
+    assert 0 not in X.index
+    assert 1 not in X.index
+    assert 2 not in X.index
     assert np.isfinite(X.to_numpy()).all()
     assert list(X.columns) == FEATURE_COLS
     assert len(X) == len(y)
