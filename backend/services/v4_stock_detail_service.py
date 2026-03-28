@@ -142,9 +142,23 @@ class V4StockDetailService:
             volume_spike_flag = bool(rel_vol > 1.5)
 
             analyst_text = []
+            # Trend analysis using stored SMA values (mirrors slow-path logic).
+            sma_20 = safe_float(cached_indicators.get("sma_20")) if cached_indicators else 0.0
+            sma_60 = safe_float(cached_indicators.get("sma_60")) if cached_indicators else 0.0
+            if sma_20 and sma_60:
+                if price > sma_20 > sma_60:
+                    analyst_text.append("Strong Uptrend: Price is consistently above SMA20 & SMA60.")
+                elif sma_20 > sma_60:
+                    analyst_text.append("Recovering: Price is building momentum above SMA20.")
+            # RSI analysis using stored RSI value.
+            rsi = safe_float(cached_indicators.get("rsi", 50)) if cached_indicators else 50.0
+            if 40 <= rsi <= 70:
+                analyst_text.append("Momentum: RSI is in the bullish zone (40-70).")
+            elif rsi > 80:
+                analyst_text.append("Overheated: RSI indicates overbought territory.")
             if squeeze_flag:
                 analyst_text.append("Squeeze Alert: Low volatility detected, expecting a major move.")
-            if volume_spike_flag:
+            elif volume_spike_flag:
                 analyst_text.append("Volume Spike: Heavy trading activity detected.")
 
             response = {

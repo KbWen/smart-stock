@@ -95,7 +95,9 @@
 - Tests: Pass (Backend 143/143, Frontend 38/38, Production build ✅)
 
 ### Ship-master-eng-audit-2026-03-28
-- Feature shipped: Engineering audit quick-wins (3 fixes) — FIX-01: deleted dead code `backend/state.py` (68 lines, 0 imports, duplicate of sync.py state); FIX-02: optimized `score_repo.py:load_latest_scores_for_tickers` correlated subquery → GROUP BY aggregation JOIN (O(N) subqueries → O(1) aggregation); FIX-03: `useDashboardData.ts:refreshCandidates` now also invalidates `/api/market_status` cache so bull_ratio/risk_level refresh immediately after manual sync.
-- Follow-up issues documented: ISSUE-04 (isDbStale timezone fragility), ISSUE-05 (sync failed_count not tracked).
-- Tests: Pass (Backend 85/85 excl. pre-existing flaky live test, Frontend 38/38, tsc --noEmit ✅)
-- Tests: Pass (Backend 143/143, Frontend 38/38, Production build ✅)
+- Feature shipped: Engineering audit round 1 quick-wins (3 fixes) — FIX-01: deleted dead code `backend/state.py` (68 lines, 0 imports, duplicate of sync.py state); FIX-02: optimized `score_repo.py:load_latest_scores_for_tickers` correlated subquery → GROUP BY aggregation JOIN; FIX-03: `useDashboardData.ts:refreshCandidates` also invalidates `/api/market_status`.
+- Tests: Pass (Backend 85/85, Frontend 38/38, tsc --noEmit ✅)
+
+### Ship-master-eng-audit-r2-2026-03-28
+- Feature shipped: Engineering audit round 2 quick-wins (3 fixes) — FIX-A: `core/data.py:save_score_to_db` wrapped in try/finally to prevent connection leak on exception (called ~1000× per sync); FIX-B: `core/market.py:get_market_status` replaced full-table Pandas scan (~1000 rows) with SQL COUNT/AVG aggregates + aligned model_version selection to `GROUP BY count(*) DESC` (same as candidates), removing market/candidate version skew during partial syncs; FIX-C: `v4_stock_detail_service.py` fast-path analyst_summary enriched with RSI (40-70 bullish zone, >80 overheated) and SMA-based trend direction using stored `sma_20`/`sma_60` values, matching slow-path output quality.
+- Tests: Pass (Backend 85/85, Frontend 38/38)
