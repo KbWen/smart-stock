@@ -63,6 +63,7 @@
 - [E2E Perf Testing]: E2E performance tests must run against production build (`vite preview`), not dev server. React StrictMode double-invocation in dev inflates timing 3-6×, masking true render performance.
 - [Work Log Lag]: Evidence must be written to Work Log during each phase (implement/review/test), not accumulated for ship. Stale logs block the ship gate and require recovery before proceeding.
 - [Rotation Conflict]: When trainer.py uses timestamp-based rotation and manage_models.py uses quality-based pruning independently, a bad new model can displace a good old one before prune runs. Unify via a shared constant and quality-first sort key.
+- [Sidecar Parity]: Whenever a `.pkl` model file is deleted (rotation or prune), also delete matching `.sha256`/`.sig` sidecars. trainer.py rotation and manage_models.py:cmd_delete must stay in sync on this.
 
 ## Ship History
 
@@ -101,3 +102,7 @@
 ### Ship-master-eng-audit-r2-2026-03-28
 - Feature shipped: Engineering audit round 2 quick-wins (3 fixes) — FIX-A: `core/data.py:save_score_to_db` wrapped in try/finally to prevent connection leak on exception (called ~1000× per sync); FIX-B: `core/market.py:get_market_status` replaced full-table Pandas scan (~1000 rows) with SQL COUNT/AVG aggregates + aligned model_version selection to `GROUP BY count(*) DESC` (same as candidates), removing market/candidate version skew during partial syncs; FIX-C: `v4_stock_detail_service.py` fast-path analyst_summary enriched with RSI (40-70 bullish zone, >80 overheated) and SMA-based trend direction using stored `sma_20`/`sma_60` values, matching slow-path output quality.
 - Tests: Pass (Backend 85/85, Frontend 38/38)
+
+### Ship-master-eng-audit-r3-2026-03-28
+- Feature shipped: Engineering audit round 3 quick-wins (3 fixes) — FIX-1: `core/ai/trainer.py` rotation loop now cleans `.sha256`/`.sig` sidecar files alongside `.pkl` deletion (prevents orphan accumulation per training run); FIX-2: Atomic JSON writes via `tempfile.mkstemp` + `os.replace` in `core/market.py:save_market_history`, `core/ai/trainer.py` history write, and `backend/manage_models.py:save_history` (prevents file corruption on process crash); FIX-3: removed dead `y_pred = clf_gb_cv.predict(X_v)` line in trainer.py CV loop + changed `logger.error(f"...")` f-string to `logger.error("...", e)` in market.py.
+- Tests: Pass (Backend 85/85)

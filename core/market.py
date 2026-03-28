@@ -121,10 +121,21 @@ def save_market_history(status):
         history = history[-30:]
         
     try:
-        with open(history_path, 'w') as f:
-            json.dump(history, f, indent=2)
+        import tempfile
+        dir_name = os.path.dirname(history_path)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                json.dump(history, f, indent=2)
+            os.replace(tmp_path, history_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
     except Exception as e:
-        logger.error(f"Failed to save market history: {e}")
+        logger.error("Failed to save market history: %s", e)
 
 def get_market_history():
     """Returns the market history from JSON."""

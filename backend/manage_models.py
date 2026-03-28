@@ -19,8 +19,19 @@ def load_history():
     return []
 
 def save_history(history):
-    with open(HISTORY_PATH, 'w') as f:
-        json.dump(history, f, indent=2)
+    import tempfile
+    dir_name = os.path.dirname(HISTORY_PATH)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(history, f, indent=2)
+        os.replace(tmp_path, HISTORY_PATH)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 def cmd_list():
     """Print all models with their scorecards in a formatted table."""

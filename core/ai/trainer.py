@@ -228,7 +228,6 @@ def train_and_save(all_dfs):
         # HistGradientBoosting automatically uses all available OpenMP threads
         clf_gb_cv = HistGradientBoostingClassifier(max_iter=100, max_depth=4, learning_rate=0.05, random_state=42)
         clf_gb_cv.fit(X_t, y_t, sample_weight=w_t)
-        y_pred = clf_gb_cv.predict(X_v)
         print(f"Fold {fold+1} Validation Accuracy: {clf_gb_cv.score(X_v, y_v):.2f}")
 
     print("\nTraining final ensemble on train split and evaluating on holdout test split...")
@@ -371,7 +370,19 @@ def train_and_save(all_dfs):
         except Exception:
             pass
     history.append(history_entry)
-    with open(history_path, 'w') as f: json.dump(history[-50:], f, indent=2)
+    import tempfile as _tempfile
+    _dir = os.path.dirname(history_path)
+    _fd, _tmp = _tempfile.mkstemp(dir=_dir, suffix='.tmp')
+    try:
+        with os.fdopen(_fd, 'w') as _f:
+            json.dump(history[-50:], _f, indent=2)
+        os.replace(_tmp, history_path)
+    except Exception:
+        try:
+            os.unlink(_tmp)
+        except OSError:
+            pass
+        raise
     
     # Rotation: keep MAX_SAVED_MODELS best-performing models by profit_factor (AC1, AC2, AC4)
     keep_timestamps = {h['timestamp'] for h in sorted(history, key=profit_factor_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
@@ -382,6 +393,7 @@ def train_and_save(all_dfs):
     except Exception:
         active_realpath = None
 
+    _SIDECAR_EXTS = ('.sha256', '.sig')
     for fpath in glob.glob(os.path.join(base_dir, f"{name_part}_*{ext_part}")):
         ts_part = os.path.basename(fpath)[len(name_part) + 1: -len(ext_part)]
         if ts_part in keep_timestamps:
@@ -390,6 +402,10 @@ def train_and_save(all_dfs):
             if active_realpath and os.path.realpath(fpath) == active_realpath:
                 continue  # AC4: never delete the active model file
             os.remove(fpath)
+            for sidecar_ext in _SIDECAR_EXTS:
+                sidecar = fpath + sidecar_ext
+                if os.path.exists(sidecar):
+                    os.remove(sidecar)
         except Exception:
             pass
 
