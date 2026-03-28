@@ -155,6 +155,11 @@ def prepare_features(df, is_training=True):
         df_clean = df
 
     df_clean = df_clean.replace([np.inf, -np.inf], np.nan)
+    if is_training:
+        # Drop warmup rows where long-period indicators (SMA240 etc.) are still NaN
+        # after ffill. These rows pre-date the first valid indicator value and would
+        # otherwise be filled with 0, biasing the model with fake "zero" features.
+        df_clean = df_clean.dropna(subset=FEATURE_COLS)
     df_clean[FEATURE_COLS] = df_clean[FEATURE_COLS].fillna(0)
     
     if df_clean.empty:
@@ -309,18 +314,40 @@ def train_and_save(all_dfs):
     versioned_path = os.path.join(base_dir, f"{name_part}_{timestamp}{ext_part}")
     joblib.dump(model_metadata, versioned_path)
     # Write SHA256 checksum sidecar for integrity verification (H1)
+    # Use atomic write (mkstemp + os.replace) so a mid-write crash never leaves
+    # a truncated .sha256 that would permanently block loading this model.
     model_bytes = open(versioned_path, 'rb').read()
     sha256 = hashlib.sha256(model_bytes).hexdigest()
-    with open(versioned_path + '.sha256', 'w') as _f:
+    import tempfile as _tempfile2
+    _sha_fd, _sha_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+    with os.fdopen(_sha_fd, 'w') as _f:
         _f.write(sha256)
+    os.replace(_sha_tmp, versioned_path + '.sha256')
     # Write HMAC-SHA256 signature sidecar if MODEL_SIGNING_KEY is configured (L1)
     if _cfg.MODEL_SIGNING_KEY:
         sig = _hmac.new(_cfg.MODEL_SIGNING_KEY.encode(), model_bytes, hashlib.sha256).hexdigest()
-        with open(versioned_path + '.sig', 'w') as _f:
+        _sig_fd, _sig_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+        with os.fdopen(_sig_fd, 'w') as _f:
             _f.write(sig)
-        shutil.copy(versioned_path + '.sig', MODEL_PATH + '.sig')
-    shutil.copy(versioned_path, MODEL_PATH)
-    shutil.copy(versioned_path + '.sha256', MODEL_PATH + '.sha256')
+        os.replace(_sig_tmp, versioned_path + '.sig')
+    # Activate MODEL_PATH: update sidecars first, then the model binary.
+    # Order rationale: if the .pkl copy is interrupted, the sha256 will mismatch
+    # the partial file — predictor refuses to load and degrades to 0.0 (safe).
+    # Copying .pkl to a temp file then os.replace avoids writing directly to
+    # MODEL_PATH (which would corrupt it if interrupted mid-copy).
+    if _cfg.MODEL_SIGNING_KEY:
+        _asig_fd, _asig_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+        os.close(_asig_fd)
+        shutil.copy2(versioned_path + '.sig', _asig_tmp)
+        os.replace(_asig_tmp, MODEL_PATH + '.sig')
+    _asha_fd, _asha_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+    os.close(_asha_fd)
+    shutil.copy2(versioned_path + '.sha256', _asha_tmp)
+    os.replace(_asha_tmp, MODEL_PATH + '.sha256')
+    _apkl_fd, _apkl_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+    os.close(_apkl_fd)
+    shutil.copy2(versioned_path, _apkl_tmp)
+    os.replace(_apkl_tmp, MODEL_PATH)
 
     print("\n📊 Running post-training benchmark backtest (30 days)...")
     try:

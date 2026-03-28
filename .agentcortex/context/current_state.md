@@ -103,6 +103,10 @@
 - Feature shipped: Engineering audit round 2 quick-wins (3 fixes) — FIX-A: `core/data.py:save_score_to_db` wrapped in try/finally to prevent connection leak on exception (called ~1000× per sync); FIX-B: `core/market.py:get_market_status` replaced full-table Pandas scan (~1000 rows) with SQL COUNT/AVG aggregates + aligned model_version selection to `GROUP BY count(*) DESC` (same as candidates), removing market/candidate version skew during partial syncs; FIX-C: `v4_stock_detail_service.py` fast-path analyst_summary enriched with RSI (40-70 bullish zone, >80 overheated) and SMA-based trend direction using stored `sma_20`/`sma_60` values, matching slow-path output quality.
 - Tests: Pass (Backend 85/85, Frontend 38/38)
 
+### Ship-master-eng-audit-r6-2026-03-28
+- Feature shipped: ML pipeline hardening (plan-eng-review findings) — FIX-MODEL-ATOMIC: `trainer.py` versioned sha256/sig sidecar now uses atomic write (mkstemp+os.replace); MODEL_PATH activation order changed to sha256→sig→pkl with copy-to-temp+os.replace pattern, eliminating the window where pkl content ≠ sha256 content; FIX-WARMUP-DROP: `prepare_features` training path now calls `dropna(subset=FEATURE_COLS)` before `fillna(0)`, removing early indicator warmup rows (first ~240 bars where SMA240 is NaN) that were previously being fed to the model as fake-zero features.
+- Tests: Pass (Backend 101/101)
+
 ### Ship-master-eng-audit-r5-2026-03-28
 - Feature shipped: Regression tests (16) + ML pipeline bug fixes (2) — TEST: `test_indicators_regression.py` 16 tests covering all eng-audit-r4 edge cases (KD/BB flat price, MACD/ATR zero close, system_repo connection leak, score_repo tie-breaking); FIX-1: `backend/routes/sync.py:147` ai_prob defaulted to None when predict_prob returned None (checksum fail / model not found) — now stays 0.0; FIX-2: `backend/backtest.py:264` profit_factor=float('inf') when zero losses broke json.dump during training (model saved but history orphaned) — capped to 9999.0.
 - Tests: Pass (Backend 101/101)
