@@ -44,6 +44,7 @@ class ScoreRepository:
                 GROUP BY ticker
             ) m ON s.ticker = m.ticker AND s.updated_at = m.max_updated_at
             WHERE s.ticker IN ({placeholders})
+            ORDER BY s.rowid DESC
         """
             rows = conn.execute(query, tickers + tickers).fetchall()
             result: dict[str, dict[str, Any]] = {}
