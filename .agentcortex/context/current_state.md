@@ -119,6 +119,10 @@
 - Feature shipped: Engineering audit round 4 quick-wins (5 fixes) — FIX-A/B: `core/analysis.py` KD stochastic + Bollinger Band `bb_percent` both divided by zero when prices are flat over their window (guard: +1e-9 epsilon); FIX-C: `core/indicators_v2.py` MACD hist and ATR percent normalized by `close` now use `.replace(0, np.nan)` to match trainer.py convention; FIX-D: `backend/repositories/system_repo.py:check_db_health` connection leak fixed with try/finally; FIX-E: `backend/repositories/score_repo.py` deterministic tie-breaking when two rows share same `updated_at` (ORDER BY rowid DESC).
 - Tests: Pass (Backend 85/85)
 
+### Ship-master-visual-upgrade-p2-2026-03-28
+- Feature shipped: 視覺衝擊力升級 Phase 2 — Sparkline mini-charts in candidate rows. Backend: GET /api/v4/stock/{ticker}/sparkline returns last 30 close prices (no indicator computation, 60s TTL cache). Frontend: SparklineChart component (recharts LineChart, no axes, Taiwan color: red=up/green=down), useSparkline hook (useCachedApi, 60s TTL, 200ms throttle), CandidateRow integration (sparkline embedded in ticker cell), ROW_HEIGHT 76→92px. 4 new backend tests + 5 new SparklineChart tests.
+- Tests: Pass (Backend 162/162, Frontend 43/43, Production build ✅)
+
 ### Ship-master-frontend-audit-r9-2026-03-28
 - Feature shipped: Frontend deep audit + test correctness fix — Thorough review of all frontend files (useCachedApi.ts, useDashboardData.ts, useStockAnalysis.ts, CandidateRow.tsx, SniperCard.tsx, Dashboard.tsx, Backtest.tsx, ScoreBreakdown.tsx) confirmed no crash-risk bugs; all color conventions correct for Taiwan market (red=up, green=down); SWR/race-protection patterns confirmed correct. TEST-FIX: `tests/test_core/test_ai.py` two tests (`test_prepare_features_target_labeling_buy_before_stop`, `test_prepare_features_does_not_backfill_training_from_future_values`) updated to reflect FIX-WARMUP-DROP behavior — constant-price test data made RSI always-NaN so dropna removed all rows; switched to linspace prices and updated assertions (rows dropped → absent from X.index, not filled with 0).
 - Tests: Pass (Backend 158/158, Frontend 38/38)

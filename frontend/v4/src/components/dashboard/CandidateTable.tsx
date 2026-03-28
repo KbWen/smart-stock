@@ -14,7 +14,7 @@ interface CandidateTableProps {
 type SortKey = 'price' | 'change_percent' | 'rise_score' | 'ai_prob'
 type SortDir = 'asc' | 'desc'
 
-const ROW_HEIGHT = 76
+const ROW_HEIGHT = 92
 const OVERSCAN_COUNT = 4
 
 const CandidateTable: React.FC<CandidateTableProps> = ({
