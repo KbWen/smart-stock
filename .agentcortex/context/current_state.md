@@ -103,6 +103,10 @@
 - Feature shipped: Engineering audit round 2 quick-wins (3 fixes) — FIX-A: `core/data.py:save_score_to_db` wrapped in try/finally to prevent connection leak on exception (called ~1000× per sync); FIX-B: `core/market.py:get_market_status` replaced full-table Pandas scan (~1000 rows) with SQL COUNT/AVG aggregates + aligned model_version selection to `GROUP BY count(*) DESC` (same as candidates), removing market/candidate version skew during partial syncs; FIX-C: `v4_stock_detail_service.py` fast-path analyst_summary enriched with RSI (40-70 bullish zone, >80 overheated) and SMA-based trend direction using stored `sma_20`/`sma_60` values, matching slow-path output quality.
 - Tests: Pass (Backend 85/85, Frontend 38/38)
 
+### Ship-master-eng-audit-r5-2026-03-28
+- Feature shipped: Regression tests (16) + ML pipeline bug fixes (2) — TEST: `test_indicators_regression.py` 16 tests covering all eng-audit-r4 edge cases (KD/BB flat price, MACD/ATR zero close, system_repo connection leak, score_repo tie-breaking); FIX-1: `backend/routes/sync.py:147` ai_prob defaulted to None when predict_prob returned None (checksum fail / model not found) — now stays 0.0; FIX-2: `backend/backtest.py:264` profit_factor=float('inf') when zero losses broke json.dump during training (model saved but history orphaned) — capped to 9999.0.
+- Tests: Pass (Backend 101/101)
+
 ### Ship-master-eng-audit-r4-2026-03-28
 - Feature shipped: Engineering audit round 4 quick-wins (5 fixes) — FIX-A/B: `core/analysis.py` KD stochastic + Bollinger Band `bb_percent` both divided by zero when prices are flat over their window (guard: +1e-9 epsilon); FIX-C: `core/indicators_v2.py` MACD hist and ATR percent normalized by `close` now use `.replace(0, np.nan)` to match trainer.py convention; FIX-D: `backend/repositories/system_repo.py:check_db_health` connection leak fixed with try/finally; FIX-E: `backend/repositories/score_repo.py` deterministic tie-breaking when two rows share same `updated_at` (ORDER BY rowid DESC).
 - Tests: Pass (Backend 85/85)

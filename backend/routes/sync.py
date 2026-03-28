@@ -143,8 +143,8 @@ def run_sync_task() -> None:
                     if isinstance(ai_result, dict):
                         ai_prob = ai_result.get("prob", 0.0)
                         score["ai_details"] = ai_result.get("details", {})
-                    else:
-                        ai_prob = ai_result
+                    elif ai_result is not None:
+                        ai_prob = float(ai_result)
 
                     save_score_to_db(ticker, score, ai_prob, model_version=current_model_version)
                     save_indicators_to_db(ticker, df, model_version=current_model_version)

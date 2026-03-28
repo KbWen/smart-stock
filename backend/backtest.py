@@ -261,7 +261,7 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
     # Profit factor: total gains / total losses
     gains = top_df[top_df['actual_return'] > 0]['actual_return'].sum()
     losses = abs(top_df[top_df['actual_return'] < 0]['actual_return'].sum())
-    profit_factor = gains / losses if losses > 0 else float('inf')
+    profit_factor = gains / losses if losses > 0 else 9999.0  # cap: float('inf') breaks json.dump
 
     best_pick = None
     if not top_df.empty:
