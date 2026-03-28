@@ -104,24 +104,33 @@ def _cache_put(path: str, model_data) -> None:
 
 
 def get_model_version() -> str:
-    """Returns the current model version string, loading it if necessary."""
+    """Returns the current model version string, loading it if necessary.
+
+    Uses double-checked locking: first check inside lock (fast path), then load
+    outside lock (expensive), then re-check inside lock before writing (prevents
+    two threads from each doing a full joblib.load when both see 'unknown').
+    """
     with _version_lock:
         if _current_model_version != "unknown":
             return _current_model_version
-    # Load outside the lock — joblib.load is expensive
+    # Load outside the lock — joblib.load is expensive and must not block callers
+    version_candidate = None
     try:
         model_bytes = open(MODEL_PATH, 'rb').read()
         if not _verify_checksum(MODEL_PATH, model_bytes):
-            return _current_model_version  # checksum mismatch — skip load
+            with _version_lock:
+                return _current_model_version  # checksum mismatch — skip update
         model_data_all = joblib.load(io.BytesIO(model_bytes))
-        if isinstance(model_data_all, dict) and 'version' in model_data_all:
-            _set_model_version(model_data_all['version'])
-        else:
-            _set_model_version("legacy")
+        version_candidate = model_data_all['version'] if isinstance(model_data_all, dict) and 'version' in model_data_all else "legacy"
     except FileNotFoundError:
         pass  # model not yet trained
     except Exception as exc:
         logger.warning("Failed to load model version from %s: %s", MODEL_PATH, exc)
+    # Second check inside lock: only write if another thread hasn't already resolved it
+    if version_candidate is not None:
+        with _version_lock:
+            if _current_model_version == "unknown":
+                _set_model_version(version_candidate)
     with _version_lock:
         return _current_model_version
 

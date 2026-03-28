@@ -103,6 +103,10 @@
 - Feature shipped: Engineering audit round 2 quick-wins (3 fixes) — FIX-A: `core/data.py:save_score_to_db` wrapped in try/finally to prevent connection leak on exception (called ~1000× per sync); FIX-B: `core/market.py:get_market_status` replaced full-table Pandas scan (~1000 rows) with SQL COUNT/AVG aggregates + aligned model_version selection to `GROUP BY count(*) DESC` (same as candidates), removing market/candidate version skew during partial syncs; FIX-C: `v4_stock_detail_service.py` fast-path analyst_summary enriched with RSI (40-70 bullish zone, >80 overheated) and SMA-based trend direction using stored `sma_20`/`sma_60` values, matching slow-path output quality.
 - Tests: Pass (Backend 85/85, Frontend 38/38)
 
+### Ship-master-eng-audit-r7-2026-03-28
+- Feature shipped: Remaining plan-eng-review + ISSUE-05 items — FIX-DCL: `predictor.py:get_model_version()` proper double-checked locking (second check inside lock before `_set_model_version()`) prevents two threads from each doing a full `joblib.load` when both see `"unknown"` simultaneously; FIX-FAILED-COUNT: `sync.py` adds `failed_count` field to sync_status dict, incremented on per-ticker exception, reset to 0 on each sync start, exposed via `/api/sync/status`.
+- Tests: Pass (Backend 101/101)
+
 ### Ship-master-eng-audit-r6-2026-03-28
 - Feature shipped: ML pipeline hardening (plan-eng-review findings) — FIX-MODEL-ATOMIC: `trainer.py` versioned sha256/sig sidecar now uses atomic write (mkstemp+os.replace); MODEL_PATH activation order changed to sha256→sig→pkl with copy-to-temp+os.replace pattern, eliminating the window where pkl content ≠ sha256 content; FIX-WARMUP-DROP: `prepare_features` training path now calls `dropna(subset=FEATURE_COLS)` before `fillna(0)`, removing early indicator warmup rows (first ~240 bars where SMA240 is NaN) that were previously being fed to the model as fake-zero features.
 - Tests: Pass (Backend 101/101)

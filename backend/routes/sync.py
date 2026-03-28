@@ -23,6 +23,7 @@ sync_status = {
     "is_syncing": False,
     "total": 0,
     "current": 0,
+    "failed_count": 0,
     "current_ticker": "",
     "last_updated": None,
     "sync_epoch": 0,
@@ -59,9 +60,11 @@ def _sync_status_update(**kwargs) -> None:
         sync_status.update(kwargs)
 
 
-def _sync_status_increment_current() -> None:
+def _sync_status_increment_current(failed: bool = False) -> None:
     with sync_status_lock:
         sync_status["current"] += 1
+        if failed:
+            sync_status["failed_count"] += 1
 
 
 def _try_start_sync() -> bool:
@@ -88,7 +91,7 @@ def run_sync_task() -> None:
 
     try:
         all_stocks = get_all_tw_stocks()
-        _sync_status_update(total=len(all_stocks), current=0)
+        _sync_status_update(total=len(all_stocks), current=0, failed_count=0)
 
         def process_stock(stock: dict[str, Any]) -> None:
             ticker = stock["code"]
@@ -151,6 +154,8 @@ def run_sync_task() -> None:
 
             except Exception:
                 logger.exception("Sync error for %s", ticker)
+                _sync_status_increment_current(failed=True)
+                return
 
             _sync_status_increment_current()
 
