@@ -93,3 +93,9 @@
 ### Ship-master-visual-upgrade-2026-03-27
 - Feature shipped: 視覺衝擊力升級 Phase 1 — Backend: GET /api/v4/stock/{ticker}/history endpoint (90d OHLC + signals, 60s TTL cache). Frontend: PriceSignalChart component (Recharts ComposedChart + ReferenceDot for squeeze/golden_cross/volume_spike signals), useCountUp animation hook for AI Probability count-up effect, SniperCard integration. Review found and fixed: production build type error (Tooltip formatter undefined), skeleton-forever bug on fetch error (isPlaceholder state machine), cache TTL spec mismatch (300s→60s).
 - Tests: Pass (Backend 143/143, Frontend 38/38, Production build ✅)
+
+### Ship-master-eng-audit-2026-03-28
+- Feature shipped: Engineering audit quick-wins (3 fixes) — FIX-01: deleted dead code `backend/state.py` (68 lines, 0 imports, duplicate of sync.py state); FIX-02: optimized `score_repo.py:load_latest_scores_for_tickers` correlated subquery → GROUP BY aggregation JOIN (O(N) subqueries → O(1) aggregation); FIX-03: `useDashboardData.ts:refreshCandidates` now also invalidates `/api/market_status` cache so bull_ratio/risk_level refresh immediately after manual sync.
+- Follow-up issues documented: ISSUE-04 (isDbStale timezone fragility), ISSUE-05 (sync failed_count not tracked).
+- Tests: Pass (Backend 85/85 excl. pre-existing flaky live test, Frontend 38/38, tsc --noEmit ✅)
+- Tests: Pass (Backend 143/143, Frontend 38/38, Production build ✅)

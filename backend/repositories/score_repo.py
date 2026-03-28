@@ -31,17 +31,21 @@ class ScoreRepository:
         conn = get_db_connection()
         try:
             placeholders = ",".join(["?"] * len(tickers))
+            # Use a GROUP BY aggregation + JOIN instead of a correlated subquery.
+            # The correlated form ran one subquery per row (O(N)); this form uses
+            # a single group-by pass and is significantly faster for large batches.
             query = f"""
             SELECT s.*
             FROM stock_scores s
+            INNER JOIN (
+                SELECT ticker, MAX(updated_at) AS max_updated_at
+                FROM stock_scores
+                WHERE ticker IN ({placeholders})
+                GROUP BY ticker
+            ) m ON s.ticker = m.ticker AND s.updated_at = m.max_updated_at
             WHERE s.ticker IN ({placeholders})
-              AND s.updated_at = (
-                SELECT MAX(s2.updated_at)
-                FROM stock_scores s2
-                WHERE s2.ticker = s.ticker
-              )
         """
-            rows = conn.execute(query, tickers).fetchall()
+            rows = conn.execute(query, tickers + tickers).fetchall()
             result: dict[str, dict[str, Any]] = {}
             for row in rows:
                 row_dict = dict(row)

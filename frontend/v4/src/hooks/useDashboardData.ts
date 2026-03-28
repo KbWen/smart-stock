@@ -82,6 +82,7 @@ export const useDashboardData = () => {
     }, [candidateMeta])
 
     const refreshCandidates = useCallback(async () => {
+        invalidateApiCache('/api/market_status')
         invalidateApiCache('/api/v4/sniper/candidates')
         invalidateApiCache('/api/v4/meta')
         await refetchCandidates()
