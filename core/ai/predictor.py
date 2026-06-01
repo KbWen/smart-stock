@@ -10,7 +10,7 @@ import logging
 import threading
 from collections import OrderedDict
 from typing import Optional
-from core.ai.common import FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE, validate_version_string
+from core.ai.common import FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE, validate_version_string, MIN_PREDICT_ROWS
 from core import config as _cfg
 
 # ---------------------------------------------------------------------------
@@ -110,6 +110,7 @@ def get_model_version() -> str:
     outside lock (expensive), then re-check inside lock before writing (prevents
     two threads from each doing a full joblib.load when both see 'unknown').
     """
+    global _current_model_version
     with _version_lock:
         if _current_model_version != "unknown":
             return _current_model_version
@@ -130,7 +131,7 @@ def get_model_version() -> str:
     if version_candidate is not None:
         with _version_lock:
             if _current_model_version == "unknown":
-                _set_model_version(version_candidate)
+                _current_model_version = version_candidate
     with _version_lock:
         return _current_model_version
 
@@ -196,7 +197,7 @@ def predict_prob(df, version: Optional[str] = None):
         _set_model_version("legacy")
         model_data = model_data_all
 
-    if df.empty or len(df) < 60:
+    if df.empty or len(df) < MIN_PREDICT_ROWS:
         return None
 
     # --- Feature Extraction ---
@@ -225,10 +226,17 @@ def predict_prob(df, version: Optional[str] = None):
 
                 p_array = clf.predict_proba(X_clf)[0]
 
-                # 3-Class System Breakdown
-                sb_prob = float(p_array[2]) if len(p_array) > 2 else 0.0
-                b_prob  = float(p_array[1]) if len(p_array) > 1 else 0.0
-                h_prob  = float(p_array[0]) if len(p_array) > 0 else 0.0
+                # Dynamic Class Mapping based on clf.classes_ to prevent index mismatch
+                # Fallback to index-based breakdown if classes_ is not a real array (e.g. mocked classifiers)
+                if hasattr(clf, "classes_") and isinstance(getattr(clf, "classes_", None), (list, np.ndarray, pd.Series)):
+                    class_map = {val: idx for idx, val in enumerate(clf.classes_)}
+                    h_prob = float(p_array[class_map[0]]) if 0 in class_map else 0.0
+                    b_prob = float(p_array[class_map[1]]) if 1 in class_map else 0.0
+                    sb_prob = float(p_array[class_map[2]]) if 2 in class_map else 0.0
+                else:
+                    sb_prob = float(p_array[2]) if len(p_array) > 2 else 0.0
+                    b_prob  = float(p_array[1]) if len(p_array) > 1 else 0.0
+                    h_prob  = float(p_array[0]) if len(p_array) > 0 else 0.0
 
                 win_p = sb_prob + b_prob
                 probs[name] = {
@@ -248,10 +256,19 @@ def predict_prob(df, version: Optional[str] = None):
             else:
                 X_clf = X_single
             p_vec  = clf.predict_proba(X_clf)[0]
-            win_p  = float(np.sum(p_vec[1:])) if len(p_vec) > 1 else 0.0
-            sb_prob = float(p_vec[2]) if len(p_vec) > 2 else 0.0
-            b_prob  = float(p_vec[1]) if len(p_vec) > 1 else 0.0
-            h_prob  = float(p_vec[0]) if len(p_vec) > 0 else 0.0
+
+            if hasattr(clf, "classes_") and isinstance(getattr(clf, "classes_", None), (list, np.ndarray, pd.Series)):
+                class_map = {val: idx for idx, val in enumerate(clf.classes_)}
+                h_prob = float(p_vec[class_map[0]]) if 0 in class_map else 0.0
+                b_prob = float(p_vec[class_map[1]]) if 1 in class_map else 0.0
+                sb_prob = float(p_vec[class_map[2]]) if 2 in class_map else 0.0
+                win_p = b_prob + sb_prob
+            else:
+                win_p  = float(np.sum(p_vec[1:])) if len(p_vec) > 1 else 0.0
+                sb_prob = float(p_vec[2]) if len(p_vec) > 2 else 0.0
+                b_prob  = float(p_vec[1]) if len(p_vec) > 1 else 0.0
+                h_prob  = float(p_vec[0]) if len(p_vec) > 0 else 0.0
+
             return {"prob": win_p, "details": {"legacy": {
                 "win_prob": win_p,
                 "strong_buy_prob": sb_prob,

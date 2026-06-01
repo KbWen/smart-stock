@@ -2,6 +2,9 @@ import argparse
 import os
 import sys
 
+# Add parent directory to path - MUST BE FIRST for core imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -9,9 +12,6 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from backend.limiter import limiter
-
-# Add parent directory to path - MUST BE FIRST for core imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.routes.market import router as market_router
 from backend.routes.stock import router as stock_router
@@ -77,6 +77,11 @@ frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if not os.path.exists(frontend_path):
     os.makedirs(frontend_path)
 
+dist_assets_path = os.path.join(frontend_path, "v4", "dist", "assets")
+if not os.path.exists(dist_assets_path):
+    os.makedirs(dist_assets_path, exist_ok=True)
+app.mount("/assets", StaticFiles(directory=dist_assets_path), name="assets")
+
 
 @app.get("/")
 async def read_index():
@@ -103,11 +108,12 @@ app.include_router(system_router)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sync", action="store_true", help="Run sync and exit")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of stocks to sync")
     args = parser.parse_args()
 
     if args.sync:
         print("Starting Sync-Only Mode...")
-        run_sync_task()
+        run_sync_task(limit=args.limit)
         print("Sync Complete.")
     else:
         try:

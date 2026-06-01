@@ -32,8 +32,11 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
     return (
         <div
             onClick={() => onSelect(stock.ticker)}
-            className={`grid cursor-pointer grid-cols-5 items-center border-b border-dark-border px-3 text-sm transition-colors ${isSelected ? 'bg-sniper-green/10' : 'hover:bg-dark-border/30'
-                }`}
+            className={`grid cursor-pointer grid-cols-5 items-center border-b border-dark-border/40 text-sm transition-all duration-200 ease-out ${
+                isSelected
+                    ? 'bg-sniper-green/15 pl-2 border-l-4 border-l-sniper-green shadow-[inset_0_0_12px_rgba(16,185,129,0.15)]'
+                    : 'pl-3 border-l-4 border-l-transparent hover:bg-dark-border/30 hover:translate-x-1 hover:border-l-sniper-gold/40 hover:shadow-[inset_0_0_8px_rgba(245,158,11,0.05)]'
+            }`}
             style={{ height: `${rowHeight}px` }}
         >
             <div className="min-w-0 py-1.5">
@@ -62,7 +65,7 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
                 </div>
             </div>
             <div className="whitespace-nowrap font-mono text-dark-text">
-                {stock.price.toFixed(2)}
+                {(stock.price ?? 0).toFixed(2)}
             </div>
             <div className={`whitespace-nowrap font-medium ${getChangeColor(stock.change_percent)}`}>
                 {stock.change_percent != null
@@ -70,13 +73,13 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
                     : '-'}
             </div>
             <div>
-                <span className={`font-bold ${stock.rise_score >= 80 ? 'text-sniper-green' : 'text-white'}`}>
-                    {stock.rise_score.toFixed(1)}
+                <span className={`font-bold ${(stock.rise_score ?? 0) >= 80 ? 'text-sniper-green' : 'text-white'}`}>
+                    {(stock.rise_score ?? 0).toFixed(1)}
                 </span>
             </div>
             <div>
-                <span className={`font-bold ${stock.ai_prob >= 70 ? 'text-sniper-gold' : 'text-dark-muted'}`}>
-                    {stock.ai_prob.toFixed(1)}%
+                <span className={`font-bold ${(stock.ai_prob ?? 0) >= 70 ? 'text-sniper-gold' : 'text-dark-muted'}`}>
+                    {(stock.ai_prob ?? 0).toFixed(1)}%
                 </span>
             </div>
         </div>

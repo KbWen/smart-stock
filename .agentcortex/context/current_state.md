@@ -29,6 +29,10 @@
   - `[api-security] .agentcortex/specs/api-security-hardening.md [Frozen] — ✅ ALL 12 ACs done (path traversal, info-leak, rate limits, ticker validation, bare excepts, SHA256 integrity 2026-03-19)`
   - `[audit-doc-test] .agentcortex/specs/audit-doc-test-supplement.md [Frozen] — ✅ ALL 9 ACs done (HMAC tests 9/9, model-signing.md, rate-limiting.md 2026-03-21)`
   - `[visual-upgrade-p1] .agentcortex/specs/visual-upgrade-phase1.md [Frozen] — ✅ ALL 6 ACs done (history endpoint + PriceSignalChart + count-up animation 2026-03-27)`
+  - `[visual-upgrade-p2] .agentcortex/specs/visual-upgrade-phase2.md [Frozen] — ✅ ALL 7 ACs done (sparkline endpoint + SparklineChart + CandidateRow integration 2026-03-28)`
+  - `[onboarding] .agentcortex/specs/onboarding-optimization.md [Frozen] — ✅ ALL 4 ACs done (dev startup and limit sync optimized 2026-06-01)`
+  - `[frontend-ai] .agentcortex/specs/frontend-ai-optimization.md [Frozen] — ✅ ALL 4 ACs done (SVG sparklines, animations, glassmorphism, AI verification 2026-06-01)`
+  - `[core-ai-opt] .agentcortex/specs/ai-pipeline-otc-optimization.md [Frozen] — ✅ ALL 5 ACs done (OTC stocks, suffix mapping, embargo gaps, MLP oversampling, dynamic slicing 2026-06-01)`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.

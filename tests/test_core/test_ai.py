@@ -82,7 +82,7 @@ def test_predict_prob_legacy_model_handles_missing_features(mock_exists, mock_lo
     mock_load.return_value = LegacyModel()
     mock_prepare.return_value = (pd.DataFrame([{'f1': 1.0}]), pd.Series([0]))
 
-    df = pd.DataFrame({'close': [1] * 80, 'high': [1] * 80, 'low': [1] * 80, 'volume': [1] * 80})
+    df = pd.DataFrame({'close': [1] * 120, 'high': [1] * 120, 'low': [1] * 120, 'volume': [1] * 120})
     result = predict_prob(df)
 
     assert result['prob'] == pytest.approx(0.8)

@@ -3,12 +3,17 @@ from core.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+import math
+
 def safe_float(value, default=0.0):
     """Safely convert a value to float, returns default on failure."""
     if value is None:
         return default
     try:
-        return float(value)
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
     except (ValueError, TypeError):
         return default
 

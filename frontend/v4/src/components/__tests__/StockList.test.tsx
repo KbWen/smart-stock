@@ -94,6 +94,15 @@ const setupMock = ({
                 refetch: vi.fn(),
             }
         }
+        if (ep.includes('/sparkline')) {
+            return {
+                data: [],
+                loading: false,
+                error: null,
+                isPlaceholder: false,
+                refetch: vi.fn(),
+            }
+        }
         // bulk meta (or empty-string / undefined call)
         return {
             data: meta,

@@ -39,7 +39,7 @@ def prepare_features(df, is_training=True):
         df['vol_ma20'] = df['volume'].rolling(window=20).mean()
     
     # --- Ensure required base indicators are present ---
-    required_base = ['rsi', 'macd', 'macd_signal', 'sma_20', 'sma_60', 'k', 'd', 'bb_width', 'bb_percent']
+    required_base = ['rsi', 'macd', 'macd_signal', 'sma_20', 'sma_60', 'sma_120', 'sma_240', 'atr', 'k', 'd', 'bb_width', 'bb_percent']
     if any(col not in df.columns for col in required_base):
         from core.indicators_v2 import compute_v4_indicators
         df = compute_v4_indicators(df)
@@ -199,14 +199,16 @@ def train_and_save(all_dfs):
 
     X_all = X_all.replace([np.inf, -np.inf], np.nan).fillna(0)
     
-    # 2. Chronological Split (Final Evaluation set)
+    # 2. Chronological Split (Final Evaluation set with temporal embargo)
     split_idx = int(len(X_all) * 0.8)
-    X_train_full, X_test = X_all.iloc[:split_idx], X_all.iloc[split_idx:]
-    y_train_full, y_test = y_all.iloc[:split_idx], y_all.iloc[split_idx:]
+    X_train_full = X_all.iloc[:max(0, split_idx - PRED_DAYS)]
+    y_train_full = y_all.iloc[:max(0, split_idx - PRED_DAYS)]
+    X_test = X_all.iloc[split_idx:]
+    y_test = y_all.iloc[split_idx:]
     
-    win_rate_2 = (y_train_full == 2).mean()
-    win_rate_1 = (y_train_full == 1).mean()
-    win_rate_0 = (y_train_full == 0).mean()
+    win_rate_2 = (y_train_full == 2).mean() if not y_train_full.empty else 0.0
+    win_rate_1 = (y_train_full == 1).mean() if not y_train_full.empty else 0.0
+    win_rate_0 = (y_train_full == 0).mean() if not y_train_full.empty else 1.0
     
     print(f"Total samples: {len(X_all)} (Train: {len(X_train_full)}, Test: {len(X_test)})")
     print(f"Class Dist (train split): StrongBuy(2): {win_rate_2:.1%}, Buy(1): {win_rate_1:.1%}, Hold(0): {win_rate_0:.1%}")
@@ -223,8 +225,8 @@ def train_and_save(all_dfs):
     
     print("\nTraining Ensemble (GB + RF + MLP) with TimeSeries Cross-Validation on Train Set...")
     
-    # Cross Validation on Training part
-    tscv = TimeSeriesSplit(n_splits=3)
+    # Cross Validation on Training part (with PRED_DAYS gap to prevent temporal leakage)
+    tscv = TimeSeriesSplit(n_splits=3, gap=PRED_DAYS)
     for fold, (t_idx, v_idx) in enumerate(tscv.split(X_train_full)):
         X_t, X_v = X_train_full.iloc[t_idx], X_train_full.iloc[v_idx]
         y_t, y_v = y_train_full.iloc[t_idx], y_train_full.iloc[v_idx]
@@ -243,9 +245,19 @@ def train_and_save(all_dfs):
     clf_rf = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42, class_weight=class_weights, n_jobs=-1)
     clf_rf.fit(X_train_full, y_train_full)
 
-    mlp_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=True, random_state=42)
+    # Oversampling for MLP training to handle class imbalance (as MLPClassifier doesn't support sample_weight)
+    rng = np.random.default_rng(42)
+    if not y_train_full.empty:
+        weights_norm = train_weights.to_numpy() / train_weights.sum()
+        resampled_indices = rng.choice(len(X_train_full), size=len(X_train_full), replace=True, p=weights_norm)
+        X_train_mlp = X_train_full.iloc[resampled_indices]
+        y_train_mlp = y_train_full.iloc[resampled_indices]
+    else:
+        X_train_mlp, y_train_mlp = X_train_full, y_train_full
+
+    mlp_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=False, random_state=42)
     clf_mlp = make_pipeline(StandardScaler(), mlp_base)
-    clf_mlp.fit(X_train_full, y_train_full, mlpclassifier__sample_weight=train_weights.to_numpy())
+    clf_mlp.fit(X_train_mlp, y_train_mlp)
 
     print("\n" + "-"*30)
     print("FINAL EVALUATION (Out-of-Sample Results, Equal-Weight Ensemble)")
@@ -283,9 +295,18 @@ def train_and_save(all_dfs):
     clf_rf_final = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42, class_weight=full_class_weights, n_jobs=-1)
     clf_rf_final.fit(X_all, y_all)
 
-    mlp_final_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=True, random_state=42)
+    # Oversampling for final MLP model training (no sample_weight support in MLPClassifier)
+    if not y_all.empty:
+        full_weights_norm = full_weights.to_numpy() / full_weights.sum()
+        resampled_indices_all = rng.choice(len(X_all), size=len(X_all), replace=True, p=full_weights_norm)
+        X_all_mlp = X_all.iloc[resampled_indices_all]
+        y_all_mlp = y_all.iloc[resampled_indices_all]
+    else:
+        X_all_mlp, y_all_mlp = X_all, y_all
+
+    mlp_final_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=False, random_state=42)
     clf_mlp_final = make_pipeline(StandardScaler(), mlp_final_base)
-    clf_mlp_final.fit(X_all, y_all, mlpclassifier__sample_weight=full_weights.to_numpy())
+    clf_mlp_final.fit(X_all_mlp, y_all_mlp)
 
     ensemble_model = {'gb': clf_gb_final, 'rf': clf_rf_final, 'mlp': clf_mlp_final}
     
@@ -349,7 +370,7 @@ def train_and_save(all_dfs):
     shutil.copy2(versioned_path, _apkl_tmp)
     os.replace(_apkl_tmp, MODEL_PATH)
 
-    print("\n📊 Running post-training benchmark backtest (30 days)...")
+    print("\n[Benchmark] Running post-training benchmark backtest (30 days)...")
     try:
         import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -363,7 +384,7 @@ def train_and_save(all_dfs):
             'avg_return': round(bt_summary.get('avg_return', 0), 4),
         }
     except Exception as e:
-        print(f"⚠️ Backtest scoring failed: {e}")
+        print(f"[WARNING] Backtest scoring failed: {e}")
         backtest_score = {'profit_factor': None, 'win_rate': 0, 'sniper_hit_rate': 0, 'avg_return': 0}
 
     # History Log

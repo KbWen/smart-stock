@@ -76,46 +76,46 @@ def cmd_list():
 def cmd_activate(version):
     """Copy a specific version's .pkl to the main MODEL_PATH."""
     if not _validate_version(version):
-        print(f"❌ Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
+        print(f"[ERROR] Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
         return
     ts = version.split('.')[-1]
     base_dir = os.path.dirname(MODEL_PATH)
     name_part = os.path.splitext(os.path.basename(MODEL_PATH))[0]
     src = os.path.join(base_dir, f"{name_part}_{ts}.pkl")
     if not os.path.exists(src):
-        print(f"❌ Model file not found: {src}")
+        print(f"[ERROR] Model file not found: {src}")
         return
     shutil.copy(src, MODEL_PATH)
     for ext in _SIDECAR_EXTS:
         if os.path.exists(src + ext):
             shutil.copy(src + ext, MODEL_PATH + ext)
-    print(f"✅ Activated model {version} -> {MODEL_PATH}")
+    print(f"[SUCCESS] Activated model {version} -> {MODEL_PATH}")
 
 def cmd_delete(version):
     """Delete a specific model version."""
     if not _validate_version(version):
-        print(f"❌ Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
+        print(f"[ERROR] Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
         return
     ts = version.split('.')[-1]
     base_dir = os.path.dirname(MODEL_PATH)
     name_part = os.path.splitext(os.path.basename(MODEL_PATH))[0]
     target = os.path.join(base_dir, f"{name_part}_{ts}.pkl")
     if not os.path.exists(target):
-        print(f"❌ Model file not found: {target}")
+        print(f"[ERROR] Model file not found: {target}")
     else:
         os.remove(target)
         for ext in _SIDECAR_EXTS:
             sidecar = target + ext
             if os.path.exists(sidecar):
                 os.remove(sidecar)
-        print(f"🗑️ Deleted model file for {version}")
+        print(f"[DELETED] Deleted model file for {version}")
         
     # Remove from history even if file is missing (cleanup)
     history = load_history()
     new_history = [h for h in history if h.get('version') != version]
     if len(new_history) != len(history):
         save_history(new_history)
-        print(f"🧹 Removed {version} from models_history.json")
+        print(f"[CLEANED] Removed {version} from models_history.json")
 
 def cmd_prune(keep=MAX_SAVED_MODELS):
     """Keep top N models by profit factor, delete the rest."""
@@ -130,7 +130,7 @@ def cmd_prune(keep=MAX_SAVED_MODELS):
     to_delete = [h for h in history if h['version'] not in to_keep]
     for h in to_delete:
         cmd_delete(h['version'])
-    print(f"\n✅ Pruned {len(to_delete)} models, kept top {keep}.")
+    print(f"\n[SUCCESS] Pruned {len(to_delete)} models, kept top {keep}.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model Lifecycle Manager")

@@ -15,7 +15,7 @@ from core.ai.common import PRED_DAYS, TARGET_GAIN, STOP_LOSS, BACKTEST_AI_THRESH
 
 MODEL_PATH = config.MODEL_PATH
 if not os.path.exists(MODEL_PATH):
-    print(f"⚠️ WARNING: AI model not found at {MODEL_PATH}")
+    print(f"[WARNING] AI model not found at {MODEL_PATH}")
 
 from typing import Optional
 
@@ -37,7 +37,7 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
     Simulates Top Picks from 'days_ago' and calculates their actual return until now.
     Supports specific model version analysis.
     """
-    print(f"⏳ Time Machine Started (Version: {version or 'latest'}): Traveling back {days_ago} days...")
+    print(f"[Time Machine] Started (Version: {version or 'latest'}): Traveling back {days_ago} days...")
     start_time = time.perf_counter()
 
     if days_ago <= 0:
@@ -111,7 +111,7 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
                 prefiltered.append(s)
         candidates = prefiltered
     
-    print(f"🔍 Analyzing {len(candidates)} random candidates (No look-ahead bias)...")
+    print(f"[Analysis] Analyzing {len(candidates)} random candidates (No look-ahead bias)...")
     
     from concurrent.futures import ThreadPoolExecutor
     
