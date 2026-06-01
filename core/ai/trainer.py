@@ -331,6 +331,8 @@ def train_and_save(all_dfs):
     }
     
     base_dir = os.path.dirname(MODEL_PATH)
+    if base_dir and not os.path.exists(base_dir):
+        os.makedirs(base_dir, exist_ok=True)
     name_part, ext_part = os.path.splitext(os.path.basename(MODEL_PATH))
     versioned_path = os.path.join(base_dir, f"{name_part}_{timestamp}{ext_part}")
     joblib.dump(model_metadata, versioned_path)

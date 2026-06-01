@@ -74,7 +74,7 @@ def cmd_list():
     print(f"Active model: {active_version}\n")
 
 def cmd_activate(version):
-    """Copy a specific version's .pkl to the main MODEL_PATH."""
+    """Copy a specific version's .pkl to the main MODEL_PATH atomically."""
     if not _validate_version(version):
         print(f"[ERROR] Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
         return
@@ -85,11 +85,24 @@ def cmd_activate(version):
     if not os.path.exists(src):
         print(f"[ERROR] Model file not found: {src}")
         return
-    shutil.copy(src, MODEL_PATH)
-    for ext in _SIDECAR_EXTS:
-        if os.path.exists(src + ext):
-            shutil.copy(src + ext, MODEL_PATH + ext)
-    print(f"[SUCCESS] Activated model {version} -> {MODEL_PATH}")
+
+    import tempfile
+    try:
+        # Copy and replace sidecars first
+        for ext in _SIDECAR_EXTS:
+            if os.path.exists(src + ext):
+                fd, tmp = tempfile.mkstemp(dir=base_dir, suffix='.tmp')
+                os.close(fd)
+                shutil.copy2(src + ext, tmp)
+                os.replace(tmp, MODEL_PATH + ext)
+        # Copy and replace the binary pkl last (atomic switch)
+        fd, tmp = tempfile.mkstemp(dir=base_dir, suffix='.tmp')
+        os.close(fd)
+        shutil.copy2(src, tmp)
+        os.replace(tmp, MODEL_PATH)
+        print(f"[SUCCESS] Activated model {version} -> {MODEL_PATH}")
+    except Exception as e:
+        print(f"[ERROR] Failed to activate model atomically: {e}")
 
 def cmd_delete(version):
     """Delete a specific model version."""
