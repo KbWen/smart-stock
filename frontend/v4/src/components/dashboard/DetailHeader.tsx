@@ -25,9 +25,9 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({
                 <p className="text-sm text-dark-muted">{name}</p>
             </div>
             <div className="flex flex-col items-end">
-                <div className="text-2xl font-bold font-mono text-white">{price.toFixed(2)}</div>
-                <div className={`mt-1 rounded-full border px-3 py-1 text-xs font-bold ${recommendation.color}`}>
-                    {recommendation.text}
+                <div className="text-2xl font-bold font-mono text-white">{(price ?? 0).toFixed(2)}</div>
+                <div className={`mt-1 rounded-full border px-3 py-1 text-xs font-bold ${recommendation?.color || ''}`}>
+                    {recommendation?.text || 'Unknown'}
                 </div>
                 <div className="mt-2 text-xs text-dark-muted whitespace-nowrap">DB 更新: {updatedAt || 'Unknown'}</div>
             </div>

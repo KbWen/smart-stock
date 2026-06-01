@@ -76,7 +76,8 @@ class V4StockDetailService:
                 return None
             return item["value"]
 
-    _HISTORY_CACHE_TTL_SECONDS: int = 60  # spec: visual-upgrade-phase1 AC2
+    _HISTORY_CACHE_TTL_SECONDS: int = 60   # spec: visual-upgrade-phase1 AC2
+    _SPARKLINE_CACHE_TTL_SECONDS: int = 60  # lightweight close-only history for sparklines
 
     def _write_cache(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         with self._cache_lock:
@@ -84,6 +85,33 @@ class V4StockDetailService:
                 "value": value,
                 "expires_at": time.time() + (ttl if ttl is not None else self.cache_ttl_seconds),
             }
+
+    def get_sparkline(self, ticker: str, days: int = 30) -> list[dict[str, Any]]:
+        """Return last `days` close prices only — no indicator computation (fast DB read)."""
+        cache_key = f"sparkline:{ticker}"
+        cached = self._read_cache(cache_key)
+        if cached is not None:
+            return cached
+
+        df = self.stock_repo.load_price_history(ticker)
+        if df.empty:
+            raise HTTPException(status_code=404, detail="Stock not found")
+
+        df = df.tail(days)
+        result = []
+        for _, row in df.iterrows():
+            date_val = row.get("date")
+            if hasattr(date_val, "strftime"):
+                date_str = date_val.strftime("%Y-%m-%d")
+            else:
+                date_str = str(date_val)[:10]
+            result.append({
+                "date": date_str,
+                "close": round(safe_float(row.get("close", 0)), 2),
+            })
+
+        self._write_cache(cache_key, result, ttl=self._SPARKLINE_CACHE_TTL_SECONDS)
+        return result
 
     def get_stock_history(self, ticker: str, days: int = 90) -> list[dict[str, Any]]:
         cache_key = f"history:{ticker}"
@@ -142,9 +170,23 @@ class V4StockDetailService:
             volume_spike_flag = bool(rel_vol > 1.5)
 
             analyst_text = []
+            # Trend analysis using stored SMA values (mirrors slow-path logic).
+            sma_20 = safe_float(cached_indicators.get("sma_20")) if cached_indicators else 0.0
+            sma_60 = safe_float(cached_indicators.get("sma_60")) if cached_indicators else 0.0
+            if sma_20 and sma_60:
+                if price > sma_20 > sma_60:
+                    analyst_text.append("Strong Uptrend: Price is consistently above SMA20 & SMA60.")
+                elif sma_20 > sma_60:
+                    analyst_text.append("Recovering: Price is building momentum above SMA20.")
+            # RSI analysis using stored RSI value.
+            rsi = safe_float(cached_indicators.get("rsi", 50)) if cached_indicators else 50.0
+            if 40 <= rsi <= 70:
+                analyst_text.append("Momentum: RSI is in the bullish zone (40-70).")
+            elif rsi > 80:
+                analyst_text.append("Overheated: RSI indicates overbought territory.")
             if squeeze_flag:
                 analyst_text.append("Squeeze Alert: Low volatility detected, expecting a major move.")
-            if volume_spike_flag:
+            elif volume_spike_flag:
                 analyst_text.append("Volume Spike: Heavy trading activity detected.")
 
             response = {

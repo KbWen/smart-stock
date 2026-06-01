@@ -192,11 +192,64 @@ V4 stock detail: scores, indicators, signals.
 ```json
 {
   "ticker": "2330",
-  "scores": { "total_score": 87.5, "trend_score": 70.0, ... },
-  "signals": { "squeeze": false, "golden_cross": true, ... },
-  "ai_prob": 0.74,
-  "model_version": "v4.20260319_0800"
+  "name": "台積電",
+  "price": 1000.0,
+  "updated_at": "2026-03-19T08:00:00",
+  "rise_score_breakdown": {
+    "total": 87.5,
+    "trend": 70.0,
+    "momentum": 60.0,
+    "volatility": 50.0
+  },
+  "ai_probability": 74.0,
+  "analyst_summary": "Strong Uptrend: Price is consistently above SMA20 & SMA60.",
+  "signals": {
+    "squeeze": false,
+    "golden_cross": true,
+    "volume_spike": false
+  }
 }
+```
+
+---
+
+### `GET /api/v4/stock/{ticker}/sparkline`
+Lightweight close-only history for sparklines (last 30 days). No indicator calculations. Cached for 60 seconds.
+
+| Path Param | Validation |
+|-----------|-----------|
+| `ticker` | `^[A-Z0-9.\^\-]{1,15}$` |
+
+**Response:**
+```json
+[
+  {
+    "date": "2026-05-15",
+    "close": 1000.0
+  }
+]
+```
+
+---
+
+### `GET /api/v4/stock/{ticker}/history`
+90-day OHLCV and signal status history for detail page charting. Cached for 60 seconds.
+
+| Path Param | Validation |
+|-----------|-----------|
+| `ticker` | `^[A-Z0-9.\^\-]{1,15}$` |
+
+**Response:**
+```json
+[
+  {
+    "date": "2026-05-15",
+    "close": 1000.0,
+    "is_squeeze": false,
+    "golden_cross": true,
+    "volume_spike": false
+  }
+]
 ```
 
 ---

@@ -39,7 +39,7 @@ def calculate_kd(data: pd.DataFrame, period: int = 9) -> pd.DataFrame:
     low_min = data['low'].rolling(window=period).min()
     high_max = data['high'].rolling(window=period).max()
     
-    rsv = (data['close'] - low_min) / (high_max - low_min) * 100
+    rsv = (data['close'] - low_min) / (high_max - low_min + 1e-9) * 100
     
     # Calculate K and D (using EWMA equivalent)
     # K = 2/3 * PrevK + 1/3 * RSV
@@ -57,7 +57,7 @@ def calculate_bollinger(data: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     data['bb_upper'] = sma + (std * 2)
     data['bb_lower'] = sma - (std * 2)
     data['bb_width'] = (data['bb_upper'] - data['bb_lower']) / sma
-    data['bb_percent'] = (data['close'] - data['bb_lower']) / (data['bb_upper'] - data['bb_lower'])
+    data['bb_percent'] = (data['close'] - data['bb_lower']) / (data['bb_upper'] - data['bb_lower'] + 1e-9)
     return data
 
 def calculate_atr(data: pd.DataFrame, window: int = 14) -> pd.Series:

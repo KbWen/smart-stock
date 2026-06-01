@@ -76,7 +76,7 @@ def calculate_momentum_factors(df: pd.DataFrame) -> pd.DataFrame:
     df['norm_rsi'] = df['rsi'] / 100.0
     
     # MACD Histogram normalized by price
-    df['norm_macd_hist'] = df['macd_hist'] / df['close']
+    df['norm_macd_hist'] = df['macd_hist'] / df['close'].replace(0, np.nan)
     
     # KD Golden Cross proxy used by Rise Score 2.0
     # 1 if K > D and K < 80 (fresh momentum zone, avoids overheat)
@@ -96,7 +96,7 @@ def calculate_volatility_factors(df: pd.DataFrame) -> pd.DataFrame:
     df['vol_trend_60d'] = (df['vol_ma20'] - df['vol_ma60']) / (df['vol_ma60'] + 1e-9)
     
     # ATR% (Normalize ATR by price)
-    df['atr_percent'] = df['atr'] / df['close']
+    df['atr_percent'] = df['atr'] / df['close'].replace(0, np.nan)
     
     # Squeeze & Bandwidth Rank (fully vectorized)
     rolling_window = 60

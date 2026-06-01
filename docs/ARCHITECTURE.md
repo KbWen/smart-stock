@@ -2,7 +2,7 @@
 
 ## Overview
 
-Smart Stock Selector (Sniper V4.1) is a specialized decision support system for the Taiwan Stock Market (TWSE). It combines technical analysis, machine learning (Ensemble V4), and a modern React-based frontend to identify high-probability "Sniper" setups.
+Smart Stock Selector (Sniper V4.2) is a specialized decision support system for the Taiwan Stock Market, integrating both TWSE (上市) and TPEX/OTC (上櫃) stock universes. It combines advanced technical analysis, a robust machine learning ensemble (GB + RF + MLP), and a modern React-based frontend featuring optimized scrolling and glassmorphism styling.
 
 ## High-Level Architecture
 
@@ -72,8 +72,8 @@ graph TD
 ## Data Flow
 
 1. **Ingestion (Daily)**:
-    * `daily_run.bat` triggers `backend/main.py --sync`.
-    * Market data (OHLCV) is fetched for 1000+ tickers and stored in `storage.db`.
+    * `daily_run.bat` (or Unix `daily_run.sh`) triggers `backend/main.py --sync`.
+    * Market data (OHLCV) is fetched for both TWSE (.TW) and TPEX/OTC (.TWO) stocks using a cached suffix mapper and defensive suffix-alternating retry logic, then stored in `storage.db`.
 2. **Processing**:
     * `recalculate.py` runs immediately after sync.
     * It computes V2 Indicators and V2 Rise Scores for all stocks.
@@ -82,9 +82,11 @@ graph TD
     * User opens Dashboard.
     * `GET /api/v4/sniper/candidates` queries `stock_scores` (filtered by top rank).
     * Frontend renders the list.
-4. **AI Prediction**:
-    * The system loads the latest `model_sniper.pkl`.
-    * It generates a probability ($P_{win}$) for each candidate based on technical features.
+4. **AI Prediction & Ensemble**:
+    * The system loads the latest `model_sniper.pkl` (containing GB, RF, and MLP models).
+    * Class probabilities are resolved dynamically based on `classes_` array mapping.
+    * MLP Classifier is trained on a resampled training set via deterministic random oversampling (`np.random.default_rng(42)`) to handle class imbalance.
+    * Generates an ensemble probability ($P_{win}$) for each candidate based on technical features.
 
 ## Strategy Parameters (Single Source of Truth)
 
@@ -121,3 +123,9 @@ graph TD
 - **Detail API (`/api/v4/stock/{ticker}`)** computes richer analysis only when the user drills into a single ticker.
 - **History API (`/api/v4/stock/{ticker}/history`)** returns 90-day OHLC + signal array for charting. Uses an independent 60s in-memory cache (key: `history:{ticker}`) separate from the main 300s detail cache. Route registered before the `{ticker}` wildcard to prevent path shadowing.
 - Server-side cache keys include `limit`, `sort`, and `version` dimensions to avoid cross-query cache pollution.
+
+## Frontend Performance Notes
+
+- **SVG Sparkline Area Charts**: Replaced DOM-heavy, ResizeObserver-listener-bound Recharts widgets in CandidateRow list cells with lightweight, raw SVG inline charts. Scale values are mapped mathematically inside a `viewBox="0 0 100 24"`. 
+- **Taiwan-Harmonious Color Gradients**: Gradients transition from red/green to transparent based on change percentage, and scrolling maintains 60 FPS under virtualization by avoiding CSS layout reflow.
+- **Glassmorphism Transitions**: Micro-animations and hover transitions (hover scale zoom, amber gold/emerald green borders, left-side indicator borders) use smooth, hardware-accelerated CSS transitions (`transition-all duration-200 ease-out`).

@@ -22,7 +22,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
 
     if (!ticker) {
         return (
-            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted">
+            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted transition-all duration-300 hover:shadow-[0_0_25px_rgba(245,158,11,0.1)] hover:border-sniper-gold/20 hover:scale-[1.002]">
                 <Crosshair size={48} className="opacity-20" />
                 <div className="text-center">
                     <p className="mb-1 text-lg font-semibold text-white">No Stock Selected</p>
@@ -34,7 +34,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
 
     if (loading) {
         return (
-            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted">
+            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted transition-all duration-300 hover:shadow-[0_0_25px_rgba(16,185,129,0.1)] hover:border-sniper-green/20 hover:scale-[1.002]">
                 <Loader2 size={40} className="animate-spin text-sniper-green" />
                 <p className="animate-pulse text-sm font-medium">Scanning AI Models for {ticker}...</p>
             </div>
@@ -43,7 +43,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
 
     if (error) {
         return (
-            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-3 glass-card p-8 text-red-500">
+            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-3 glass-card p-8 text-red-500 transition-all duration-300 hover:shadow-[0_0_25px_rgba(239,68,68,0.15)] hover:border-red-500/20 hover:scale-[1.002]">
                 <AlertTriangle size={48} className="opacity-80" />
                 <p className="text-lg font-semibold">Error Loading Data</p>
                 <p className="text-center text-sm text-red-400 opacity-80">Failed to load details for {ticker}. Ensure backend is running and try again.</p>
@@ -52,7 +52,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
     }
 
     return (
-        <div className="sticky top-24 glass-card p-6 overflow-hidden ring-1 ring-white/5">
+        <div className="sticky top-24 glass-card p-6 overflow-hidden ring-1 ring-white/5 transition-all duration-300 hover:shadow-[0_0_25px_rgba(245,158,11,0.15)] hover:border-sniper-gold/30 hover:scale-[1.005]">
             <DetailHeader
                 ticker={data.ticker}
                 name={data.name}

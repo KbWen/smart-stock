@@ -12,6 +12,8 @@ storage.db-wal
 model.pkl
 model_sniper.pkl
 model_sniper_*.pkl
+model_sniper_*.pkl.*
+model_sniper.pkl.*
 models/
 market_history.json
 models_history.json
@@ -23,6 +25,7 @@ models_history.json
 # OS
 .DS_Store
 Thumbs.db
+.claude/
 
 # Logs
 logs/

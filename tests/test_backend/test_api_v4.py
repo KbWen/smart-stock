@@ -513,6 +513,76 @@ def test_api_v4_stock_history_cache_prevents_recompute(monkeypatch):
     assert load_calls["count"] == 1
 
 
+# ── Sparkline Endpoint Tests (visual-upgrade-phase2) ─────────────────────────
+
+
+def test_api_v4_stock_sparkline_returns_30_points(monkeypatch):
+    """Sparkline endpoint returns up to 30 close-only data points without indicator computation."""
+    import backend.routes.stock as stock_route
+    stock_route.clear_api_caches()
+
+    df = _make_history_df()
+
+    load_calls = {"count": 0}
+
+    def fake_load(_t):
+        load_calls["count"] += 1
+        return df.copy()
+
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", fake_load)
+
+    resp = client.get("/api/v4/stock/2330/sparkline")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) == 30
+    point = data[0]
+    assert "date" in point and isinstance(point["date"], str)
+    assert "close" in point and isinstance(point["close"], float)
+    # Sparkline must NOT have indicator fields (kept lightweight)
+    assert "is_squeeze" not in point
+    assert "golden_cross" not in point
+    # Only one DB load — no indicator computation
+    assert load_calls["count"] == 1
+
+
+def test_api_v4_stock_sparkline_404_for_empty_db(monkeypatch):
+    """Sparkline endpoint returns 404 when no price data exists in DB."""
+    import pandas as pd
+    import backend.routes.stock as stock_route
+    stock_route.clear_api_caches()
+
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", lambda _t: pd.DataFrame())
+
+    resp = client.get("/api/v4/stock/EMPTY/sparkline")
+    assert resp.status_code == 404
+
+
+def test_api_v4_stock_sparkline_cache_prevents_reload(monkeypatch):
+    """Second sparkline request hits the 60s TTL cache; DB is only read once."""
+    import backend.routes.stock as stock_route
+    stock_route.clear_api_caches()
+
+    df = _make_history_df()
+    load_calls = {"count": 0}
+
+    def fake_load(_t):
+        load_calls["count"] += 1
+        return df.copy()
+
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", fake_load)
+
+    client.get("/api/v4/stock/2330/sparkline")
+    client.get("/api/v4/stock/2330/sparkline")
+    assert load_calls["count"] == 1
+
+
+def test_api_v4_stock_sparkline_rejects_invalid_ticker():
+    """Sparkline endpoint returns 422 for invalid ticker format."""
+    resp = client.get("/api/v4/stock/../sparkline")
+    assert resp.status_code in (404, 422)
+
+
 # ── Schema Parity Tests (backend-refactor-modular AC#8) ───────────────────────
 
 

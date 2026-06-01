@@ -39,7 +39,7 @@ def prepare_features(df, is_training=True):
         df['vol_ma20'] = df['volume'].rolling(window=20).mean()
     
     # --- Ensure required base indicators are present ---
-    required_base = ['rsi', 'macd', 'macd_signal', 'sma_20', 'sma_60', 'k', 'd', 'bb_width', 'bb_percent']
+    required_base = ['rsi', 'macd', 'macd_signal', 'sma_20', 'sma_60', 'sma_120', 'sma_240', 'atr', 'k', 'd', 'bb_width', 'bb_percent']
     if any(col not in df.columns for col in required_base):
         from core.indicators_v2 import compute_v4_indicators
         df = compute_v4_indicators(df)
@@ -155,6 +155,11 @@ def prepare_features(df, is_training=True):
         df_clean = df
 
     df_clean = df_clean.replace([np.inf, -np.inf], np.nan)
+    if is_training:
+        # Drop warmup rows where long-period indicators (SMA240 etc.) are still NaN
+        # after ffill. These rows pre-date the first valid indicator value and would
+        # otherwise be filled with 0, biasing the model with fake "zero" features.
+        df_clean = df_clean.dropna(subset=FEATURE_COLS)
     df_clean[FEATURE_COLS] = df_clean[FEATURE_COLS].fillna(0)
     
     if df_clean.empty:
@@ -194,14 +199,16 @@ def train_and_save(all_dfs):
 
     X_all = X_all.replace([np.inf, -np.inf], np.nan).fillna(0)
     
-    # 2. Chronological Split (Final Evaluation set)
+    # 2. Chronological Split (Final Evaluation set with temporal embargo)
     split_idx = int(len(X_all) * 0.8)
-    X_train_full, X_test = X_all.iloc[:split_idx], X_all.iloc[split_idx:]
-    y_train_full, y_test = y_all.iloc[:split_idx], y_all.iloc[split_idx:]
+    X_train_full = X_all.iloc[:max(0, split_idx - PRED_DAYS)]
+    y_train_full = y_all.iloc[:max(0, split_idx - PRED_DAYS)]
+    X_test = X_all.iloc[split_idx:]
+    y_test = y_all.iloc[split_idx:]
     
-    win_rate_2 = (y_train_full == 2).mean()
-    win_rate_1 = (y_train_full == 1).mean()
-    win_rate_0 = (y_train_full == 0).mean()
+    win_rate_2 = (y_train_full == 2).mean() if not y_train_full.empty else 0.0
+    win_rate_1 = (y_train_full == 1).mean() if not y_train_full.empty else 0.0
+    win_rate_0 = (y_train_full == 0).mean() if not y_train_full.empty else 1.0
     
     print(f"Total samples: {len(X_all)} (Train: {len(X_train_full)}, Test: {len(X_test)})")
     print(f"Class Dist (train split): StrongBuy(2): {win_rate_2:.1%}, Buy(1): {win_rate_1:.1%}, Hold(0): {win_rate_0:.1%}")
@@ -218,8 +225,8 @@ def train_and_save(all_dfs):
     
     print("\nTraining Ensemble (GB + RF + MLP) with TimeSeries Cross-Validation on Train Set...")
     
-    # Cross Validation on Training part
-    tscv = TimeSeriesSplit(n_splits=3)
+    # Cross Validation on Training part (with PRED_DAYS gap to prevent temporal leakage)
+    tscv = TimeSeriesSplit(n_splits=3, gap=PRED_DAYS)
     for fold, (t_idx, v_idx) in enumerate(tscv.split(X_train_full)):
         X_t, X_v = X_train_full.iloc[t_idx], X_train_full.iloc[v_idx]
         y_t, y_v = y_train_full.iloc[t_idx], y_train_full.iloc[v_idx]
@@ -228,7 +235,6 @@ def train_and_save(all_dfs):
         # HistGradientBoosting automatically uses all available OpenMP threads
         clf_gb_cv = HistGradientBoostingClassifier(max_iter=100, max_depth=4, learning_rate=0.05, random_state=42)
         clf_gb_cv.fit(X_t, y_t, sample_weight=w_t)
-        y_pred = clf_gb_cv.predict(X_v)
         print(f"Fold {fold+1} Validation Accuracy: {clf_gb_cv.score(X_v, y_v):.2f}")
 
     print("\nTraining final ensemble on train split and evaluating on holdout test split...")
@@ -239,9 +245,19 @@ def train_and_save(all_dfs):
     clf_rf = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42, class_weight=class_weights, n_jobs=-1)
     clf_rf.fit(X_train_full, y_train_full)
 
-    mlp_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=True, random_state=42)
+    # Oversampling for MLP training to handle class imbalance (as MLPClassifier doesn't support sample_weight)
+    rng = np.random.default_rng(42)
+    if not y_train_full.empty:
+        weights_norm = train_weights.to_numpy() / train_weights.sum()
+        resampled_indices = rng.choice(len(X_train_full), size=len(X_train_full), replace=True, p=weights_norm)
+        X_train_mlp = X_train_full.iloc[resampled_indices]
+        y_train_mlp = y_train_full.iloc[resampled_indices]
+    else:
+        X_train_mlp, y_train_mlp = X_train_full, y_train_full
+
+    mlp_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=False, random_state=42)
     clf_mlp = make_pipeline(StandardScaler(), mlp_base)
-    clf_mlp.fit(X_train_full, y_train_full, mlpclassifier__sample_weight=train_weights.to_numpy())
+    clf_mlp.fit(X_train_mlp, y_train_mlp)
 
     print("\n" + "-"*30)
     print("FINAL EVALUATION (Out-of-Sample Results, Equal-Weight Ensemble)")
@@ -249,7 +265,7 @@ def train_and_save(all_dfs):
     rf_proba = clf_rf.predict_proba(X_test)
     mlp_proba = clf_mlp.predict_proba(X_test)
     ensemble_pred = np.argmax((gb_proba + rf_proba + mlp_proba) / 3.0, axis=1)
-    report = classification_report(y_test, ensemble_pred, target_names=['Hold', 'Buy', 'StrongBuy'], zero_division=0)
+    report = classification_report(y_test, ensemble_pred, labels=[0, 1, 2], target_names=['Hold', 'Buy', 'StrongBuy'], zero_division=0)
     print(report)
 
     oos_accuracy = accuracy_score(y_test, ensemble_pred)
@@ -279,9 +295,18 @@ def train_and_save(all_dfs):
     clf_rf_final = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42, class_weight=full_class_weights, n_jobs=-1)
     clf_rf_final.fit(X_all, y_all)
 
-    mlp_final_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=True, random_state=42)
+    # Oversampling for final MLP model training (no sample_weight support in MLPClassifier)
+    if not y_all.empty:
+        full_weights_norm = full_weights.to_numpy() / full_weights.sum()
+        resampled_indices_all = rng.choice(len(X_all), size=len(X_all), replace=True, p=full_weights_norm)
+        X_all_mlp = X_all.iloc[resampled_indices_all]
+        y_all_mlp = y_all.iloc[resampled_indices_all]
+    else:
+        X_all_mlp, y_all_mlp = X_all, y_all
+
+    mlp_final_base = MLPClassifier(hidden_layer_sizes=(128, 64), activation='relu', max_iter=1000, early_stopping=False, random_state=42)
     clf_mlp_final = make_pipeline(StandardScaler(), mlp_final_base)
-    clf_mlp_final.fit(X_all, y_all, mlpclassifier__sample_weight=full_weights.to_numpy())
+    clf_mlp_final.fit(X_all_mlp, y_all_mlp)
 
     ensemble_model = {'gb': clf_gb_final, 'rf': clf_rf_final, 'mlp': clf_mlp_final}
     
@@ -306,24 +331,48 @@ def train_and_save(all_dfs):
     }
     
     base_dir = os.path.dirname(MODEL_PATH)
+    if base_dir and not os.path.exists(base_dir):
+        os.makedirs(base_dir, exist_ok=True)
     name_part, ext_part = os.path.splitext(os.path.basename(MODEL_PATH))
     versioned_path = os.path.join(base_dir, f"{name_part}_{timestamp}{ext_part}")
     joblib.dump(model_metadata, versioned_path)
     # Write SHA256 checksum sidecar for integrity verification (H1)
+    # Use atomic write (mkstemp + os.replace) so a mid-write crash never leaves
+    # a truncated .sha256 that would permanently block loading this model.
     model_bytes = open(versioned_path, 'rb').read()
     sha256 = hashlib.sha256(model_bytes).hexdigest()
-    with open(versioned_path + '.sha256', 'w') as _f:
+    import tempfile as _tempfile2
+    _sha_fd, _sha_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+    with os.fdopen(_sha_fd, 'w') as _f:
         _f.write(sha256)
+    os.replace(_sha_tmp, versioned_path + '.sha256')
     # Write HMAC-SHA256 signature sidecar if MODEL_SIGNING_KEY is configured (L1)
     if _cfg.MODEL_SIGNING_KEY:
         sig = _hmac.new(_cfg.MODEL_SIGNING_KEY.encode(), model_bytes, hashlib.sha256).hexdigest()
-        with open(versioned_path + '.sig', 'w') as _f:
+        _sig_fd, _sig_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+        with os.fdopen(_sig_fd, 'w') as _f:
             _f.write(sig)
-        shutil.copy(versioned_path + '.sig', MODEL_PATH + '.sig')
-    shutil.copy(versioned_path, MODEL_PATH)
-    shutil.copy(versioned_path + '.sha256', MODEL_PATH + '.sha256')
+        os.replace(_sig_tmp, versioned_path + '.sig')
+    # Activate MODEL_PATH: update sidecars first, then the model binary.
+    # Order rationale: if the .pkl copy is interrupted, the sha256 will mismatch
+    # the partial file — predictor refuses to load and degrades to 0.0 (safe).
+    # Copying .pkl to a temp file then os.replace avoids writing directly to
+    # MODEL_PATH (which would corrupt it if interrupted mid-copy).
+    if _cfg.MODEL_SIGNING_KEY:
+        _asig_fd, _asig_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+        os.close(_asig_fd)
+        shutil.copy2(versioned_path + '.sig', _asig_tmp)
+        os.replace(_asig_tmp, MODEL_PATH + '.sig')
+    _asha_fd, _asha_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+    os.close(_asha_fd)
+    shutil.copy2(versioned_path + '.sha256', _asha_tmp)
+    os.replace(_asha_tmp, MODEL_PATH + '.sha256')
+    _apkl_fd, _apkl_tmp = _tempfile2.mkstemp(dir=base_dir, suffix='.tmp')
+    os.close(_apkl_fd)
+    shutil.copy2(versioned_path, _apkl_tmp)
+    os.replace(_apkl_tmp, MODEL_PATH)
 
-    print("\n📊 Running post-training benchmark backtest (30 days)...")
+    print("\n[Benchmark] Running post-training benchmark backtest (30 days)...")
     try:
         import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -337,7 +386,7 @@ def train_and_save(all_dfs):
             'avg_return': round(bt_summary.get('avg_return', 0), 4),
         }
     except Exception as e:
-        print(f"⚠️ Backtest scoring failed: {e}")
+        print(f"[WARNING] Backtest scoring failed: {e}")
         backtest_score = {'profit_factor': None, 'win_rate': 0, 'sniper_hit_rate': 0, 'avg_return': 0}
 
     # History Log
@@ -371,7 +420,19 @@ def train_and_save(all_dfs):
         except Exception:
             pass
     history.append(history_entry)
-    with open(history_path, 'w') as f: json.dump(history[-50:], f, indent=2)
+    import tempfile as _tempfile
+    _dir = os.path.dirname(history_path)
+    _fd, _tmp = _tempfile.mkstemp(dir=_dir, suffix='.tmp')
+    try:
+        with os.fdopen(_fd, 'w') as _f:
+            json.dump(history[-50:], _f, indent=2)
+        os.replace(_tmp, history_path)
+    except Exception:
+        try:
+            os.unlink(_tmp)
+        except OSError:
+            pass
+        raise
     
     # Rotation: keep MAX_SAVED_MODELS best-performing models by profit_factor (AC1, AC2, AC4)
     keep_timestamps = {h['timestamp'] for h in sorted(history, key=profit_factor_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
@@ -382,6 +443,7 @@ def train_and_save(all_dfs):
     except Exception:
         active_realpath = None
 
+    _SIDECAR_EXTS = ('.sha256', '.sig')
     for fpath in glob.glob(os.path.join(base_dir, f"{name_part}_*{ext_part}")):
         ts_part = os.path.basename(fpath)[len(name_part) + 1: -len(ext_part)]
         if ts_part in keep_timestamps:
@@ -390,6 +452,10 @@ def train_and_save(all_dfs):
             if active_realpath and os.path.realpath(fpath) == active_realpath:
                 continue  # AC4: never delete the active model file
             os.remove(fpath)
+            for sidecar_ext in _SIDECAR_EXTS:
+                sidecar = fpath + sidecar_ext
+                if os.path.exists(sidecar):
+                    os.remove(sidecar)
         except Exception:
             pass
 

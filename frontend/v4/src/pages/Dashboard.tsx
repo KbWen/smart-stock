@@ -34,7 +34,7 @@ const Dashboard: React.FC = () => {
             />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <div className="overflow-hidden glass-card lg:col-span-2">
+                <div className="overflow-hidden glass-card lg:col-span-2 transition-all duration-300 hover:shadow-[0_0_25px_rgba(16,185,129,0.15)] hover:border-sniper-green/30 hover:scale-[1.002]">
                     <div className="flex items-center justify-between border-b border-white/10 p-4 bg-white/5">
                         <h3 className="premium-text">Top Candidates</h3>
                         <span className="text-xs text-dark-muted">Updated: {isLoading ? '...' : lastUpdated}</span>

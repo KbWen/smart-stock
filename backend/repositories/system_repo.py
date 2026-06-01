@@ -12,11 +12,13 @@ class SystemRepository:
         return int(self.get_sync_status().get("sync_epoch", 0))
 
     def check_db_health(self) -> tuple[str, str]:
+        conn = None
         try:
             conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            conn.close()
+            conn.execute("SELECT 1")
             return "ok", "connected"
         except Exception as e:
             return "error", str(e)
+        finally:
+            if conn:
+                conn.close()
