@@ -34,14 +34,15 @@ sequenceDiagram
 
 ## Matrix of Safeguards
 
-### 1. Training Pipeline (`core/ai/trainer.py`)
+### 1. Training & Deployment Pipeline (`core/ai/trainer.py` & `backend/manage_models.py`)
 
 | Risk | Mitigation Strategy | Implementation Details |
 |------|-----------------------|------------------------|
 | **Label Bleeding** (Using recent data where outcomes are unknown) | Truncation of terminal data | Removes the last `PRED_DAYS` (20 days) from the training set entirely (`df_clean.iloc[:-PRED_DAYS]`). |
-| **Chronological Leakage** (Training on future, testing on past) | Strict Chronological Split | Sorts all aggregated data by date. Uses `split_idx = int(len(X_all) * 0.8)`. Test set is exclusively future data relative to train set. |
-| **Cross-Validation Bias** (K-Fold shuffling leaks future states) | `TimeSeriesSplit` | Uses forward-chaining CV instead of K-Fold. Fold 1 trains on `T1`, validates on `T2`. Fold 2 trains on `T1+T2`, validates on `T3`. |
-| **Imputation Leakage** (Filling missing data using future averages) | Forward-Fill Only | `df.ffill()` is strictly applied. `bfill()` is forbidden during training to prevent pulling future values into past technical indicators. |
+| **Chronological Leakage** (Training on future, testing on past) | Strict Chronological Split & Embargo | Sorts all aggregated data by date. Uses `split_idx = int(len(X_all) * 0.8)`. Training set is embargoed by discarding `PRED_DAYS` rows prior to split index (`iloc[:split_idx - PRED_DAYS]`). Test set starts strictly at `split_idx`. |
+| **Cross-Validation Bias** (K-Fold shuffling leaks future states) | `TimeSeriesSplit` with Gap | Uses forward-chaining CV instead of K-Fold. Incorporates `gap=20` (PRED_DAYS) to prevent training inputs in fold $i$ from bleeding into validation inputs in fold $i+1$. |
+| **Imputation Leakage** (Filling missing data using future averages) | Forward-Fill Only | `df.ffill()` is strictly applied. `bfill()` is forbidden during training to prevent pulling future values into past technical indicators. Warmup indicator rows are dropped completely via `dropna` instead of zero-biasing. |
+| **Binary Model Corruption** (Interrupted model saves/activations) | Atomic Writes & Switches | All serialized PKL models and sidecar files (`.sha256`, `.sig`) are written to temporary files inside the target directory first, then swapped instantly using `os.replace`. Prevents partial-write file corruption during CLI or training process interruptions. |
 
 ### 2. Backtesting Pipeline (`backend/backtest.py`)
 
