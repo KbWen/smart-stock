@@ -71,6 +71,10 @@
 
 ## Ship History
 
+### Ship-claude-frontend-ai-opt-2026-06-01
+- Feature shipped: Enhanced frontend visual aesthetics & scroll performance (SVG Sparklines & smooth transitions), verified AI training pipeline correctness (dynamic labels check), integrated TPEX/OTC stocks with suffix fallback logic, protected model activation via atomic file replacement, and updated system documentation.
+- Tests: Pass (Backend 163/163, Frontend 44/44, Production build ✅)
+
 ### Ship-claude-jovial-elion-2026-03-18
 - Feature shipped: Close `[frontend-api]` AC#3 — fix E2E render-time measurement (t0 = candidates-fire → Squeeze-visible); verified < 300ms on production build. Also fixed pre-existing build blockers (`vite.config.ts` import, `globalThis` in test).
 - Tests: Pass (33 unit, 4 E2E)
