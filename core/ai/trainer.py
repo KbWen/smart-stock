@@ -265,7 +265,7 @@ def train_and_save(all_dfs):
     rf_proba = clf_rf.predict_proba(X_test)
     mlp_proba = clf_mlp.predict_proba(X_test)
     ensemble_pred = np.argmax((gb_proba + rf_proba + mlp_proba) / 3.0, axis=1)
-    report = classification_report(y_test, ensemble_pred, target_names=['Hold', 'Buy', 'StrongBuy'], zero_division=0)
+    report = classification_report(y_test, ensemble_pred, labels=[0, 1, 2], target_names=['Hold', 'Buy', 'StrongBuy'], zero_division=0)
     print(report)
 
     oos_accuracy = accuracy_score(y_test, ensemble_pred)
