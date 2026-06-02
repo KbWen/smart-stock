@@ -32,7 +32,18 @@ def _passes_liquidity_filter(df: pd.DataFrame, min_avg_volume: int) -> bool:
     return avg_vol >= float(min_avg_volume)
 
 
-def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candidate_pool_limit: Optional[int] = None):
+def run_time_machine(
+    days_ago=30,
+    limit=20,
+    version: Optional[str] = None,
+    candidate_pool_limit: Optional[int] = None,
+    commission_rate: float = 0.001425,
+    tax_rate: float = 0.003,
+    slippage_rate: float = 0.001,
+    target_gain: float = 0.15,
+    stop_loss: float = 0.05,
+    holding_days: int = 20,
+):
     """
     Simulates Top Picks from 'days_ago' and calculates their actual return until now.
     Supports specific model version analysis.
@@ -140,7 +151,7 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
             
             # Use data up to entry day for signal generation, and strictly after entry for outcomes.
             df_past = df_full.iloc[:entry_idx + 1].copy()
-            df_future = df_full.iloc[entry_idx + 1: entry_idx + 1 + BACKTEST_HORIZON_DAYS].copy()
+            df_future = df_full.iloc[entry_idx + 1: entry_idx + 1 + holding_days].copy()
             
             if df_past.empty:
                 return None
@@ -190,13 +201,13 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
                 max_drawdown_pct = min(max_drawdown_pct, day_low_pct)
 
                 # Conservative same-day ordering: stop has precedence over target.
-                if day_low_pct <= -STOP_LOSS:  # Hit stop loss
+                if day_low_pct <= -stop_loss:  # Hit stop loss
                     sniper_result = 'STOP'
                     locked_roi = day_low_pct
                     actual_holding_days = i + 1
                     exit_date_actual = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
                     break
-                if day_high_pct >= TARGET_GAIN:  # Hit target
+                if day_high_pct >= target_gain:  # Hit target
                     sniper_result = 'HIT'
                     locked_roi = day_high_pct
                     actual_holding_days = i + 1
@@ -204,6 +215,10 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
                     break
                 locked_roi = day_close_pct
             
+            buy_cost = commission_rate + slippage_rate
+            sell_cost = commission_rate + tax_rate + slippage_rate
+            net_roi = ((1.0 + locked_roi) * (1.0 - sell_cost) / (1.0 + buy_cost)) - 1.0
+
             return {
                 "ticker": ticker,
                 "name": name,
@@ -213,6 +228,7 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
                 "ai_prob_at_entry": ai_prob,
                 "rise_score_at_entry": total_score,
                 "actual_return": locked_roi,
+                "net_return": net_roi,
                 "sniper_result": sniper_result,
                 "max_gain": max_gain_pct,
                 "max_drawdown": max_drawdown_pct,
@@ -243,11 +259,12 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
     # Top N for Concentrated Strategy
     top_n = max(1, int(limit)) if limit else 10
     top_picks = df_res.head(top_n).to_dict('records')
-    
-    # Summary Stats for Top Picks
+     # Summary Stats for Top Picks
     top_df = df_res.head(top_n)
-    avg_return = top_df['actual_return'].mean()
+    avg_return = float(top_df['actual_return'].mean())
+    avg_net_return = float(top_df['net_return'].mean())
     win_count = len(top_df[top_df['actual_return'] > 0])
+    net_win_count = len(top_df[top_df['net_return'] > 0])
     
     # Sniper-specific stats
     sniper_hits = len(top_df[top_df['sniper_result'] == 'HIT'])
@@ -257,11 +274,22 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
     
     # Max drawdown across all top picks
     avg_max_drawdown = top_df['max_drawdown'].mean() if 'max_drawdown' in top_df.columns else 0
+    worst_drawdown = top_df['max_drawdown'].min() if 'max_drawdown' in top_df.columns else 0
     
     # Profit factor: total gains / total losses
     gains = top_df[top_df['actual_return'] > 0]['actual_return'].sum()
     losses = abs(top_df[top_df['actual_return'] < 0]['actual_return'].sum())
     profit_factor = gains / losses if losses > 0 else 9999.0  # cap: float('inf') breaks json.dump
+
+    # Net Profit factor
+    net_gains = top_df[top_df['net_return'] > 0]['net_return'].sum()
+    net_losses = abs(top_df[top_df['net_return'] < 0]['net_return'].sum())
+    net_profit_factor = net_gains / net_losses if net_losses > 0 else 9999.0
+
+    # Sharpe Ratio (Period Sharpe Ratio: mean of net returns divided by std of net returns)
+    net_returns = top_df['net_return']
+    std_net = net_returns.std()
+    sharpe_ratio = float(net_returns.mean() / std_net) if std_net > 0 else 0.0
 
     best_pick = None
     if not top_df.empty:
@@ -279,12 +307,17 @@ def run_time_machine(days_ago=30, limit=20, version: Optional[str] = None, candi
             "holding_days": top_picks[0]['holding_days'] if top_picks else max(days_ago - 1, 0),
             "exit_date_actual": top_picks[0]['exit_date'] if top_picks else "今日",
             "avg_return": avg_return,
+            "avg_net_return": avg_net_return,
             "win_rate": win_count / len(top_picks) if top_picks else 0,
+            "net_win_rate": net_win_count / len(top_picks) if top_picks else 0,
             "sniper_hit_rate": sniper_hit_rate,
             "sniper_hits": sniper_hits,
             "sniper_stops": sniper_stops,
             "profit_factor": round(profit_factor, 2),
+            "net_profit_factor": round(net_profit_factor, 2),
+            "sharpe_ratio": round(sharpe_ratio, 3),
             "avg_max_drawdown": round(avg_max_drawdown * 100, 2),
+            "worst_drawdown": round(worst_drawdown * 100, 2),
             "best_stock": best_pick['name'] if best_pick is not None else "N/A",
             "best_return": float(best_pick['actual_return']) if best_pick is not None else 0,
             "execution_time_sec": round(time.perf_counter() - start_time, 2)

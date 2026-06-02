@@ -236,3 +236,12 @@ def test_get_stock_name_threadsafe_missing_map(monkeypatch):
 
     monkeypatch.setattr(data, "get_all_tw_stocks", lambda: [])
     assert data.get_stock_name("2330.TW") is None
+
+
+def test_get_ticker_suffix_us_crypto():
+    """Verify get_ticker_suffix returns empty string for US/Crypto stocks."""
+    from core import data
+    assert data.get_ticker_suffix("AAPL") == ""
+    assert data.get_ticker_suffix("BTC-USD") == ""
+    assert data.get_ticker_suffix("MSFT") == ""
+    assert data.get_ticker_suffix("2330") in (".TW", ".TWO")

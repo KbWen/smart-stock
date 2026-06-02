@@ -18,7 +18,8 @@ const Dashboard: React.FC = () => {
         lastUpdated,
         dbUpdatedAt,
         isDbStale,
-        refreshCandidates
+        syncStatus,
+        triggerSync,
     } = useDashboardData()
 
     const handleSelectTicker = useCallback((ticker: string) => {
@@ -41,17 +42,47 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between border-b border-dark-border/60 px-4 py-2 text-xs text-dark-muted">
                         <span>資料庫更新時間: {dbUpdatedAt}</span>
-                        {isDbStale && (
-                            <button
-                                type="button"
-                                onClick={() => { void refreshCandidates() }}
-                                className="inline-flex items-center gap-1 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-yellow-400 hover:bg-yellow-500/20"
-                            >
-                                <RefreshCw size={12} /> 手動刷新
-                            </button>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => { void (syncStatus.isSyncing ? null : triggerSync()) }}
+                            disabled={syncStatus.isSyncing}
+                            className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 transition-all duration-200 ${
+                                syncStatus.isSyncing
+                                    ? 'border-sniper-green/30 bg-sniper-green/10 text-sniper-green cursor-not-allowed'
+                                    : isDbStale
+                                    ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20'
+                                    : 'border-white/10 bg-white/5 text-dark-muted hover:bg-white/10 hover:text-white'
+                            }`}
+                        >
+                            <RefreshCw size={12} className={syncStatus.isSyncing ? 'animate-spin' : ''} />
+                            {syncStatus.isSyncing ? '背景同步中...' : '同步資料庫'}
+                        </button>
                     </div>
-                    {isDbStale && (
+                    {syncStatus.isSyncing && (
+                        <div className="border-b border-dark-border/60 px-4 py-3 bg-white/5 space-y-2">
+                            <div className="flex items-center justify-between text-xs text-sniper-green">
+                                <span className="flex items-center gap-1.5 font-medium animate-pulse">
+                                    <RefreshCw className="animate-spin" size={12} />
+                                    正在同步資料: {syncStatus.currentTicker || '準備中...'}
+                                </span>
+                                <span className="font-semibold">
+                                    {syncStatus.current} / {syncStatus.total} ({Math.round((syncStatus.current / (syncStatus.total || 1)) * 100)}%)
+                                </span>
+                            </div>
+                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                    className="bg-sniper-green h-1.5 rounded-full transition-all duration-300 ease-out"
+                                    style={{ width: `${(syncStatus.current / (syncStatus.total || 1)) * 100}%` }}
+                                />
+                            </div>
+                            {syncStatus.failedCount > 0 && (
+                                <div className="text-[10px] text-red-400">
+                                    已跳過/失敗標的: {syncStatus.failedCount} 檔
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {isDbStale && !syncStatus.isSyncing && (
                         <div className="flex items-center gap-2 bg-yellow-500/10 px-4 py-2 text-xs text-yellow-400">
                             <AlertTriangle size={14} />
                             偵測到資料非當日，顯示內容可能有延遲。

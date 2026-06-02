@@ -1,7 +1,7 @@
 ---
 status: frozen
 module: core-ai
-version: 1.0.0
+version: 1.1.0
 ---
 
 # AI Pipeline Correctness & OTC Stock Synchronization Optimization
@@ -18,6 +18,7 @@ Details the optimizations to prevent data leakage in ML training, fix MLPClassif
 - Build a cached mapping mapping clean ticker codes to their correct yfinance suffix (`.TW` or `.TWO`) using `twstock` metadata.
 - Modify `fetch_stock_data()` to download using the correct suffix directly on the first attempt, preventing invalid `.TW` query timeouts for OTC stocks.
 - Handle fallback defensively so that if the lookup is missing or fails, retry logic falls back to `.TWO` reliably.
+- For non-Taiwan stocks (e.g. US stocks like `AAPL` or crypto like `BTC-USD`), bypass Taiwan suffix appending and return an empty suffix `""` to allow direct yfinance queries.
 
 ### AC3: Training Leakage Prevention (Temporal Embargo)
 - In `core/ai/trainer.py:train_and_save()`, separate the training and testing sets with a gap of `PRED_DAYS` rows (temporal embargo) to prevent target overlapping look-ahead leakage.

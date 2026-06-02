@@ -20,6 +20,7 @@ interface BulkMetaItem {
     trend_score?: number
     momentum_score?: number
     volatility_score?: number
+    sparkline?: { date: string; close: number }[]
 }
 
 interface BulkMetaResponse {
@@ -107,7 +108,8 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
                 sameSignalArray(stock.signals, nextSignals) &&
                 stock.trend === meta.trend_score &&
                 stock.momentum === meta.momentum_score &&
-                stock.volatility === meta.volatility_score
+                stock.volatility === meta.volatility_score &&
+                stock.sparkline === meta.sparkline
 
             if (unchanged) {
                 return stock
@@ -120,7 +122,8 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
                 signals: nextSignals,
                 trend: meta.trend_score,
                 momentum: meta.momentum_score,
-                volatility: meta.volatility_score
+                volatility: meta.volatility_score,
+                sparkline: meta.sparkline
             }
         })
         return hasChanges ? next : rawStocks

@@ -32,7 +32,8 @@
   - `[visual-upgrade-p2] .agentcortex/specs/visual-upgrade-phase2.md [Frozen] — ✅ ALL 7 ACs done (sparkline endpoint + SparklineChart + CandidateRow integration 2026-03-28)`
   - `[onboarding] .agentcortex/specs/onboarding-optimization.md [Frozen] — ✅ ALL 4 ACs done (dev startup and limit sync optimized 2026-06-01)`
   - `[frontend-ai] .agentcortex/specs/frontend-ai-optimization.md [Frozen] — ✅ ALL 4 ACs done (SVG sparklines, animations, glassmorphism, AI verification 2026-06-01)`
-  - `[core-ai-opt] .agentcortex/specs/ai-pipeline-otc-optimization.md [Frozen] — ✅ ALL 5 ACs done (OTC stocks, suffix mapping, embargo gaps, MLP oversampling, dynamic slicing 2026-06-01)`
+  - `[core-ai-opt] .agentcortex/specs/ai-pipeline-otc-optimization.md [Frozen] — ✅ ALL 5 ACs done + US/Crypto suffix lookup fix 2026-06-02`
+  - `[backtest-perf] .agentcortex/specs/backtest-and-performance-opt.md [Frozen] — ✅ ALL 5 ACs done (batch query + transaction cost sliders + sharpe & drawdown metrics + CandidateRow optimization + dynamic strategy parameters + production build 2026-06-02)`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.
@@ -70,6 +71,10 @@
 - [Sidecar Parity]: Whenever a `.pkl` model file is deleted (rotation or prune), also delete matching `.sha256`/`.sig` sidecars. trainer.py rotation and manage_models.py:cmd_delete must stay in sync on this.
 
 ## Ship History
+
+### Ship-gemini-audit-hardening-2026-06-02
+- Feature shipped: System hardening based on audit findings. Fixed GET API write side-effect in `GET /api/market_status` by moving history saving to background sync task. Added 0.5s-1.5s random sleep to yfinance download loop to prevent rate-limiting. Fixed US/Crypto stock suffix mapping bug in `get_ticker_suffix`. Integrated background sync trigger and real-time progress bar UI into the frontend dashboard. Added rate-limiting (5/minute) to `POST /api/sync`.
+- Tests: Pass (Backend 165/165, Frontend 44/44, Production build ✅)
 
 ### Ship-claude-frontend-ai-opt-2026-06-01
 - Feature shipped: Enhanced frontend visual aesthetics & scroll performance (SVG Sparklines & smooth transitions), verified AI training pipeline correctness (dynamic labels check), integrated TPEX/OTC stocks with suffix fallback logic, protected model activation via atomic file replacement, and updated system documentation.

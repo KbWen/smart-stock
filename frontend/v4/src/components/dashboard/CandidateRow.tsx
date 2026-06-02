@@ -11,7 +11,8 @@ interface CandidateRowProps {
 }
 
 const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect, rowHeight }) => {
-    const { data: sparklineData } = useSparkline(stock.ticker)
+    const { data: fallbackData } = useSparkline(stock.sparkline ? null : stock.ticker)
+    const sparklineData = stock.sparkline ?? fallbackData
 
     const getChangeColor = (change?: number) => {
         if (change === undefined || change === 0) return 'text-dark-muted'
