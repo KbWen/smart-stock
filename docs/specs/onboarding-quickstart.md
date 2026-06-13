@@ -1,5 +1,5 @@
 ---
-status: frozen
+status: shipped
 title: Frictionless Onboarding — Offline Demo Seed + One-Command Quickstart
 source: external
 source_doc: _product-backlog.md (#1)

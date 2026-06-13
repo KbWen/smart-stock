@@ -13,7 +13,7 @@
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
 - **ADR Index**:
   - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
-- **Active Backlog**: `docs/specs/_product-backlog.md` (Optimization Round 2 — #3 data-completeness (PR #22) + #2 ML-labels (PR #23) Shipped 2026-06-13; #1 onboarding P1 pending. Prior honesty-first backlog archived to `docs/specs/_product-backlog-honesty-first-2026-06-13.md`)
+- **Active Backlog**: `docs/specs/_product-backlog.md` (Optimization Round 2 — **all 3 Shipped 2026-06-13**: #3 data-completeness PR #22, #2 ML-labels PR #23, #1 onboarding PR #24. Epic complete. Prior honesty-first backlog archived to `docs/specs/_product-backlog-honesty-first-2026-06-13.md`)
   - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `docs/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
   - `[api-perf] docs/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
@@ -42,6 +42,7 @@
   - `[fe-ci] docs/specs/frontend-ci.md [Frozen] — ✅ ALL 3 ACs done (Frontend CI: vitest + production build) [EXTENDS frontend-test] 2026-06-13`
   - `[data-universe] docs/specs/listed-otc-data-completeness.md [Frozen] — ✅ ALL 6 ACs done (live TWSE/TPEX universe sourcing + ETF inclusion + market/kind tags + history-coverage report/backfill; twstock demoted to fallback) 2026-06-13`
   - `[ml-labels] docs/specs/ml-label-volatility-scaling.md [Frozen] — ✅ ALL 6 ACs done (ATR volatility-scaled triple-barrier labels fix degenerate-model root cause; LABEL_MODE atr/fixed toggle; label_analysis evidence tool. Validated label rebalancing 91/5/4→59.5/13.7/26.8; full-universe OOS NOT claimed — retrain pending) 2026-06-13`
+  - `[onboarding-qs] docs/specs/onboarding-quickstart.md [Frozen] — ✅ ALL 6 ACs done (offline demo fixture data/demo/demo_prices.csv + idempotent scripts/seed_demo.py + quickstart.sh/.ps1 + README; recalc gating fix so no-model fresh clone gets technical scores w/ honest NULL AI) 2026-06-13`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.
@@ -79,6 +80,10 @@
 - [Sidecar Parity]: Whenever a `.pkl` model file is deleted (rotation or prune), also delete matching `.sha256`/`.sig` sidecars. trainer.py rotation and manage_models.py:cmd_delete must stay in sync on this.
 
 ## Ship History
+
+### Ship-feature-onboarding-quickstart-2026-06-13
+- Feature shipped: Frictionless onboarding (#1 of Optimization Round 2, P1 — epic complete) — PR #24 (stacked on #23/#22). A fresh clone was empty (`storage.db` + model gitignored) until a slow yfinance sync. Bundled `data/demo/demo_prices.csv` (6 TWSE/OTC tickers incl. 2330) + idempotent offline `scripts/seed_demo.py` (loads fixture, then `recalculate_all(incremental=False)` scores DB tickers — no network) + `quickstart.sh`/`quickstart.ps1` (install→seed→run) + README "⚡ Quickstart" section. README strategy/label description corrected to the shipped ATR-default labeling (docs match code). **Honesty bug fix** in `backend/recalculate.py`: V4 technical scoring was gated behind a loadable model, so a no-model fresh clone produced 0 scores (empty dashboard) — contradicting the feature's promise; now technical scores compute regardless of model and AI probability stays NULL (honest N/A). Verified real fresh-clone (no model) → 6 score rows, AI NULL. Out of scope: bundling a trained model, production deployment, FE build automation.
+- Tests: Pass (Backend 205/205, +4 new; full suite green; 1 integration deselected)
 
 ### Ship-feature-ml-label-redesign-2026-06-13
 - Feature shipped: ML label redesign (#2 of Optimization Round 2, P0) — PR #23 (stacked on #22). Replaced the fixed-percentage triple-barrier training labels (+15%/+10%/-5% over 20d) — which ignore per-stock volatility and produced the degenerate class distribution (dev data Hold 91.1% / Buy 4.9% / Strong 4.0%, low-vol stocks ~100% Hold) behind the Buy/StrongBuy precision=recall=0 finding — with **ATR volatility-scaled** barriers. `core/config.py` + `core/ai/common.py`: `LABEL_MODE` (default `atr`), `ATR_TARGET_MULT`/`ATR_BUY_MULT`/`ATR_STOP_MULT` (config = SSoT). `core/ai/trainer.py`: extracted `_compute_targets()` branching on mode; `atr` scales barriers by per-row ATR-14 at entry (no look-ahead), `fixed` reproduces legacy labels byte-for-byte (toggle to revert); NaN-ATR warm-up → Hold then dropped. `core/ai/label_analysis.py` (new): reproducible distribution-evidence tool. Independent fresh-agent review READY + honesty audit clean (no overclaim). **HONEST SCOPE**: validates label-distribution rebalancing only (91/5/4 → 59.5/13.7/26.8 via shipped tool); full-universe OOS precision/recall NOT claimed (dev DB = 6 tickers); existing saved models + live predictions unchanged; new labels affect only the next training run. Out of scope: backtest exit rules, model architecture, retrain.
