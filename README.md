@@ -2,14 +2,37 @@
 
 這是一個專為台灣股市 (TWSE) 設計的技術分析儀表板與 AI 預測引擎。
 
+## ⚡ 快速開始 (Quickstart — 離線 Demo)
+
+想立刻看到「有資料的儀表板」？內建一份離線 demo 資料集（`data/demo/demo_prices.csv`，含台積電等數檔），**不需等待 yfinance 下載**：
+
+```bash
+# macOS / Linux
+./quickstart.sh
+
+# Windows (PowerShell)
+.\quickstart.ps1
+```
+
+這會：安裝後端相依套件 → 把 demo 資料載入 `storage.db` 並離線算出技術分數 → 印出啟動指令。接著：
+
+```bash
+python3 backend/main.py            # 後端 API → http://localhost:8000
+cd frontend/v4 && npm install && npm run dev   # 前端 → http://localhost:5173
+# 或 ./start.sh （Windows: start.bat）一次啟動兩者
+```
+
+> **誠實說明**：repo 不附帶已訓練的模型（`.pkl` 已 gitignore），所以 demo 中「AI 機率」會誠實顯示為 **N/A**；執行 `python3 backend/train_ai.py` 即可訓練啟用。技術面分數則離線即可運作。
+
 ## 🎯 核心理念：「狙擊手」策略
 
-不同於單純預測漲跌的傳統模型，本系統採用 **三元演算法 (3-Class System)** 來鎖定高暴擊目標：
+不同於單純預測漲跌的傳統模型，本系統採用 **三元演算法 (3-Class System)** 來鎖定高暴擊目標，分為 **強勢獲利 (Strong Buy)**、**穩健獲利 (Buy)** 與 **觀望/停損 (Hold/Loss)** 三類。訓練標籤採「三道門檻 (triple-barrier)」規則，並可透過 `LABEL_MODE` 設定（見 `core/config.py`）：
 
-* **強勢獲利 (Strong Buy)**：在 20 個交易日內，股價先觸及 **+15%** (獲利點)，且過程中未曾觸及 **-5%** (停損點)。
-* **穩健獲利 (Buy)**：在 20 個交易日內，股價觸及 **+10%** 且未停損。
-* **觀望/停損 (Hold/Loss)**：觸發 -5% 停損，或 20 天內未達獲利目標。
-* **AI 目標**：識別出「強勢獲利」與「穩健獲利」機率遠高於停損的訊號，在保護本金的同時追求高爆發性成長。
+* **`atr`（預設）**：獲利/停損門檻依個股 **ATR 波動度**動態縮放（`ATR_TARGET_MULT` / `ATR_BUY_MULT` / `ATR_STOP_MULT`）。固定百分比門檻會讓低波動股幾乎永遠是 Hold、造成類別嚴重失衡（退化模型）；波動度縮放讓三類分佈更平衡、可學習。
+* **`fixed`（傳統/可切換）**：20 個交易日內，股價先觸及 **+15%** 視為 Strong Buy、**+10%** 視為 Buy，過程中未觸及 **-5%** 停損；否則為 Hold。
+* **AI 目標**：在保護本金的前提下，識別「強勢/穩健獲利」機率遠高於停損的訊號。
+
+> 註：變更 `LABEL_MODE` 僅影響「下次訓練」的標籤，不會更動既有已存模型。
 
 ## 🏗️ 系統架構 (System Architecture)
 

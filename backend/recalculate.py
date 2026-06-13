@@ -66,11 +66,15 @@ def recalculate_all(incremental: bool = True, stale_hours: int = 6):
     current_model_version = get_model_version()
     is_v4 = current_model_version.startswith("v4") or current_model_version == "unknown"
 
-    # If still unknown, try a dummy prediction to force load
+    # If still unknown, try a dummy prediction to force-load a model.
     if current_model_version == "unknown":
         predict_prob(pd.DataFrame())
         current_model_version = get_model_version()
-        is_v4 = current_model_version.startswith("v4")
+        # V1 is deprecated, so the V4 technical scoring pipeline always applies.
+        # A missing model (still "unknown") must NOT disable technical scores — the
+        # AI probability simply stays NULL (honest N/A). This keeps a fresh clone /
+        # offline demo (no bundled .pkl) producing real scores instead of an empty board.
+        is_v4 = current_model_version.startswith("v4") or current_model_version == "unknown"
 
     tickers = _load_target_tickers(
         incremental=incremental,
