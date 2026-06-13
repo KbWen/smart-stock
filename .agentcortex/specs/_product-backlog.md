@@ -3,7 +3,7 @@ status: living
 title: Product Backlog — Honesty-First (Data-Consistent-With-Claims)
 source: 2026-06-13 multi-agent code audit
 created: 2026-06-13
-last_updated: 2026-06-13 (#1, #2 done on branch; #3 unblocked, next)
+last_updated: 2026-06-13 (#1, #2, #3 done on branch; #4/#5/#6 quick-wins next)
 ---
 
 # Product Backlog

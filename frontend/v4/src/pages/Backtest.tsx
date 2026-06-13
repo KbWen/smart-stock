@@ -257,7 +257,7 @@ const Backtest: React.FC = () => {
                             {showLoadingOverlay && <div className="absolute inset-0 bg-dark-card/50 flex items-center justify-center animate-pulse" />}
                             <div className="mb-1 flex items-center gap-1">
                                 <p className="text-[10px] font-semibold uppercase tracking-wider text-dark-muted">🎯 狙擊命中率</p>
-                                <Tooltip content="進場後先觸發 +15% 目標 vs 先觸發 -5% 停損的比例。"><Info size={12} className="text-dark-muted opacity-50" /></Tooltip>
+                                <Tooltip content={`進場後先觸發 +${(targetGain * 100).toFixed(0)}% 停利目標 vs 先觸發 -${(stopLoss * 100).toFixed(0)}% 停損的比例。`}><Info size={12} className="text-dark-muted opacity-50" /></Tooltip>
                             </div>
                             <p className={`text-2xl font-bold ${(data.summary?.sniper_hit_rate || 0) >= 0.5 ? 'text-sniper-gold' : 'text-dark-muted'}`}>{((data.summary?.sniper_hit_rate || 0) * 100).toFixed(1)}%</p>
                             <p className="mt-1 text-[10px] text-dark-muted">HIT {data.summary?.sniper_hits || 0} / STOP {data.summary?.sniper_stops || 0}</p>
@@ -267,11 +267,11 @@ const Backtest: React.FC = () => {
                         <div className="rounded-xl border border-dark-border bg-dark-card p-4 shadow-lg relative overflow-hidden">
                             {showLoadingOverlay && <div className="absolute inset-0 bg-dark-card/50 flex items-center justify-center animate-pulse" />}
                             <div className="mb-1 flex items-center gap-1">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-dark-muted">夏普值 (Sharpe Ratio)</p>
-                                <Tooltip content="每承受一單位風險所得的淨超額報酬。值越高表示策略效率越佳。"><Info size={12} className="text-dark-muted opacity-50" /></Tooltip>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-dark-muted">報酬風險比 (單期)</p>
+                                <Tooltip content="本期 Top picks 淨報酬的平均 ÷ 標準差（單期、未年化、未扣無風險利率）。數值越高代表報酬相對其波動越穩定；與年化夏普值不可直接比較。"><Info size={12} className="text-dark-muted opacity-50" /></Tooltip>
                             </div>
                             <p className={`text-2xl font-bold ${(data.summary?.sharpe_ratio || 0) >= 1.0 ? 'text-purple-400' : 'text-dark-muted'}`}>{data.summary?.sharpe_ratio != null ? data.summary.sharpe_ratio.toFixed(2) : '—'}</p>
-                            <p className="mt-1 text-[10px] text-dark-muted">超額回報/標準差</p>
+                            <p className="mt-1 text-[10px] text-dark-muted">平均淨報酬 / 標準差（單期）</p>
                         </div>
 
                         {/* 5. Net Profit Factor */}

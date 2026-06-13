@@ -279,12 +279,12 @@ def run_time_machine(
     # Profit factor: total gains / total losses
     gains = top_df[top_df['actual_return'] > 0]['actual_return'].sum()
     losses = abs(top_df[top_df['actual_return'] < 0]['actual_return'].sum())
-    profit_factor = gains / losses if losses > 0 else 9999.0  # cap: float('inf') breaks json.dump
+    profit_factor = gains / losses if losses > 0 else None  # None = undefined (no losses) → shown as N/A, not a fake 9999
 
     # Net Profit factor
     net_gains = top_df[top_df['net_return'] > 0]['net_return'].sum()
     net_losses = abs(top_df[top_df['net_return'] < 0]['net_return'].sum())
-    net_profit_factor = net_gains / net_losses if net_losses > 0 else 9999.0
+    net_profit_factor = net_gains / net_losses if net_losses > 0 else None
 
     # Sharpe Ratio (Period Sharpe Ratio: mean of net returns divided by std of net returns)
     net_returns = top_df['net_return']
@@ -313,8 +313,8 @@ def run_time_machine(
             "sniper_hit_rate": sniper_hit_rate,
             "sniper_hits": sniper_hits,
             "sniper_stops": sniper_stops,
-            "profit_factor": round(profit_factor, 2),
-            "net_profit_factor": round(net_profit_factor, 2),
+            "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
+            "net_profit_factor": round(net_profit_factor, 2) if net_profit_factor is not None else None,
             "sharpe_ratio": round(sharpe_ratio, 3),
             "avg_max_drawdown": round(avg_max_drawdown * 100, 2),
             "worst_drawdown": round(worst_drawdown * 100, 2),
