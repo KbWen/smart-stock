@@ -1,5 +1,5 @@
 ---
-status: frozen
+status: shipped
 title: Listed/OTC Universe & Price-Data Completeness
 source: external
 source_doc: _product-backlog.md (#3)
