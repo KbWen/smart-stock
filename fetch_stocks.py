@@ -73,9 +73,11 @@ def compare_prices(all_info, date_new=None, date_old=None, min_volume=100000):
                         
                         if pd.notna(p_old) and pd.notna(p_new) and p_new > p_old:
                             results.append({
-                                "代號": ticker.replace(".TW", "").replace(".TWO", ""),
+                                # Strip .TWO before .TW (".TW" is a substring of ".TWO"):
+                                # the old order turned "6488.TWO" into "6488O" and mislabeled it 上市.
+                                "代號": ticker.replace(".TWO", "").replace(".TW", ""),
                                 "名稱": all_info[ticker]["名稱"],
-                                "市場": "上市" if ".TW" in ticker else "上櫃",
+                                "市場": "上櫃" if ticker.endswith(".TWO") else "上市",
                                 "成交量": all_info[ticker]["成交量"],
                                 f"{date_old} 收盤": round(p_old, 2),
                                 f"{date_new} 收盤": round(p_new, 2),
