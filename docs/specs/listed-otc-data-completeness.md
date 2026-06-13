@@ -4,8 +4,6 @@ title: Listed/OTC Universe & Price-Data Completeness
 source: external
 source_doc: _product-backlog.md (#3)
 created: 2026-06-13
-primary_domain: data
-secondary_domains: []
 ---
 
 # Listed/OTC Universe & Price-Data Completeness
