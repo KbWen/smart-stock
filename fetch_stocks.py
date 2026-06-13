@@ -1,64 +1,25 @@
 import yfinance as yf
 import pandas as pd
-import requests
-import io
-import urllib3
 from datetime import datetime, timedelta
 
-# 關閉 SSL 警告
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Authoritative live TWSE/TPEX fetchers live in core.universe_source (single source
+# of truth); this script adapts them to its legacy {ticker: {名稱, 成交量}} shape.
+from core import universe_source
 
-# ── 1. 從 TWSE 抓上市股票資訊 ──────────────────
+# ── 1. 從 TWSE 抓上市股票資訊 (上市，含 ETF) ──────────────────
 def get_twse_info():
-    url = "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=open_data"
     try:
-        response = requests.get(url, timeout=30, verify=False)
-        # 證交所 open_data 每個欄位都有引號，且用逗號隔開
-        # 欄位順序: "日期","證券代號","證券名稱","成交股數","成交金額","開盤價","最高價","最低價","收盤價","漲跌價差","成交筆數"
-        df = pd.read_csv(io.StringIO(response.text), encoding="utf-8", dtype=str)
-        
-        info = {}
-        for _, row in df.iterrows():
-            try:
-                code = str(row.iloc[1]).strip()
-                name = str(row.iloc[2]).strip()
-                vol_str = str(row.iloc[3]).replace(',', '').strip()
-                volume = int(vol_str) if vol_str.isdigit() else 0
-                
-                if code.isdigit() and len(code) == 4:
-                    info[code + ".TW"] = {"名稱": name, "成交量": volume}
-            except:
-                continue
-        return info
+        rows = universe_source.fetch_twse_listed()
+        return {r["code"] + ".TW": {"名稱": r["name"], "成交量": r["volume"]} for r in rows}
     except Exception as e:
         print(f"抓取上市股票資訊失敗: {e}")
         return {}
 
-# ── 2. 從 TPEX 抓上櫃股票資訊 ──────────────────
+# ── 2. 從 TPEX 抓上櫃股票資訊 (上櫃，含 ETF) ──────────────────
 def get_tpex_info():
-    today = datetime.now()
-    roc_date = f"{today.year - 1911}/{today.month:02d}/{today.day:02d}"
-    url = f"https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?d={roc_date}&o=csv"
     try:
-        response = requests.get(url, timeout=30, verify=False)
-        content = response.content.decode('cp950', errors='ignore')
-        # 櫃買中心 CSV 格式: 前 3 行是標題，第 4 行 (skiprows=3) 是欄位名稱
-        df = pd.read_csv(io.StringIO(content), skiprows=3, header=0, dtype=str)
-        
-        info = {}
-        for _, row in df.iterrows():
-            try:
-                if pd.isna(row.iloc[0]): continue
-                code = str(row.iloc[0]).strip()
-                name = str(row.iloc[1]).strip()
-                vol_str = str(row.iloc[2]).replace(',', '').strip()
-                volume = int(vol_str) if vol_str.isdigit() else 0
-                
-                if code.isdigit() and len(code) == 4:
-                    info[code + ".TWO"] = {"名稱": name, "成交量": volume}
-            except:
-                continue
-        return info
+        rows = universe_source.fetch_tpex_otc()
+        return {r["code"] + ".TWO": {"名稱": r["name"], "成交量": r["volume"]} for r in rows}
     except Exception as e:
         print(f"抓取上櫃股票資訊失敗: {e}")
         return {}

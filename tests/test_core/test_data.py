@@ -189,6 +189,7 @@ def test_get_all_tw_stocks_initializes_name_map_when_twstock_missing(monkeypatch
     data._tw_stocks_cache["name_map"] = None
 
     monkeypatch.setattr(data, "twstock", None)
+    monkeypatch.setattr(data, "_live_universe", lambda: [])  # no network in tests
     monkeypatch.setattr(data.os.path, "exists", lambda _p: False)
 
     stocks = data.get_all_tw_stocks()
@@ -245,3 +246,151 @@ def test_get_ticker_suffix_us_crypto():
     assert data.get_ticker_suffix("BTC-USD") == ""
     assert data.get_ticker_suffix("MSFT") == ""
     assert data.get_ticker_suffix("2330") in (".TW", ".TWO")
+
+
+# --- Universe completeness (feature/data-universe-completeness) -------------
+
+def test_get_all_tw_stocks_uses_live_source(monkeypatch, tmp_path):
+    """Live source is the primary universe; entries carry market + kind (incl. ETF)."""
+    from core import data
+    import core.config
+
+    monkeypatch.setattr(core.config, "STOCK_LIST_CACHE", str(tmp_path / "cache.json"))
+    data._tw_stocks_cache.update({"data": None, "last_updated": 0, "name_map": None})
+
+    live = [
+        {"code": "2330", "name": "台積電", "market": "上市", "kind": "股票"},
+        {"code": "0050", "name": "元大台灣50", "market": "上市", "kind": "ETF"},
+    ]
+    monkeypatch.setattr(data, "_live_universe", lambda: live)
+
+    out = data.get_all_tw_stocks()
+    by = {s["code"]: s for s in out}
+    assert by["0050"]["kind"] == "ETF"
+    assert by["2330"]["market"] == "上市"
+    assert data.get_stock_name("2330.TW") == "台積電"
+
+
+def test_get_all_tw_stocks_fallback_to_twstock_includes_etf(monkeypatch, tmp_path):
+    """When live returns nothing, twstock fallback is used and ETFs are included."""
+    import types
+    from core import data
+    import core.config
+
+    monkeypatch.setattr(core.config, "STOCK_LIST_CACHE", str(tmp_path / "cache.json"))
+    data._tw_stocks_cache.update({"data": None, "last_updated": 0, "name_map": None})
+    monkeypatch.setattr(data, "_live_universe", lambda: [])
+
+    fake_codes = {
+        "2330": types.SimpleNamespace(type="股票", market="上市", name="台積電"),
+        "0050": types.SimpleNamespace(type="ETF", market="上市", name="元大台灣50"),
+        "6488": types.SimpleNamespace(type="股票", market="上櫃", name="環球晶"),
+        "1234": types.SimpleNamespace(type="特別股", market="上市", name="排除我"),
+    }
+    monkeypatch.setattr(data, "twstock", types.SimpleNamespace(codes=fake_codes))
+
+    out = data.get_all_tw_stocks()
+    by = {s["code"]: s for s in out}
+    assert by["0050"]["kind"] == "ETF"
+    assert by["6488"]["market"] == "上櫃"
+    assert "1234" not in by  # neither 股票 nor ETF -> excluded
+
+
+def test_get_all_tw_stocks_never_overwrites_good_cache_with_empty(monkeypatch, tmp_path):
+    """A failed live fetch + no twstock must not blank out a populated in-memory list."""
+    from core import data
+    import core.config
+
+    monkeypatch.setattr(core.config, "STOCK_LIST_CACHE", str(tmp_path / "cache.json"))
+    good = [{"code": "2330", "name": "台積電", "market": "上市", "kind": "股票"}]
+    data._tw_stocks_cache.update({"data": good, "last_updated": 0, "name_map": None})  # stale
+    monkeypatch.setattr(data, "_live_universe", lambda: [])
+    monkeypatch.setattr(data, "twstock", None)
+
+    out = data.get_all_tw_stocks()
+    assert out == good
+
+
+def test_normalize_loaded_drops_phantom_codes():
+    """Corrupted cache rows (None / 'None' / empty code) must not leak phantom tickers."""
+    from core import data
+    out = data._normalize_loaded([
+        {"code": "2330", "name": "台積電", "market": "上市", "kind": "股票"},
+        {"code": None, "name": "x"},
+        {"code": "None", "name": "y"},
+        {"code": "", "name": "z"},
+    ])
+    assert [s["code"] for s in out] == ["2330"]
+
+
+def test_refresh_stock_universe_force_refetches(monkeypatch, tmp_path):
+    """AC3: force=True bypasses the fresh in-memory cache and re-fetches live."""
+    import time as _time
+    from core import data
+    import core.config
+
+    monkeypatch.setattr(core.config, "STOCK_LIST_CACHE", str(tmp_path / "cache.json"))
+    data._tw_stocks_cache.update({
+        "data": [{"code": "9999", "name": "old", "market": "上市", "kind": "股票"}],
+        "last_updated": _time.time(),  # deliberately fresh
+        "name_map": None,
+    })
+    calls = {"n": 0}
+
+    def fake_live():
+        calls["n"] += 1
+        return [{"code": "2330", "name": "台積電", "market": "上市", "kind": "股票"}]
+
+    monkeypatch.setattr(data, "_live_universe", fake_live)
+    out = data.refresh_stock_universe(force=True)
+    assert calls["n"] == 1  # refetched despite fresh memory cache
+    assert {s["code"] for s in out} == {"2330"}
+
+
+def test_backfill_history_invokes_fetch_for_short(monkeypatch):
+    """AC4: backfill derives short tickers and reuses fetch_stock_data, counting hits."""
+    from core import data
+
+    monkeypatch.setattr(data, "report_history_coverage", lambda *a, **k: {"short": ["1111", "2222"]})
+    fetched = []
+
+    def fake_fetch(code, days=730, force_download=False):
+        fetched.append(code)
+        return pd.DataFrame({"close": [1]}) if code == "1111" else pd.DataFrame()
+
+    monkeypatch.setattr(data, "fetch_stock_data", fake_fetch)
+    res = data.backfill_history(limit=5)
+    assert res["attempted"] == 2
+    assert res["fetched"] == 1  # only 1111 returned data
+    assert fetched == ["1111", "2222"]
+
+
+def test_report_history_coverage_counts(mock_db, monkeypatch, tmp_path):
+    """Coverage report classifies tickers by available history depth."""
+    from core import data
+    import core.config
+
+    monkeypatch.setattr(core.config, "DB_PATH", str(tmp_path / "test_stocks.db"))
+    conn = data.get_db_connection()
+
+    def seed(ticker, n):
+        dates = pd.date_range("2018-01-01", periods=n, freq="D").strftime("%Y-%m-%d")
+        rows = [(ticker, d, 1.0, 1.0, 1.0, 1.0, 100) for d in dates]
+        conn.executemany(
+            "INSERT OR REPLACE INTO stock_history (ticker,date,open,high,low,close,volume)"
+            " VALUES (?,?,?,?,?,?,?)",
+            rows,
+        )
+
+    seed("1111", 130)  # >= MIN_PREDICT(120), < MIN_TRAIN(260)
+    seed("2222", 300)  # >= both
+    seed("3333", 50)   # short
+    conn.commit()
+    conn.close()
+
+    cov = data.report_history_coverage(["1111", "2222", "3333"])
+    assert cov["universe"] == 3
+    assert cov["with_predict_rows"] == 2
+    assert cov["with_train_rows"] == 1
+    assert "3333" in cov["short"]
+    assert "2222" not in cov["short"]
