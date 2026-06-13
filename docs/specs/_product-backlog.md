@@ -1,25 +1,26 @@
 ---
 status: living
-title: Product Backlog — Honesty-First (Data-Consistent-With-Claims)
-source: 2026-06-13 multi-agent code audit
+title: Product Backlog — Optimization Round 2 (Adoptability · ML Labels · Data Completeness)
+source: 2026-06-13 user-directed optimization (3 directions)
 created: 2026-06-13
-last_updated: 2026-06-13 (ALL 6 shipped via PR #20)
+last_updated: 2026-06-13 (#3 Shipped via PR #22)
 ---
 
 # Product Backlog
 
 ## Source Summary
-Stage goal: a stable/simple/**data-consistent-with-its-claims** smart-stock — complete, not perfect. User chose **honesty-first**: fix truthfulness gaps and honestly reframe model state in the UI; model retraining is explicitly out of scope this stage. Items decomposed from the 2026-06-13 audit. Full detail in `_raw-intake.md`.
+Second optimization round after the honesty-first epic shipped (PR #20/#21). User gave three directions: (1) make the repo trivially easy for others to adopt and run; (2) improve the *actual* AI training, starting from the labels; (3) make the listed (上市) / OTC (上櫃) stock data comprehensive and complete. Previous epic backlog archived to `_product-backlog-honesty-first-2026-06-13.md` (all 6 Shipped — see Ship History in current_state.md). Execution order chosen by foundation-first dependency: #3 (data) → #2 (labels/model) → #1 (onboarding).
 
 ## Feature Inventory
-| # | Feature | Spec File | Tier | Status | Dependencies |
-|---|---|---|---|---|---|
-| 1 | Frontend honest data states — remove mock-as-live (mockData.ts fallback → loading/no-data/error states) | docs/specs/frontend-honest-data-states.md | feature | Shipped | — |
-| 2 | Backend failure-state honesty — predictor.py stops faking `ai_prob=0.0`; propagate null/no-data | docs/specs/backend-failure-state-honesty.md | feature | Shipped | — |
-| 3 | UI honest model-state disclosure — surface "model unready / low-confidence" instead of selling degenerate output | docs/specs/ui-model-state-disclosure.md | feature | Shipped | #1, #2 |
-| 4 | Backtest metric label honesty — Sharpe rename/annotate, 9999→N/A, dynamic ±gain/-loss tooltips (EXTENDS backtest-and-performance-opt) | docs/specs/backtest-metric-label-honesty.md | quick-win | Shipped | — |
-| 5 | Docs ↔ reality sync — API_CONTRACT sync/trigger + backtest params, README auto-sync/10x/stock-count, ARCHITECTURE/TESTING fixes | docs/specs/docs-reality-sync.md | quick-win | Shipped | — |
-| 6 | Frontend tests into CI — enforce 44 vitest + production build (EXTENDS frontend-testing) | docs/specs/frontend-ci.md | quick-win | Shipped | — |
+| # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
+|---|---|---|---|---|---|---|---|---|
+| 3 | Listed/OTC universe & price-data completeness — authoritative live TWSE/TPEX sourcing (replace stale twstock static list), include ETFs, market/kind tagging, history-coverage report + backfill | feature | data | P1 | docs/specs/listed-otc-data-completeness.md | feature | Shipped | — |
+| 2 | ML label redesign — volatility/ATR-scaled triple-barrier targets to fix the degenerate (buy/strong precision=recall=0) model and rebalance class distribution | feature | ml | P0 | — | feature | Pending | #3 (soft) |
+| 1 | Frictionless onboarding — one-command quickstart + seeded demo data + README run-through so a newcomer runs it in minutes | feature | onboarding | P1 | — | feature | Pending | — |
+
+## Column Reference
+- **Kind**: `feature` (planned) · `quick-win` (small planned) · `review-finding` (surfaced by review/audit) · `hotfix-spawn` (systemic issue from hotfix)
+- **Priority**: `P0` (blocking, do now) · `P1` (high value, next batch) · `P2` (nice to have) · `—` (not yet prioritized)
 
 ## Status Key
 - Pending: not yet started
@@ -29,6 +30,6 @@ Stage goal: a stable/simple/**data-consistent-with-its-claims** smart-stock — 
 - Cancelled: explicitly cancelled
 
 ## Notes
-- **Recommended start: #1** — it establishes the honest loading/no-data/error UI pattern that #3 depends on, and removes the most direct "fake-data-as-real" deception.
-- {#1, #2, #3} form a coupled cluster ("honest signal end-to-end"); #4/#5/#6 are independent quick-wins that can slot in at any point.
-- Overlap (per spec-intake Hard Rule #5): #4 EXTENDS shipped `backtest-and-performance-opt.md`; #6 EXTENDS frozen `frontend-testing.md`. Do NOT modify those shipped/frozen specs — new EXTENDS specs only.
+- **#2 is P0** (the degenerate model is the core product-truth gap the honesty epic only *disclosed*; this fixes it) but has a **soft dependency on #3** — more complete/fresh data materially improves the relabel/retrain outcome. Hence #3 first.
+- #1 is fully independent and can slot in at any point.
+- Scope guard (spec-intake Hard Rule #5): #3 EXTENDS the `core/data.py` data layer; it does NOT modify shipped/frozen specs. ETF inclusion in the *universe* is data-completeness only — whether ETFs enter the *training set* is decided in #2, not here.

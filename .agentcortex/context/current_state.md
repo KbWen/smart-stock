@@ -13,7 +13,7 @@
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
 - **ADR Index**:
   - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
-- **Active Backlog**: `docs/specs/_product-backlog.md` (honesty-first — all 6 features Shipped 2026-06-13)
+- **Active Backlog**: `docs/specs/_product-backlog.md` (Optimization Round 2 — #3 data-completeness Shipped 2026-06-13 via PR #22; #2 ML-labels P0 + #1 onboarding P1 pending. Prior honesty-first backlog archived to `docs/specs/_product-backlog-honesty-first-2026-06-13.md`)
   - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `docs/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
   - `[api-perf] docs/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
@@ -40,6 +40,7 @@
   - `[backtest-labels] docs/specs/backtest-metric-label-honesty.md [Frozen] — ✅ ALL 4 ACs done (profit_factor None not 9999; unannualized Sharpe relabel; dynamic tooltips) [EXTENDS backtest-perf] 2026-06-13`
   - `[docs-sync] docs/specs/docs-reality-sync.md [Frozen] — ✅ ALL 6 ACs done (API_CONTRACT/README/ARCHITECTURE/TESTING/db-operations corrected 2026-06-13)`
   - `[fe-ci] docs/specs/frontend-ci.md [Frozen] — ✅ ALL 3 ACs done (Frontend CI: vitest + production build) [EXTENDS frontend-test] 2026-06-13`
+  - `[data-universe] docs/specs/listed-otc-data-completeness.md [Frozen] — ✅ ALL 6 ACs done (live TWSE/TPEX universe sourcing + ETF inclusion + market/kind tags + history-coverage report/backfill; twstock demoted to fallback) 2026-06-13`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.
@@ -77,6 +78,10 @@
 - [Sidecar Parity]: Whenever a `.pkl` model file is deleted (rotation or prune), also delete matching `.sha256`/`.sig` sidecars. trainer.py rotation and manage_models.py:cmd_delete must stay in sync on this.
 
 ## Ship History
+
+### Ship-feature-data-universe-completeness-2026-06-13
+- Feature shipped: Listed/OTC universe & price-data completeness (#3 of Optimization Round 2) — PR #22. Replaced the stale `twstock` static list as the primary universe source with authoritative live TWSE STOCK_DAY_ALL (上市) + TPEX daily-close (上櫃) endpoints, promoted into a reusable `core/universe_source.py` (de-duplicating `fetch_stocks.py`). ETFs (00-prefixed, 4–6 digits) now included and tagged `kind`; warrants/rights excluded. `get_all_tw_stocks` rewritten as a 5-tier fallback chain (memory→fresh-file→live→twstock→stale) that never blanks a good cache on an empty fetch; entries gain additive `market`/`kind` keys (legacy caches load via `_normalize_loaded`). Added `refresh_stock_universe(force)`, `report_history_coverage()` (predict/train coverage vs MIN_PREDICT_ROWS/MIN_TRAIN_ROWS), `backfill_history()`. Independent fresh-agent adversarial review READY; 2 LOW latent defects found & fixed in-branch (None→"None" phantom ticker guard; TPEX volume column). Out of scope: ML training-set semantics (#2), intraday data, DB schema.
+- Tests: Pass (Backend 190/190, +15 new; full suite green; 1 integration deselected)
 
 ### Ship-honesty-first-2026-06-13
 - Feature shipped: Honesty-first epic (data consistent with claims) — 6 changes merged via PR #20. (1) Frontend: removed `mockData.ts` fallback, nullable `useCachedApi`, honest loading/no-data/connection-error states (MarketRisk dead guard fixed). (2) Backend: `predict_prob` returns None on all failures (incl. exception, was `{"prob":0.0}`); `ai_prob` stored as NULL not fake 0.0; `to_ai_percent` helper; readers emit null; frontend "N/A"/"資料不足". (3) `get_model_health` + `/api/market_status.model_health` + `ModelHealthBanner` warns when active model is degraded (buy/strong precision=recall=0) or unavailable. (4) Backtest `profit_factor`/`net_profit_factor` None not 9999 sentinel; "Sharpe" relabelled unannualized single-period; stop/target tooltips follow sliders. (5) Docs synced (API_CONTRACT `/api/sync` + backtest V4.2 params + model_health, README stock-count/sync/workers, ARCHITECTURE lock, TESTING). (6) Frontend CI workflow (vitest + production build) enforces the frontend gate. Out of scope: model retraining, annualized Sharpe.

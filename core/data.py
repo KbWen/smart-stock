@@ -9,6 +9,10 @@ try:
     import twstock
 except Exception:  # optional dependency used only for ticker universe refresh
     twstock = None
+try:
+    from core import universe_source as _universe_source
+except Exception:  # keep data layer importable even if live-source deps are missing
+    _universe_source = None
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -284,63 +288,216 @@ _tw_stocks_cache = {
 }
 _tw_stocks_cache_lock = Lock()
 
-def get_all_tw_stocks():
-    """Returns a list of all TWSE stock codes.
+def _live_universe():
+    """Fetch the universe from authoritative live TWSE/TPEX sources.
 
-    Thread-safe for concurrent reads/writes of in-memory cache metadata.
-    Caches for 1 hour in memory and 24h in file.
+    Returns [] on any failure (network, parse, missing optional deps) so callers
+    fall back to twstock / file cache. Never raises.
     """
-    now = time.time()
+    if _universe_source is None:
+        return []
+    try:
+        return _universe_source.build_universe(twstock_module=twstock)
+    except Exception as e:
+        logger.warning("Live universe fetch failed; will fall back", extra={"error": str(e)})
+        return []
 
-    # Memory Cache
-    with _tw_stocks_cache_lock:
-        if _tw_stocks_cache["data"] and (now - _tw_stocks_cache["last_updated"] < config.CACHE_DURATION):
-            return _tw_stocks_cache["data"]
 
-    # File Cache
-    if os.path.exists(config.STOCK_LIST_CACHE):
-        try:
-            mtime = os.path.getmtime(config.STOCK_LIST_CACHE)
-            if now - mtime < 86400: # 1 Day TTL for file cache
-                with open(config.STOCK_LIST_CACHE, 'r', encoding='utf-8') as f:
-                    stocks = json.load(f)
-                    with _tw_stocks_cache_lock:
-                        _tw_stocks_cache["data"] = stocks
-                        _tw_stocks_cache["last_updated"] = now
-                        _tw_stocks_cache["name_map"] = {s['code']: s['name'] for s in stocks}
-                    return stocks
-        except Exception as e:
-            logger.warning("Failed to read stock list file cache", extra={"error": str(e)})
+def _twstock_universe():
+    """Build the universe from the bundled twstock static list (offline fallback).
 
+    Includes both 股票 and ETF across 上市/上櫃, tagged with market + kind.
+    """
     stocks = []
-    # Generation from twstock (Slow). Falls back to file cache when optional deps are unavailable.
     if twstock is None:
-        logger.warning("twstock is unavailable; returning cached stock list only.")
-        with _tw_stocks_cache_lock:
-            stocks = _tw_stocks_cache.get("data") or []
-            _tw_stocks_cache["name_map"] = {s['code']: s['name'] for s in stocks}
         return stocks
+    try:
+        for code, info in twstock.codes.items():
+            if info.type in ('股票', 'ETF') and info.market in ('上市', '上櫃'):
+                stocks.append({
+                    "code": code,
+                    "name": info.name,
+                    "market": info.market,
+                    "kind": "ETF" if info.type == 'ETF' else "股票",
+                })
+    except Exception as e:
+        logger.warning("twstock universe build failed", extra={"error": str(e)})
+    return stocks
 
-    for code, info in twstock.codes.items():
-        if info.type == '股票' and info.market in ('上市', '上櫃'):
-            stocks.append({
-                "code": code,
-                "name": info.name
-            })
-    
+
+def _normalize_loaded(stocks):
+    """Ensure every entry has code/name/market/kind (back-compat for legacy caches)."""
+    normalized = []
+    for s in stocks or []:
+        raw_code = s.get("code")
+        if raw_code is None:
+            continue
+        code = str(raw_code).strip()
+        if not code or code.lower() == "none":  # drop corrupted/phantom cache rows
+            continue
+        kind = s.get("kind")
+        if not kind:
+            if _universe_source is not None:
+                kind = _universe_source.classify_kind(code, s.get("name"), twstock)
+            else:
+                kind = "ETF" if code.startswith("00") else "股票"
+        normalized.append({
+            "code": code,
+            "name": str(s.get("name", "") or code).strip(),
+            "market": s.get("market") or "unknown",
+            "kind": kind,
+        })
+    return normalized
+
+
+def _set_universe_cache(stocks, now):
     with _tw_stocks_cache_lock:
         _tw_stocks_cache["data"] = stocks
         _tw_stocks_cache["last_updated"] = now
         _tw_stocks_cache["name_map"] = {s['code']: s['name'] for s in stocks}
-    
-    # Save to File Cache
+
+
+def _write_universe_file(stocks):
+    if not stocks:  # never overwrite a good cache with an empty result
+        return
     try:
         with open(config.STOCK_LIST_CACHE, 'w', encoding='utf-8') as f:
             json.dump(stocks, f, ensure_ascii=False)
     except Exception as e:
         logger.warning("Failed to write stock list file cache", extra={"error": str(e)})
 
+
+def get_all_tw_stocks():
+    """Return the full 上市 (TWSE) + 上櫃 (TPEX) universe as {code,name,market,kind}.
+
+    Sourcing precedence: in-memory cache → fresh file cache → live TWSE/TPEX →
+    twstock static fallback → any existing/stale cache. ETFs are included. A failed
+    refresh never blanks out a previously good list. Thread-safe; caches 1h in
+    memory and 24h on disk.
+    """
+    now = time.time()
+
+    # 1. Memory cache
+    with _tw_stocks_cache_lock:
+        if _tw_stocks_cache["data"] and (now - _tw_stocks_cache["last_updated"] < config.CACHE_DURATION):
+            return _tw_stocks_cache["data"]
+
+    # 2. Fresh file cache (24h TTL)
+    if os.path.exists(config.STOCK_LIST_CACHE):
+        try:
+            mtime = os.path.getmtime(config.STOCK_LIST_CACHE)
+            if now - mtime < 86400:
+                with open(config.STOCK_LIST_CACHE, 'r', encoding='utf-8') as f:
+                    stocks = _normalize_loaded(json.load(f))
+                if stocks:
+                    _set_universe_cache(stocks, now)
+                    return stocks
+        except Exception as e:
+            logger.warning("Failed to read stock list file cache", extra={"error": str(e)})
+
+    # 3. Live authoritative source, then 4. twstock fallback
+    stocks = _normalize_loaded(_live_universe())
+    if not stocks:
+        stocks = _twstock_universe()
+
+    # 5. Last resort: keep any existing/stale data instead of returning empty
+    if not stocks:
+        with _tw_stocks_cache_lock:
+            existing = _tw_stocks_cache.get("data") or []
+        if not existing and os.path.exists(config.STOCK_LIST_CACHE):
+            try:
+                with open(config.STOCK_LIST_CACHE, 'r', encoding='utf-8') as f:
+                    existing = _normalize_loaded(json.load(f))
+            except Exception:
+                existing = []
+        if not existing:
+            logger.warning("No universe source available; returning empty list.")
+        _set_universe_cache(existing, now)
+        return existing
+
+    _set_universe_cache(stocks, now)
+    _write_universe_file(stocks)
     return stocks
+
+
+def refresh_stock_universe(force: bool = False):
+    """Force a live re-fetch of the universe and update caches.
+
+    Returns the refreshed list. On a failed/empty live fetch, falls back to
+    twstock; if that is also empty, the existing cache is preserved (not blanked).
+    When ``force`` is False this is cache-first (== get_all_tw_stocks).
+    """
+    if not force:
+        return get_all_tw_stocks()
+
+    now = time.time()
+    stocks = _normalize_loaded(_live_universe())
+    if not stocks:
+        stocks = _twstock_universe()
+    if not stocks:
+        logger.warning("refresh_stock_universe: live + twstock both empty; keeping existing cache.")
+        return get_all_tw_stocks()
+    _set_universe_cache(stocks, now)
+    _write_universe_file(stocks)
+    return stocks
+
+
+def report_history_coverage(tickers=None, chunk_size: int = 500):
+    """Report how many universe tickers have enough price history for predict/train.
+
+    Returns ``{universe, with_predict_rows, with_train_rows, short}``. ``short`` lists
+    tickers below MIN_PREDICT_ROWS — the backfill candidates. Counts are surfaced,
+    never silent.
+    """
+    if tickers is None:
+        tickers = [s["code"] for s in get_all_tw_stocks()]
+    tickers = [standardize_ticker(t) for t in tickers]
+
+    counts = {}
+    if tickers:
+        conn = get_db_connection()
+        try:
+            for i in range(0, len(tickers), chunk_size):
+                chunk = tickers[i:i + chunk_size]
+                placeholders = ",".join(["?"] * len(chunk))
+                query = (
+                    f"SELECT ticker, COUNT(*) AS n FROM stock_history "
+                    f"WHERE ticker IN ({placeholders}) GROUP BY ticker"
+                )
+                for row in conn.execute(query, chunk).fetchall():
+                    counts[row["ticker"]] = row["n"]
+        finally:
+            conn.close()
+
+    min_predict = config.MIN_PREDICT_ROWS
+    min_train = config.MIN_TRAIN_ROWS
+    with_predict = sum(1 for t in tickers if counts.get(t, 0) >= min_predict)
+    with_train = sum(1 for t in tickers if counts.get(t, 0) >= min_train)
+    short = [t for t in tickers if counts.get(t, 0) < min_predict]
+    return {
+        "universe": len(tickers),
+        "with_predict_rows": with_predict,
+        "with_train_rows": with_train,
+        "short": short,
+    }
+
+
+def backfill_history(tickers=None, days: int = 730, limit=None):
+    """Fetch missing/short price history for backfill candidates.
+
+    When ``tickers`` is None, derives the short list from ``report_history_coverage``.
+    Returns ``{attempted, fetched}``. Reuses the rate-limited ``fetch_stock_data``.
+    """
+    if tickers is None:
+        tickers = report_history_coverage()["short"]
+    if limit is not None:
+        tickers = tickers[:limit]
+    fetched = 0
+    for code in tickers:
+        df = fetch_stock_data(code, days=days, force_download=True)
+        if not df.empty:
+            fetched += 1
+    return {"attempted": len(tickers), "fetched": fetched}
 
 def get_stock_name(ticker: str) -> Optional[str]:
     """Returns the stock name from cached name map, loading cache when needed."""
