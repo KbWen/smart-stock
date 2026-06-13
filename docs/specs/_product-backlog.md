@@ -15,7 +15,7 @@ Second optimization round after the honesty-first epic shipped (PR #20/#21). Use
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
 | 3 | Listed/OTC universe & price-data completeness — authoritative live TWSE/TPEX sourcing (replace stale twstock static list), include ETFs, market/kind tagging, history-coverage report + backfill | feature | data | P1 | docs/specs/listed-otc-data-completeness.md | feature | Shipped | — |
-| 2 | ML label redesign — volatility/ATR-scaled triple-barrier targets to fix the degenerate (buy/strong precision=recall=0) model and rebalance class distribution | feature | ml | P0 | — | feature | Pending | #3 (soft) |
+| 2 | ML label redesign — volatility/ATR-scaled triple-barrier targets to fix the degenerate (buy/strong precision=recall=0) model and rebalance class distribution | feature | ml | P0 | docs/specs/ml-label-volatility-scaling.md | feature | In Progress | #3 (soft) |
 | 1 | Frictionless onboarding — one-command quickstart + seeded demo data + README run-through so a newcomer runs it in minutes | feature | onboarding | P1 | — | feature | Pending | — |
 
 ## Column Reference

@@ -16,6 +16,64 @@ import glob
 from datetime import datetime
 from core import config as _cfg
 from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, profit_factor_sort_key
+from core.ai import common as _c  # read LABEL_MODE / ATR_* dynamically (togglable)
+
+
+def _compute_targets(closes, highs, lows, atr, mode):
+    """Vectorized 3-class Sniper target via a triple-barrier rule.
+
+    Class 2 (StrongBuy): the StrongBuy target is touched before the stop within
+    PRED_DAYS. Class 1 (Buy): the Buy target is touched first (and not StrongBuy).
+    Class 0 (Hold): stop touched first, or no target touched.
+
+    Barriers (no look-ahead — entry price AND entry ATR are taken at the entry row;
+    only FUTURE highs/lows decide a touch):
+      - mode 'atr'  : strong = entry + ATR_TARGET_MULT*atr; buy = entry + ATR_BUY_MULT*atr;
+                      stop = entry - ATR_STOP_MULT*atr  (per-row volatility-scaled)
+      - mode 'fixed': strong = entry*(1+TARGET_GAIN); buy = entry*(1+BUY_TARGET);
+                      stop = entry*(1-STOP_LOSS)        (legacy fixed-percentage)
+
+    A NaN entry ATR (warm-up rows) yields NaN barriers -> no touch -> Hold; those rows
+    are dropped later via the FEATURE_COLS NaN filter, so they never train on a fake label.
+    """
+    n = len(closes)
+    targets = np.zeros(n, dtype=int)
+    valid_n = n - PRED_DAYS
+    if valid_n <= 0:
+        return targets
+
+    entry_prices = closes[:valid_n]
+    offsets = np.arange(1, PRED_DAYS + 1)
+    future_idx = np.arange(valid_n)[:, None] + offsets[None, :]
+    future_highs = highs[future_idx]
+    future_lows = lows[future_idx]
+
+    if mode == "atr":
+        entry_atr = atr[:valid_n]
+        stop_price = (entry_prices - _c.ATR_STOP_MULT * entry_atr)[:, None]
+        target_strong = (entry_prices + _c.ATR_TARGET_MULT * entry_atr)[:, None]
+        target_buy = (entry_prices + _c.ATR_BUY_MULT * entry_atr)[:, None]
+    else:
+        stop_price = entry_prices[:, None] * (1 - STOP_LOSS)
+        target_strong = entry_prices[:, None] * (1 + TARGET_GAIN)
+        target_buy = entry_prices[:, None] * (1 + BUY_TARGET)
+
+    stop_mask = future_lows <= stop_price
+    strong_mask = future_highs >= target_strong
+    buy_mask = future_highs >= target_buy
+
+    sentinel = PRED_DAYS + 1
+    first_stop = np.where(stop_mask.any(axis=1), stop_mask.argmax(axis=1), sentinel)
+    first_strong = np.where(strong_mask.any(axis=1), strong_mask.argmax(axis=1), sentinel)
+    first_buy = np.where(buy_mask.any(axis=1), buy_mask.argmax(axis=1), sentinel)
+
+    strong_first = first_strong < first_stop
+    buy_first = (first_buy < first_stop) & (~strong_first)
+
+    targets[:valid_n][strong_first] = 2
+    targets[:valid_n][buy_first] = 1
+    return targets
+
 
 def prepare_features(df, is_training=True):
     """
@@ -101,41 +159,13 @@ def prepare_features(df, is_training=True):
                     df[col] = df[new_col]
                     
     # --- SNIPER TARGET (MULTI-LABEL) ---
+    # Triple-barrier labels; barrier mode (atr / fixed) read dynamically from config
+    # so it is togglable and reversible. See _compute_targets for the rule.
     closes = df['close'].to_numpy(dtype=float)
     highs = df['high'].to_numpy(dtype=float)
     lows = df['low'].to_numpy(dtype=float)
-    n = len(df)
-    targets = np.zeros(n, dtype=int)
-
-    valid_n = n - PRED_DAYS
-    if valid_n > 0:
-        entry_prices = closes[:valid_n]
-        offsets = np.arange(1, PRED_DAYS + 1)
-        future_idx = np.arange(valid_n)[:, None] + offsets[None, :]
-
-        future_highs = highs[future_idx]
-        future_lows = lows[future_idx]
-
-        stop_price = entry_prices[:, None] * (1 - STOP_LOSS)
-        target_strong = entry_prices[:, None] * (1 + TARGET_GAIN)
-        target_buy = entry_prices[:, None] * (1 + BUY_TARGET)
-
-        stop_mask = future_lows <= stop_price
-        strong_mask = future_highs >= target_strong
-        buy_mask = future_highs >= target_buy
-
-        sentinel = PRED_DAYS + 1
-        first_stop = np.where(stop_mask.any(axis=1), stop_mask.argmax(axis=1), sentinel)
-        first_strong = np.where(strong_mask.any(axis=1), strong_mask.argmax(axis=1), sentinel)
-        first_buy = np.where(buy_mask.any(axis=1), buy_mask.argmax(axis=1), sentinel)
-
-        strong_first = first_strong < first_stop
-        buy_first = (first_buy < first_stop) & (~strong_first)
-
-        targets[:valid_n][strong_first] = 2
-        targets[:valid_n][buy_first] = 1
-
-    df['target'] = targets
+    atr_arr = df['atr'].to_numpy(dtype=float) if 'atr' in df.columns else np.full(len(df), np.nan)
+    df['target'] = _compute_targets(closes, highs, lows, atr_arr, _c.LABEL_MODE)
     
     # Keep feature vector aligned with FEATURE_COLS and sanitize missing values.
     # IMPORTANT: for training data we only forward-fill to avoid pulling values

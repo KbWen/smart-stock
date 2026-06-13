@@ -10,6 +10,14 @@ TARGET_GAIN = config.TARGET_GAIN   # +15% profit target
 STOP_LOSS = config.STOP_LOSS       # -5% stop loss
 BUY_TARGET = config.BUY_TARGET     # +10% buy target (Class 1)
 
+# Label mode + ATR-scaled barrier multipliers (single source of truth = config.py).
+# trainer.py reads these dynamically (module attributes) so the labeling mode is
+# togglable and the label-distribution analysis can compare modes.
+LABEL_MODE = config.LABEL_MODE
+ATR_TARGET_MULT = config.ATR_TARGET_MULT
+ATR_BUY_MULT = config.ATR_BUY_MULT
+ATR_STOP_MULT = config.ATR_STOP_MULT
+
 # Win = price hits +15% BEFORE it hits -5% within 20 days
 # This is a 3:1 Risk/Reward ratio
 

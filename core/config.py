@@ -14,6 +14,16 @@ TARGET_GAIN = float(os.getenv("TARGET_GAIN", 0.15))
 STOP_LOSS = float(os.getenv("STOP_LOSS", 0.05))
 BUY_TARGET = float(os.getenv("BUY_TARGET", 0.10))  # +10% for Class 1 (Buy)
 
+# Label mode: 'atr' = volatility-scaled triple-barrier targets (default — fixes the
+# class imbalance that produced the degenerate model); 'fixed' = legacy
+# fixed-percentage barriers (TARGET_GAIN / BUY_TARGET / STOP_LOSS). Toggle to revert.
+LABEL_MODE = os.getenv("LABEL_MODE", "atr").lower()
+# ATR-scaled barrier multipliers (x per-row ATR-14 taken at the entry row). Tuned on
+# dev data so the 3-class distribution is learnable instead of ~91% Hold.
+ATR_TARGET_MULT = float(os.getenv("ATR_TARGET_MULT", 3.0))   # StrongBuy target (Class 2)
+ATR_BUY_MULT = float(os.getenv("ATR_BUY_MULT", 1.8))         # Buy target (Class 1)
+ATR_STOP_MULT = float(os.getenv("ATR_STOP_MULT", 1.5))       # Stop loss
+
 # AI Backtest / Strategy
 # IMPORTANT: These are the single source of truth for all strategy parameters.
 # Training (trainer.py) and Backtest (backtest.py) MUST reference these values.
