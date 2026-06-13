@@ -7,7 +7,7 @@ interface ScoreBreakdownProps {
         momentum: number
         volatility: number
     }
-    aiProbability: number
+    aiProbability: number | null
 }
 
 function useCountUp(target: number, duration = 1000): number {
@@ -78,7 +78,7 @@ const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability }
                 </div>
                 <div>
                     <div className="mb-1 text-[10px] uppercase tracking-wider font-bold text-dark-muted">AI Probability</div>
-                    <div className="text-3xl font-bold font-mono text-sniper-gold">{(displayProb ?? 0).toFixed(1)}%</div>
+                    <div className="text-3xl font-bold font-mono text-sniper-gold">{aiProbability == null ? 'N/A' : `${(displayProb ?? 0).toFixed(1)}%`}</div>
                 </div>
             </div>
 

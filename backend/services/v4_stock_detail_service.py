@@ -10,7 +10,7 @@ from backend.repositories.score_repo import ScoreRepository
 from backend.repositories.stock_repo import StockRepository
 from backend.repositories.system_repo import SystemRepository
 from core.ai import predict_prob
-from core.utils import safe_float
+from core.utils import safe_float, to_ai_percent
 
 
 class V4StockDetailService:
@@ -163,7 +163,7 @@ class V4StockDetailService:
         db_updated_at = self._parse_db_datetime(db_score.get("updated_at")) if db_score else None
         if db_score and db_updated_at and datetime.now() - db_updated_at < timedelta(hours=6):
             price = safe_float(db_score.get("last_price", 0))
-            ai_prob = safe_float(db_score.get("ai_probability", 0))
+            ai_prob = db_score.get("ai_probability")  # keep None when unavailable
             squeeze_flag = self._to_bool(cached_indicators.get("is_squeeze"))
             golden_cross_flag = self._to_bool(cached_indicators.get("kd_cross_flag"))
             rel_vol = safe_float(cached_indicators.get("rel_vol", 1.0))
@@ -200,7 +200,7 @@ class V4StockDetailService:
                     "momentum": round(safe_float(db_score.get("momentum_score", 0)), 1),
                     "volatility": round(safe_float(db_score.get("volatility_score", 0)), 1),
                 },
-                "ai_probability": round(safe_float(ai_prob) * 100, 1),
+                "ai_probability": to_ai_percent(ai_prob),
                 "analyst_summary": " ".join(analyst_text) if analyst_text else "Market is neutral. Watch for setup signals.",
                 "signals": {
                     "squeeze": squeeze_flag,
@@ -225,9 +225,9 @@ class V4StockDetailService:
         latest = df.iloc[-1]
 
         ai_result = self.predict_prob(df)
-        ai_prob = 0.0
+        ai_prob = None  # None = prediction unavailable (rendered as N/A, not a fake 0.0)
         if isinstance(ai_result, dict):
-            ai_prob = ai_result.get("prob", 0)
+            ai_prob = ai_result.get("prob")
         elif isinstance(ai_result, float):
             ai_prob = ai_result
 
@@ -267,7 +267,7 @@ class V4StockDetailService:
                 "momentum": round(safe_float(latest["momentum_score_v2"]), 1),
                 "volatility": round(safe_float(latest["volatility_score_v2"]), 1),
             },
-            "ai_probability": round(safe_float(ai_prob) * 100, 1),
+            "ai_probability": to_ai_percent(ai_prob),
             "analyst_summary": " ".join(analyst_text) if analyst_text else "Market is neutral. Watch for setup signals.",
             "signals": {
                 "squeeze": squeeze_flag,

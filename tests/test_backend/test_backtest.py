@@ -463,3 +463,39 @@ def test_run_time_machine_custom_strategy_params(monkeypatch):
     pick3 = res3["top_picks"][0]
     assert pick3["sniper_result"] == "PENDING"
     assert pick3["holding_days"] == 2
+
+
+def test_profit_factor_is_none_when_no_losses(monkeypatch):
+    """Honesty (#4): zero losing trades → profit_factor None (N/A), not a 9999 sentinel."""
+    dates = pd.date_range("2024-01-01", periods=6, freq="D")
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "open": [10, 11, 12, 13, 14, 15],
+            "high": [10, 11, 12, 13, 14, 15],
+            "low": [10, 11, 12, 13, 14, 15],
+            "close": [10, 11, 12, 13, 14, 15],
+            "volume": [1000] * 6,
+        }
+    )
+
+    monkeypatch.setattr(backtest, "get_all_tw_stocks", lambda: [{"code": "2330", "name": "TSMC"}])
+    monkeypatch.setattr(backtest, "_load_from_db", lambda ticker, **_kwargs: df)
+
+    from core import indicators_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+
+    from core import rise_score_v2
+
+    def _score(in_df):
+        out = in_df.copy()
+        out["total_score_v2"] = list(range(1, len(out) + 1))
+        return out
+
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2", _score)
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_a, **_k: {"prob": 0.8})
+
+    result = backtest.run_time_machine(days_ago=2, limit=1)
+    # The only pick rises in price → no losing trades → profit factor is undefined.
+    assert result["summary"]["profit_factor"] is None
+    assert result["summary"]["net_profit_factor"] is None

@@ -148,6 +148,63 @@ def list_available_models():
     return []
 
 
+def _metric(value) -> float:
+    """Coerce a recorded metric to a float, treating None/invalid as 0.0."""
+    try:
+        return float(value) if value is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def get_model_health() -> dict:
+    """Assess the active model's usability from its recorded out-of-sample metrics.
+
+    Cheap: reads the cached version string + models_history.json only (no model load).
+    Returns {status, version, message}:
+      - 'unavailable': model not loaded/trained, or no metrics recorded
+      - 'degraded'   : zero buy-signal discriminative power (buy/strong precision+recall == 0)
+      - 'ok'         : otherwise
+    `message` is an honest, user-facing zh-TW string for non-ok states ('' for ok).
+    """
+    version = get_model_version()
+    if not version or version == "unknown":
+        return {
+            "status": "unavailable",
+            "version": version or "unknown",
+            "message": "AI 模型尚未載入或尚未訓練，AI 機率暫時不可用。",
+        }
+
+    history = list_available_models()
+    entry = next((h for h in history if h.get("version") == version), None)
+    if entry is None and history:
+        entry = history[-1]  # fall back to the latest recorded metrics
+    metrics = (entry or {}).get("oos_metrics") or {}
+    if not metrics:
+        return {
+            "status": "unavailable",
+            "version": version,
+            "message": "AI 模型缺少評估指標，AI 機率僅供參考。",
+        }
+
+    buy_signal_power = (
+        _metric(metrics.get("precision_buy"))
+        + _metric(metrics.get("recall_buy"))
+        + _metric(metrics.get("precision_strong"))
+        + _metric(metrics.get("recall_strong"))
+    )
+    if buy_signal_power <= 0:
+        return {
+            "status": "degraded",
+            "version": version,
+            "message": (
+                "AI 模型對買訊的辨識力不足（買進/強買的準確率與召回率為 0）。"
+                "AI 機率僅供參考，請勿單獨作為買賣依據。"
+            ),
+        }
+
+    return {"status": "ok", "version": version, "message": ""}
+
+
 def predict_prob(df, version: Optional[str] = None):
     """
     Predicts buy probability. Supports specific version loading with caching.
@@ -279,4 +336,6 @@ def predict_prob(df, version: Optional[str] = None):
         import traceback
         error_msg = f"Prediction Error: {e}\n{traceback.format_exc()}"
         logger.exception("%s", error_msg)
-        return {"prob": 0.0, "error": error_msg}
+        # Prediction unavailable — return None (uniform with all other failure paths)
+        # so a failure is never presented downstream as a genuine 0.0 probability.
+        return None

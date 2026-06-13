@@ -19,7 +19,7 @@ class ScoreRepository:
         self,
         ticker: str,
         score_payload: dict[str, Any],
-        ai_prob: float = 0.0,
+        ai_prob: Optional[float] = None,
         model_version: Optional[str] = None,
     ) -> None:
         save_score_to_db(ticker, score_payload, ai_prob=ai_prob, model_version=model_version)

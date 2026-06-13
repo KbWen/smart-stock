@@ -97,7 +97,7 @@ const BacktestTable: React.FC<BacktestTableProps> = ({ picks }) => {
 
             <div className="bg-dark-border/10 p-3 flex items-center gap-2 text-[10px] text-dark-muted">
                 <ShieldAlert size={12} className="opacity-50" />
-                <span>註：回測結果為歷史模擬，不代表未來獲利保證。 sniper_result 代表是否觸發 +15% 目標 (HIT) 或 -5% 停損 (STOP)。</span>
+                <span>註：回測結果為歷史模擬，不代表未來獲利保證。 sniper_result 代表是否觸發停利目標 (HIT) 或停損 (STOP)。</span>
             </div>
         </div>
     )

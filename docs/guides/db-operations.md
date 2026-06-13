@@ -89,7 +89,7 @@ Re-run the full sync to repopulate:
 ```bash
 python backend/main.py --sync
 # Or trigger via API:
-curl -X POST http://localhost:8000/api/sync/trigger
+curl -X POST http://localhost:8000/api/sync
 ```
 
 ### Stock Indicators Out of Date

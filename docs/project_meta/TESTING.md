@@ -13,7 +13,7 @@ To run the full test suite:
 pytest
 
 # Run a specific test file
-pytest tests/test_data_layer.py
+pytest tests/test_core/test_data.py
 
 # Run with verbose output
 pytest -v
@@ -56,4 +56,4 @@ For tests involving the database, use a temporary SQLite file or an in-memory da
  We use **GitHub Actions** to automate testing. The [Pytest CI](.github/workflows/pytest.yml) workflow triggers on every Push and Pull Request to the `master` branch.
 
 * **Status**: Active.
-* **Command**: `python -m pytest tests/`
+* **Command**: `python -m pytest tests/ -m "not integration"` (the live-market integration test is excluded from CI)

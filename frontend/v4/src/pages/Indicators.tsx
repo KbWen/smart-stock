@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react'
-import { MOCK_CANDIDATES } from '../mockData'
 import { Info } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
+import ModelHealthBanner from '../components/ModelHealthBanner'
 import { useCachedApi } from '../hooks/useCachedApi'
+import type { MarketStatus } from '../hooks/useDashboardData'
 
 interface StockTechnical {
     ticker: string
@@ -10,7 +11,7 @@ interface StockTechnical {
     price: number
     change_pct: number
     rise_score: number
-    ai_prob: number
+    ai_prob: number | null
     trend: number
     momentum: number
     volatility: number
@@ -36,19 +37,24 @@ const INDICATORS_AI_THRESHOLD = 60
 const Indicators: React.FC = () => {
     const [filter, setFilter] = useState<'ALL' | 'HIGH SCORE' | 'HIGH AI'>('ALL')
 
-    const { data: rawData, loading, isPlaceholder } = useCachedApi<ApiCandidate[]>(
+    const { data: rawData, loading, isPlaceholder, error } = useCachedApi<ApiCandidate[]>(
         '/api/v4/sniper/candidates?limit=100',
-        { fallbackData: MOCK_CANDIDATES as ApiCandidate[], ttlMs: 30_000, throttleMs: 1_000 },
+        { ttlMs: 30_000, throttleMs: 1_000 },
+    )
+
+    const { data: marketData } = useCachedApi<MarketStatus>(
+        '/api/market_status',
+        { ttlMs: 60_000, throttleMs: 600 },
     )
 
     const stocks = useMemo<StockTechnical[]>(() =>
-        rawData.map((s) => ({
+        (rawData ?? []).map((s) => ({
             ticker: s.ticker,
             name: s.name,
             price: s.price,
             change_pct: s.change_percent ?? 0,
             rise_score: s.rise_score ?? 0,
-            ai_prob: s.ai_prob ?? 0,
+            ai_prob: s.ai_prob ?? null,
             trend: s.trend ?? 0,
             momentum: s.momentum ?? 0,
             volatility: s.volatility ?? 0,
@@ -61,11 +67,11 @@ const Indicators: React.FC = () => {
         stocks
             .filter(s => {
                 if (filter === 'HIGH SCORE') return s.rise_score > INDICATORS_SCORE_THRESHOLD
-                if (filter === 'HIGH AI') return s.ai_prob >= INDICATORS_AI_THRESHOLD
+                if (filter === 'HIGH AI') return (s.ai_prob ?? -1) >= INDICATORS_AI_THRESHOLD
                 return true
             })
             .sort((a, b) => {
-                if (filter === 'HIGH AI') return b.ai_prob - a.ai_prob
+                if (filter === 'HIGH AI') return (b.ai_prob ?? -1) - (a.ai_prob ?? -1)
                 return b.rise_score - a.rise_score
             }),
         [stocks, filter],
@@ -73,8 +79,11 @@ const Indicators: React.FC = () => {
 
     if (loading && isPlaceholder) return <div className="p-6 text-dark-muted">Loading Technical Scanner...</div>
 
+    if (error && (!rawData || rawData.length === 0)) return <div className="p-6 text-center text-red-400">技術掃描資料載入失敗，請確認後端運作後重試。</div>
+
     return (
         <div className="space-y-6">
+            <ModelHealthBanner health={marketData?.model_health} />
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-white">
                     Technical Scanner
@@ -147,8 +156,8 @@ const Indicators: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="p-4 text-right">
-                                        <span className={`px-2 py-1 rounded font-bold ${stock.ai_prob >= 70 ? 'bg-sniper-gold/10 text-sniper-gold' : 'text-dark-muted'}`}>
-                                            {stock.ai_prob.toFixed(1)}%
+                                        <span className={`px-2 py-1 rounded font-bold ${(stock.ai_prob ?? 0) >= 70 ? 'bg-sniper-gold/10 text-sniper-gold' : 'text-dark-muted'}`}>
+                                            {stock.ai_prob == null ? 'N/A' : `${stock.ai_prob.toFixed(1)}%`}
                                         </span>
                                     </td>
                                     <td className="p-4 text-right text-dark-muted">

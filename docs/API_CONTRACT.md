@@ -46,7 +46,7 @@ Consolidated startup payload (market + top picks + models + sync status). Use th
 ## Market
 
 ### `GET /api/market_status`
-Current market status (bull/bear ratio, index, model version) + 30-day history.
+Current market status (bull/bear ratio, index, model version, model health) + 30-day history.
 
 **Response:**
 ```json
@@ -54,6 +54,7 @@ Current market status (bull/bear ratio, index, model version) + 30-day history.
   "status": "open",
   "bull_ratio": 0.62,
   "model_version": "v4.20260319_0800",
+  "model_health": { "status": "degraded", "version": "v4.20260319_0800", "message": "..." },
   "history": [ { "date": "2026-03-19", "bull_ratio": 0.62 } ]
 }
 ```
@@ -128,23 +129,23 @@ Run time-machine simulation over past N days.
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `days` | int | `30` | Look-back window |
+| `days` | int | `30` | Look-back window (1–365) |
 | `version` | string | `latest` | Model version tag |
+| `commission_rate` | float | `0.001425` | Per-side commission (0–0.05) |
+| `tax_rate` | float | `0.003` | Sell-side transaction tax (0–0.05) |
+| `slippage_rate` | float | `0.001` | Per-side slippage (0–0.05) |
+| `target_gain` | float | `0.15` | Stop-profit target (0.01–0.50) |
+| `stop_loss` | float | `0.05` | Stop-loss threshold (0.01–0.50) |
+| `holding_days` | int | `20` | Max holding window (1–90) |
 
 **Rate limit:** 20 req/min per IP
 
-**Response:**
-```json
-{
-  "summary": {
-    "total_signals": 12,
-    "wins": 8,
-    "win_rate": 0.667,
-    "profit_factor": 2.1
-  },
-  "signals": [ ... ]
-}
-```
+**Response:** `summary` includes `avg_return`, `avg_net_return` (after friction),
+`win_rate`, `net_win_rate`, `sniper_hit_rate`, `sniper_hits`, `sniper_stops`,
+`profit_factor` and `net_profit_factor` (**`null` when there are no losing trades**),
+`sharpe_ratio` (unannualized single-period mean ÷ stddev of net returns — not a
+conventional annualized Sharpe), `avg_max_drawdown`, `worst_drawdown`; plus
+`top_picks[]` and `history[]`.
 
 ---
 
@@ -318,8 +319,8 @@ List all trained model versions with metrics.
 ### `GET /api/sync/status`
 Current sync job status.
 
-### `POST /api/sync/trigger`
-Trigger a background data sync (non-blocking).
+### `POST /api/sync`
+Trigger a background data sync (non-blocking). Rate limit: 5 req/min per IP.
 
 ---
 

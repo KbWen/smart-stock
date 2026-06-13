@@ -17,6 +17,16 @@ def safe_float(value, default=0.0):
     except (ValueError, TypeError):
         return default
 
+def to_ai_percent(value):
+    """Convert a stored 0-1 AI probability to a 0-100 percent, preserving None.
+
+    Returns None when the prediction is unavailable (model missing / integrity
+    failure / exception) so callers never present a failure as a genuine 0.0%.
+    """
+    if value is None:
+        return None
+    return round(safe_float(value) * 100, 1)
+
 def parse_date(date_str):
     """Safely parse date string to datetime object."""
     if not date_str:

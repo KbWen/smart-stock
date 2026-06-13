@@ -13,5 +13,5 @@ export function useSparkline(ticker: string | null) {
         throttleMs: 200,
         enabled: Boolean(ticker),
     })
-    return { data, loading }
+    return { data: data ?? [], loading }
 }

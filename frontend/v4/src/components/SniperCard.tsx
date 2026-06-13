@@ -51,6 +51,15 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
         )
     }
 
+    if (!data) {
+        return (
+            <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-3 glass-card p-8 text-dark-muted">
+                <Crosshair size={48} className="opacity-20" />
+                <p className="text-sm">No data available for {ticker}.</p>
+            </div>
+        )
+    }
+
     return (
         <div className="sticky top-24 glass-card p-6 overflow-hidden ring-1 ring-white/5 transition-all duration-300 hover:shadow-[0_0_25px_rgba(245,158,11,0.15)] hover:border-sniper-gold/30 hover:scale-[1.005]">
             <DetailHeader
