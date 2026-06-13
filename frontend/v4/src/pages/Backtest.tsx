@@ -19,12 +19,12 @@ interface BacktestSummary {
     sniper_hit_rate: number
     sniper_hits: number
     sniper_stops: number
-    profit_factor: number
+    profit_factor: number | null
     avg_net_return?: number
     net_win_rate?: number
     sharpe_ratio?: number
     worst_drawdown?: number
-    net_profit_factor?: number
+    net_profit_factor?: number | null
     avg_max_drawdown?: number
 }
 
