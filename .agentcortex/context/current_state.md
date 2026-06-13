@@ -13,7 +13,7 @@
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
 - **ADR Index**:
   - `.agentcortex/adr/ADR-001-vnext-self-managed-architecture.md`
-- **Active Backlog**: none
+- **Active Backlog**: none (honesty-first backlog `.agentcortex/specs/_product-backlog.md` — all 6 features Shipped 2026-06-13)
   - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `.agentcortex/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
   - `[api-perf] .agentcortex/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
@@ -34,6 +34,12 @@
   - `[frontend-ai] .agentcortex/specs/frontend-ai-optimization.md [Frozen] — ✅ ALL 4 ACs done (SVG sparklines, animations, glassmorphism, AI verification 2026-06-01)`
   - `[core-ai-opt] .agentcortex/specs/ai-pipeline-otc-optimization.md [Frozen] — ✅ ALL 5 ACs done + US/Crypto suffix lookup fix 2026-06-02`
   - `[backtest-perf] .agentcortex/specs/backtest-and-performance-opt.md [Frozen] — ✅ ALL 5 ACs done (batch query + transaction cost sliders + sharpe & drawdown metrics + CandidateRow optimization + dynamic strategy parameters + production build 2026-06-02)`
+  - `[honest-fe] .agentcortex/specs/frontend-honest-data-states.md [Frozen] — ✅ ALL 6 ACs done (removed mockData fallback; nullable useCachedApi; honest loading/no-data/error states 2026-06-13)`
+  - `[honest-be] .agentcortex/specs/backend-failure-state-honesty.md [Frozen] — ✅ ALL 6 ACs done (predict_prob None on failure; ai_prob NULL not fake 0.0; to_ai_percent; frontend N/A 2026-06-13)`
+  - `[model-state] .agentcortex/specs/ui-model-state-disclosure.md [Frozen] — ✅ ALL 4 ACs done (get_model_health + market_status.model_health + ModelHealthBanner 2026-06-13)`
+  - `[backtest-labels] .agentcortex/specs/backtest-metric-label-honesty.md [Frozen] — ✅ ALL 4 ACs done (profit_factor None not 9999; unannualized Sharpe relabel; dynamic tooltips) [EXTENDS backtest-perf] 2026-06-13`
+  - `[docs-sync] .agentcortex/specs/docs-reality-sync.md [Frozen] — ✅ ALL 6 ACs done (API_CONTRACT/README/ARCHITECTURE/TESTING/db-operations corrected 2026-06-13)`
+  - `[fe-ci] .agentcortex/specs/frontend-ci.md [Frozen] — ✅ ALL 3 ACs done (Frontend CI: vitest + production build) [EXTENDS frontend-test] 2026-06-13`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.
@@ -71,6 +77,10 @@
 - [Sidecar Parity]: Whenever a `.pkl` model file is deleted (rotation or prune), also delete matching `.sha256`/`.sig` sidecars. trainer.py rotation and manage_models.py:cmd_delete must stay in sync on this.
 
 ## Ship History
+
+### Ship-honesty-first-2026-06-13
+- Feature shipped: Honesty-first epic (data consistent with claims) — 6 changes merged via PR #20. (1) Frontend: removed `mockData.ts` fallback, nullable `useCachedApi`, honest loading/no-data/connection-error states (MarketRisk dead guard fixed). (2) Backend: `predict_prob` returns None on all failures (incl. exception, was `{"prob":0.0}`); `ai_prob` stored as NULL not fake 0.0; `to_ai_percent` helper; readers emit null; frontend "N/A"/"資料不足". (3) `get_model_health` + `/api/market_status.model_health` + `ModelHealthBanner` warns when active model is degraded (buy/strong precision=recall=0) or unavailable. (4) Backtest `profit_factor`/`net_profit_factor` None not 9999 sentinel; "Sharpe" relabelled unannualized single-period; stop/target tooltips follow sliders. (5) Docs synced (API_CONTRACT `/api/sync` + backtest V4.2 params + model_health, README stock-count/sync/workers, ARCHITECTURE lock, TESTING). (6) Frontend CI workflow (vitest + production build) enforces the frontend gate. Out of scope: model retraining, annualized Sharpe.
+- Tests: Pass (Backend 176/176 +12, Frontend 53/53 +9, Production build ✅, PR #20 CI green)
 
 ### Ship-backtest-and-performance-opt-2026-06-13
 - Feature shipped: Backtest hardening + candidate list performance optimization (merged via PR #7). Backend: Taiwan-standard transaction friction — configurable `commission_rate`/`tax_rate`/`slippage_rate` on `/api/backtest` applied to Net ROI & Net Win Rate; Sharpe Ratio (mean net return / stddev) and Worst Drawdown (worst single-stock MDD) added to backtest summary; Net Profit Factor; configurable strategy parameters (`target_gain`/`stop_loss`/`holding_days`) exposed at API and wired to UI sliders. Frontend: candidate list virtualization + bulk sparkline preload via `/api/v4/meta` (eliminates per-row HTTP waterfall on dashboard render); collapsible transaction-cost panel + expanded metrics on Backtest page; `core/data.py:load_sparklines_from_db` single-query batched sparkline retrieval.
