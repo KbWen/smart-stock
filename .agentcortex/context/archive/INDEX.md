@@ -5,6 +5,9 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 
 > **Rule**: Read this index (~few lines per entry). Only open an archived log if its module/pattern matches your current task.
 
+## Archived Ship History
+- `ship-history-2026.md` — Ship History entries 2026-03-18 … 2026-03-28 (16 entries; trimmed from `current_state.md` SSoT on 2026-06-13 to keep the 10-entry cap).
+
 ## By Module
 
 <!-- Format: - <file-or-module>: [<archived-log>] <key-decision-or-lesson> -->
