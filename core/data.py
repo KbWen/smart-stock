@@ -475,7 +475,8 @@ def save_score_to_db(ticker, score_data, ai_prob=None, model_version=None):
             safe_float(volatility),
             safe_float(score_data.get('last_price', 0)),
             safe_float(score_data.get('change_percent', 0)),
-            safe_float(ai_prob),
+            # Preserve NULL when the prediction is unavailable — never store a fake 0.0
+            (None if ai_prob is None else safe_float(ai_prob)),
             model_version,
             datetime.now()
         ))

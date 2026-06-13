@@ -279,4 +279,6 @@ def predict_prob(df, version: Optional[str] = None):
         import traceback
         error_msg = f"Prediction Error: {e}\n{traceback.format_exc()}"
         logger.exception("%s", error_msg)
-        return {"prob": 0.0, "error": error_msg}
+        # Prediction unavailable — return None (uniform with all other failure paths)
+        # so a failure is never presented downstream as a genuine 0.0 probability.
+        return None

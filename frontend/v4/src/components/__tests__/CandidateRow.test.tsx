@@ -92,4 +92,18 @@ describe('CandidateRow', () => {
         expect(screen.getByText(/Squeeze/i)).toBeInTheDocument()
         expect(screen.getByText('+1')).toBeInTheDocument()
     })
+
+    it('renders N/A for an unavailable (null) AI probability instead of 0.0%', () => {
+        render(
+            <CandidateRow
+                stock={createStock({ ai_prob: null })}
+                isSelected={false}
+                onSelect={() => {}}
+                rowHeight={50}
+            />,
+        )
+
+        expect(screen.getByText('N/A')).toBeInTheDocument()
+        expect(screen.queryByText('0.0%')).not.toBeInTheDocument()
+    })
 })

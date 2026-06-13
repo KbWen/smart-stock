@@ -80,7 +80,7 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
             </div>
             <div>
                 <span className={`font-bold ${(stock.ai_prob ?? 0) >= 70 ? 'text-sniper-gold' : 'text-dark-muted'}`}>
-                    {(stock.ai_prob ?? 0).toFixed(1)}%
+                    {stock.ai_prob == null ? 'N/A' : `${stock.ai_prob.toFixed(1)}%`}
                 </span>
             </div>
         </div>

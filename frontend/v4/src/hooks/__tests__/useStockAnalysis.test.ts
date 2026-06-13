@@ -78,6 +78,12 @@ describe('useStockAnalysis — recommendationBadge', () => {
         expect(result.current.recommendationBadge!.text).toBe('HIGH RISK')
         expect(result.current.recommendationBadge!.color).toContain('red')
     })
+
+    it('returns 資料不足 (not HIGH RISK) when ai_probability is unavailable (null)', () => {
+        setupMock({ ai_probability: null })
+        const { result } = renderHook(() => useStockAnalysis('2330.TW'))
+        expect(result.current.recommendationBadge!.text).toBe('資料不足')
+    })
 })
 
 describe('useStockAnalysis — isDbStale', () => {

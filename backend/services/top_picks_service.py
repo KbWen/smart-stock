@@ -22,7 +22,7 @@ class TopPicksService:
         result: list[dict[str, Any]] = []
         for p in picks:
             last_price = p.get("last_price", 0) or 0
-            ai_prob = p.get("ai_probability") or 0
+            ai_prob = p.get("ai_probability")  # keep None when prediction unavailable
             result.append(
                 {
                     "ticker": p["ticker"],

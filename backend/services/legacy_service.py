@@ -57,11 +57,11 @@ class LegacyStockDetailService:
         score["analysis"] = analysis_report
 
         ai_result = self.predict_prob(df)
-        ai_prob = 0.0
+        ai_prob = None  # None = prediction unavailable (rendered as N/A, not a fake 0.0)
         ai_details = {}
 
         if isinstance(ai_result, dict):
-            ai_prob = ai_result.get("prob", 0.0)
+            ai_prob = ai_result.get("prob")
             ai_details = ai_result.get("details", {})
         elif isinstance(ai_result, float):
             ai_prob = ai_result
@@ -185,8 +185,8 @@ class SmartScanService:
                         df = df.tail(300).copy()
 
                     df = compute_all_indicators(df)
-                    ai_prob = c.get("ai_probability", 0)
-                    if check_smart_conditions(df, ai_prob, criteria):
+                    ai_prob = c.get("ai_probability")
+                    if check_smart_conditions(df, ai_prob or 0, criteria):
                         results.append({
                             "ticker": ticker,
                             "name": name_map.get(ticker, ticker),

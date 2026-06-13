@@ -162,13 +162,16 @@ class TestGetMeta:
 
 class TestUnknownTicker:
     def test_unknown_ticker_returns_zeros_no_exception(self):
-        """AC3: ticker with no DB entry produces zeros and False signals — no crash."""
+        """AC3: ticker with no DB entry produces zero scores and False signals — no crash.
+
+        ai_prob is None (honest: no prediction available), not a fake 0.
+        """
         svc = _make_service()  # empty scores and indicators
         result = svc.get_meta([("GHOST", "GHOST")])
 
         d = result["data"]["GHOST"]
         assert d["total_score"] == 0
-        assert d["ai_prob"] == 0
+        assert d["ai_prob"] is None
         assert d["signals"]["squeeze"] is False
         assert d["signals"]["golden_cross"] is False
         assert d["signals"]["volume_spike"] is False

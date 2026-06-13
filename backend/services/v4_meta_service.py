@@ -63,7 +63,7 @@ class V4MetaService:
             macd = safe_float(indicators.get("macd", 0))
             macd_signal = safe_float(indicators.get("macd_signal", 0))
             rel_vol = safe_float(indicators.get("rel_vol", 1.0))
-            ai_prob = safe_float(score.get("ai_probability", 0))
+            ai_prob = score.get("ai_probability")  # keep None when prediction unavailable
 
             data[requested_ticker] = {
                 "total_score": safe_float(score.get("total_score", 0)),

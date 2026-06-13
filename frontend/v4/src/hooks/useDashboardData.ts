@@ -25,7 +25,7 @@ export interface StockCandidate {
     price: number
     change_percent?: number
     rise_score: number
-    ai_prob: number
+    ai_prob: number | null  // null = prediction unavailable (honest, not a fake 0)
     signals?: string[]      // Legacy support for string tags
     v4_signals?: {          // New structured signals
         squeeze: boolean

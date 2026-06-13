@@ -150,9 +150,9 @@ def run_sync_task(limit: Optional[int] = None) -> None:
                     }
 
                     ai_result = predict_prob(df)
-                    ai_prob = 0.0
+                    ai_prob = None  # None = prediction unavailable (stored as NULL, not a fake 0.0)
                     if isinstance(ai_result, dict):
-                        ai_prob = ai_result.get("prob", 0.0)
+                        ai_prob = ai_result.get("prob")
                         score["ai_details"] = ai_result.get("details", {})
                     elif ai_result is not None:
                         ai_prob = float(ai_result)

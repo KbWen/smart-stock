@@ -12,7 +12,7 @@ export interface StockDetail {
         momentum: number
         volatility: number
     }
-    ai_probability: number
+    ai_probability: number | null  // null = prediction unavailable (honest, not a fake 0)
     analyst_summary: string
     updated_at?: string
     signals: {
@@ -38,6 +38,9 @@ export const useStockAnalysis = (ticker: string | null) => {
 
     const recommendationBadge = useMemo(() => {
         if (!data) return null
+        if (data.ai_probability == null) {
+            return { text: '資料不足', color: 'bg-dark-border text-dark-muted border-dark-border' }
+        }
         if (data.ai_probability >= 70) {
             return { text: 'STRONG BUY', color: 'bg-sniper-green/10 text-sniper-green border-sniper-green/20' }
         }

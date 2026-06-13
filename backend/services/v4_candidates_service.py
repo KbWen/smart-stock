@@ -8,7 +8,7 @@ from backend.repositories.stock_repo import StockRepository
 from backend.repositories.system_repo import SystemRepository
 from core.ai import predict_prob
 from core.logger import setup_logger
-from core.utils import safe_float
+from core.utils import safe_float, to_ai_percent
 
 
 class V4CandidatesService:
@@ -76,7 +76,7 @@ class V4CandidatesService:
                         "price": round(safe_float(c.get("last_price", 0)), 2),
                         "change_percent": round(safe_float(c.get("change_percent", 0)), 2),
                         "rise_score": round(safe_float(c["total_score"]), 1),
-                        "ai_prob": round(safe_float(c.get("ai_probability", 0)) * 100, 1),
+                        "ai_prob": to_ai_percent(c.get("ai_probability")),
                         "trend": round(safe_float(c["trend_score"]), 1),
                         "momentum": round(safe_float(c["momentum_score"]), 1),
                         "volatility": round(safe_float(c["volatility_score"]), 1),
@@ -104,7 +104,7 @@ class V4CandidatesService:
                 df = calculate_rise_score_v2(df)
                 latest = df.iloc[-1]
                 ai_result = predict_prob(df)
-                ai_prob = ai_result.get("prob", 0) if isinstance(ai_result, dict) else ai_result
+                ai_prob = ai_result.get("prob") if isinstance(ai_result, dict) else ai_result
 
                 results.append(
                     {
@@ -115,7 +115,7 @@ class V4CandidatesService:
                             (latest["close"] - df.iloc[-2]["close"]) / df.iloc[-2]["close"] * 100 if len(df) > 1 else 0
                         ),
                         "rise_score": round(safe_float(latest["total_score_v2"]), 1),
-                        "ai_prob": round(safe_float(ai_prob) * 100, 1),
+                        "ai_prob": to_ai_percent(ai_prob),
                         "trend": round(safe_float(latest["trend_score_v2"]), 1),
                         "momentum": round(safe_float(latest["momentum_score_v2"]), 1),
                         "volatility": round(safe_float(latest["volatility_score_v2"]), 1),

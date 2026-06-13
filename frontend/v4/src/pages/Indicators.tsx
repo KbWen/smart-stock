@@ -9,7 +9,7 @@ interface StockTechnical {
     price: number
     change_pct: number
     rise_score: number
-    ai_prob: number
+    ai_prob: number | null
     trend: number
     momentum: number
     volatility: number
@@ -47,7 +47,7 @@ const Indicators: React.FC = () => {
             price: s.price,
             change_pct: s.change_percent ?? 0,
             rise_score: s.rise_score ?? 0,
-            ai_prob: s.ai_prob ?? 0,
+            ai_prob: s.ai_prob ?? null,
             trend: s.trend ?? 0,
             momentum: s.momentum ?? 0,
             volatility: s.volatility ?? 0,
@@ -60,11 +60,11 @@ const Indicators: React.FC = () => {
         stocks
             .filter(s => {
                 if (filter === 'HIGH SCORE') return s.rise_score > INDICATORS_SCORE_THRESHOLD
-                if (filter === 'HIGH AI') return s.ai_prob >= INDICATORS_AI_THRESHOLD
+                if (filter === 'HIGH AI') return (s.ai_prob ?? -1) >= INDICATORS_AI_THRESHOLD
                 return true
             })
             .sort((a, b) => {
-                if (filter === 'HIGH AI') return b.ai_prob - a.ai_prob
+                if (filter === 'HIGH AI') return (b.ai_prob ?? -1) - (a.ai_prob ?? -1)
                 return b.rise_score - a.rise_score
             }),
         [stocks, filter],
@@ -148,8 +148,8 @@ const Indicators: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="p-4 text-right">
-                                        <span className={`px-2 py-1 rounded font-bold ${stock.ai_prob >= 70 ? 'bg-sniper-gold/10 text-sniper-gold' : 'text-dark-muted'}`}>
-                                            {stock.ai_prob.toFixed(1)}%
+                                        <span className={`px-2 py-1 rounded font-bold ${(stock.ai_prob ?? 0) >= 70 ? 'bg-sniper-gold/10 text-sniper-gold' : 'text-dark-muted'}`}>
+                                            {stock.ai_prob == null ? 'N/A' : `${stock.ai_prob.toFixed(1)}%`}
                                         </span>
                                     </td>
                                     <td className="p-4 text-right text-dark-muted">
