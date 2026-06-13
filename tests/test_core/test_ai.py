@@ -88,8 +88,14 @@ def test_predict_prob_legacy_model_handles_missing_features(mock_exists, mock_lo
     assert result['prob'] == pytest.approx(0.8)
 
 
-def test_prepare_features_target_labeling_buy_before_stop():
-    """Class 1 should be assigned when +10% is hit before stop-loss (without +15%)."""
+def test_prepare_features_target_labeling_buy_before_stop(monkeypatch):
+    """Class 1 should be assigned when +10% is hit before stop-loss (without +15%).
+
+    Pins LABEL_MODE='fixed' — this is the backward-compat guard for the legacy
+    fixed-percentage barriers (the default is now 'atr'; see ml-label-volatility-scaling).
+    """
+    from core.ai import common
+    monkeypatch.setattr(common, "LABEL_MODE", "fixed")
     from core.ai.common import FEATURE_COLS
 
     n = 320
