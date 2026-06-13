@@ -78,9 +78,13 @@ def _compute_targets(closes, highs, lows, atr, mode):
 def prepare_features(df, is_training=True):
     """
     Creates tabular features + Sniper 3-class target for each row.
-    Class 2: hits +15% before -5% within 20 trading days.
-    Class 1: hits +10% before -5% (and does not hit +15% first).
-    Class 0: all other outcomes (stop first or no target hit).
+
+    The 3-class triple-barrier target is computed by ``_compute_targets`` and depends
+    on ``common.LABEL_MODE`` (see ``core/config.py``):
+      - 'atr' (default): barriers scale with per-row ATR-14 (ATR_TARGET_MULT / ATR_BUY_MULT
+        / ATR_STOP_MULT) — volatility-adjusted so the class distribution stays learnable.
+      - 'fixed' (legacy): Class 2 = +15% before -5%, Class 1 = +10% before -5%, within 20
+        trading days; Class 0 = stop-first or no target hit.
     """
     # Minimum rows required: training needs SMA240 warm-up (~260 rows),
     # prediction is more lenient (~120 rows). Values come from core/config.py.
