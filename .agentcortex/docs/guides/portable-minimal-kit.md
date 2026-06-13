@@ -1,8 +1,8 @@
-# Portable Minimal Kit for AgentCortex Adoption
+# Portable Minimal Kit for Agentic OS Adoption
 
 This guide defines a minimal, portable set that other projects can adopt without changing core state-machine workflows.
 
-For text encoding and EOL hardening specifically, see `minimal-text-hardening-kit.md`.
+For text encoding and EOL hardening specifically, see `.agentcortex/tools/check_text_integrity.py` (the former `minimal-text-hardening-kit.md` guide was merged into this tool).
 
 ## Goal
 

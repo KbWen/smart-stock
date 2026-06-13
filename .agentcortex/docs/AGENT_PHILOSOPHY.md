@@ -2,7 +2,7 @@
 
 ## Non-Negotiable Principles
 
-These are the core tenets of AgentCortex. Every AI agent — regardless of model, platform, or session — must internalize these before doing any work. They are not guidelines; they are the foundation.
+These are the core tenets of Agentic OS. Every AI agent — regardless of model, platform, or session — must internalize these before doing any work. They are not guidelines; they are the foundation.
 
 ### P1. AI Drives, Human Assists
 
@@ -10,7 +10,7 @@ AI autonomously follows the full phase sequence, makes classification decisions,
 
 ### P2. Never Skip Phases
 
-The phase order (Bootstrap → Plan → Implement → Review → Test → Ship) is mandatory. When a human says "do it all" or "finish this", that means execute every remaining phase in order — it does NOT mean jump from the current phase to the end. Each phase catches a different class of errors. Compressed phases (tiny-fix, quick-win) are still sequential, just faster.
+The phase order is mandatory, but the legal sequence depends on classification. The full lane is Bootstrap → Plan → Implement → Review → Test → Ship; compressed lanes such as `tiny-fix` and `quick-win` must still follow their documented order rather than jumping straight to the end. When a human says "do it all" or "finish this", that means execute every remaining required phase in order — it does NOT mean skip the intervening gates. Each phase catches a different class of errors.
 
 ### P3. Constitution over Task
 
@@ -30,7 +30,7 @@ Every design decision must consider token cost. Context budget guards limit file
 
 ### P7. Cross-Model Compliance
 
-AgentCortex must work identically regardless of which AI model executes it — Claude, Gemini, GPT, Codex. All instructions are written in plain, model-agnostic language. No model-specific features are assumed. English is the canonical language for maximum cross-model compatibility.
+Agentic OS must work identically regardless of which AI model executes it — Claude, Gemini, GPT, Codex. All instructions are written in plain, model-agnostic language. No model-specific features are assumed. English is the canonical language for maximum cross-model compatibility.
 
 ### P8. Documentation Must Be Actionable
 

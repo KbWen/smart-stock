@@ -1,20 +1,32 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
-title: "[FEAT] "
+name: Feature Request
+about: Suggest a new workflow, skill, or governance improvement
+title: "[Feature] "
 labels: enhancement
 assignees: ''
-
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Summary
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+A concise description of the feature.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Motivation
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+Why is this needed? What problem does it solve?
+
+## Proposed Solution
+
+How should it work? Which files / workflows would be affected?
+
+## Alternatives Considered
+
+Other approaches you've thought about and why this one is better.
+
+## Scope
+
+- [ ] New workflow (`.agent/workflows/`)
+- [ ] New skill (`.agents/skills/`)
+- [ ] Guardrail update (`.agent/rules/`)
+- [ ] Deploy / tooling change
+- [ ] Documentation improvement
+- [ ] Other

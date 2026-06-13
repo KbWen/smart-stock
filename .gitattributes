@@ -1,22 +1,37 @@
+# Auto detect text files and normalize line endings
 * text=auto
 
-*.md text eol=lf
+# Shell scripts must use LF
 *.sh text eol=lf
-*.yml text eol=lf
-*.yaml text eol=lf
-*.txt text eol=lf
-*.rules text eol=lf
-*.toml text eol=lf
-*.json text eol=lf
-*.py text eol=lf
+
+# PowerShell scripts use CRLF
 *.ps1 text eol=crlf
+
+# CMD batch files use CRLF
 *.cmd text eol=crlf
 *.bat text eol=crlf
 
+# Python and JSON must use LF (prevents CRLF hash mismatches in manifest)
+*.py text eol=lf
+*.json text eol=lf
+
+# Markdown and YAML: always text, always LF.
+# LF is mandatory so that deploy.sh's EOL-normalized hashing and the manifest
+# hash entries agree with the source repo's checked-out file content.
+# Without eol=lf, git autocrlf=true would check out CRLF .md/.yaml files,
+# causing every unmodified deployed file to appear hash-mismatched.
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Deployed manifest and git hooks are parsed line-by-line by deploy.sh /
+# validate.sh — a CRLF rewrite (autocrlf on extensionless files) would make
+# manifest hash fields carry a stray \r. Pin LF in the deployed scaffold.
+.agentcortex-manifest text eol=lf
+.githooks/** text eol=lf
+
+# Keep binary files as-is
 *.png binary
 *.jpg binary
-*.jpeg binary
 *.gif binary
 *.ico binary
-*.zip binary
-*.pdf binary

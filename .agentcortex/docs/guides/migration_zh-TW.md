@@ -11,11 +11,11 @@
 ### 步驟 1：代碼更新
 
 ```bash
-./deploy_brain.sh /path/to/project-a
+./installers/deploy_brain.sh /path/to/project-a
 ```
 
 > [!NOTE]
-> v3.5.2 的 `deploy_brain.sh` 預設使用 `cp -n`（不覆蓋已存在的檔案），您的自訂設定不會被蓋掉。
+> `deploy_brain.sh` 預設使用 `cp -n`（不覆蓋已存在的檔案），您的自訂設定不會被蓋掉。
 > 若需強制更新所有檔案，請加上 `--force` 旗標。
 > 腳本亦會自動更新目標專案的 `.gitignore`。
 
@@ -25,7 +25,7 @@
 
 ```text
 請執行 /bootstrap。
-我們剛從舊版升級到 vNext v3.5.2。
+我們剛升級到 Agentic OS v1.2.0。
 請掃描專案中的既有文件，並自動完成以下工作：
 1. 識別散亂的筆記、規格、ADR，移動到正確目錄並重新命名
 2. 初始化 .agentcortex/context/current_state.md
@@ -36,8 +36,8 @@ AI 會自動執行：
 
 | AI 判斷邏輯 | 動作 | 目標位置 |
 |---|---|---|
-| 檔案看起來像架構決策記錄 | 移動 + 命名為 `ADR-NNN-<topic>.md` | `.agentcortex/adr/` |
-| 檔案看起來像規格或需求文件 | 移動 + 命名為 `<feature-name>.md` | `.agentcortex/specs/` |
+| 檔案看起來像架構決策記錄 | 移動 + 命名為 `ADR-NNN-<topic>.md` | `docs/adr/` |
+| 檔案看起來像規格或需求文件 | 移動 + 命名為 `<feature-name>.md` | `docs/specs/` |
 | 檔案看起來像進行中的任務紀錄 | 移動 + 命名為 `<branch-name>.md` | `.agentcortex/context/work/` |
 | 檔案看起來像已完成的歷史紀錄 | 移動 + 命名為原檔名 | `.agentcortex/context/archive/` |
 | 檔案無法分類 | 不動，列入報告供人工審閱 | 原位置 |
@@ -60,7 +60,7 @@ AI 會自動執行：
 ### 步驟 1：環境部署
 
 ```bash
-./deploy_brain.sh /path/to/project-b
+./installers/deploy_brain.sh /path/to/project-b
 ```
 
 ### 步驟 2：原始素材進氣 + 自動歸檔
@@ -69,9 +69,9 @@ AI 會自動執行：
 
 ```text
 請執行 /bootstrap。
-這是一個開發到一半的專案，需要導入 AI Brain 管理系統。
+這是一個開發到一半的專案，需要導入 Agentic OS 管理系統。
 請完成以下工作：
-1. 消化以下前期討論素材，提取規格存入 .agentcortex/specs/
+1. 消化以下前期討論素材，提取規格存入 docs/specs/
 2. 掃描專案現有的文件，自動分類並移動到正確目錄
 3. 初始化 .agentcortex/context/current_state.md
 4. 將目前進行中的任務建立 Work Log
@@ -84,7 +84,7 @@ AI 會自動執行：
 
 AI 收到素材後，會依照 vNext 邏輯自動執行：
 
-1. **提取規格**：將雜亂素材轉化為詳細規格，存入 `.agentcortex/specs/<feature-name>.md`。
+1. **提取規格**：將雜亂素材轉化為詳細規格，存入 `docs/specs/<feature-name>.md`。
 2. **掃描現有檔案**：識別專案中的散亂文件，根據內容自動判斷分類與命名。
 3. **輸出遷移計畫**：列出所有建議的搬移與重命名，等待使用者確認。
 4. **建立地圖**：產出 `.agentcortex/context/current_state.md` 描述專案全貌。
@@ -92,7 +92,7 @@ AI 收到素材後，會依照 vNext 邏輯自動執行：
 
 ### 關於目錄衝突
 
-如果專案已有 `docs/` 目錄（例如 API 文件、使用手冊等），Template 的 `.agentcortex/context/`、`.agentcortex/specs/`、`.agentcortex/adr/` 只使用各自的子目錄，**不會**影響現有的 `docs/api/`、`docs/architecture/` 等結構。
+如果專案已有 `docs/` 目錄（例如 API 文件、使用手冊等），Template 的 `.agentcortex/context/`、`docs/specs/`、`docs/adr/` 只使用各自的子目錄，**不會**影響現有的 `docs/api/`、`docs/architecture/` 等結構。
 
 ---
 

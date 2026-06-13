@@ -14,12 +14,12 @@ Stage goal: a stable/simple/**data-consistent-with-its-claims** smart-stock — 
 ## Feature Inventory
 | # | Feature | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|
-| 1 | Frontend honest data states — remove mock-as-live (mockData.ts fallback → loading/no-data/error states) | .agentcortex/specs/frontend-honest-data-states.md | feature | Shipped | — |
-| 2 | Backend failure-state honesty — predictor.py stops faking `ai_prob=0.0`; propagate null/no-data | .agentcortex/specs/backend-failure-state-honesty.md | feature | Shipped | — |
-| 3 | UI honest model-state disclosure — surface "model unready / low-confidence" instead of selling degenerate output | .agentcortex/specs/ui-model-state-disclosure.md | feature | Shipped | #1, #2 |
-| 4 | Backtest metric label honesty — Sharpe rename/annotate, 9999→N/A, dynamic ±gain/-loss tooltips (EXTENDS backtest-and-performance-opt) | .agentcortex/specs/backtest-metric-label-honesty.md | quick-win | Shipped | — |
-| 5 | Docs ↔ reality sync — API_CONTRACT sync/trigger + backtest params, README auto-sync/10x/stock-count, ARCHITECTURE/TESTING fixes | .agentcortex/specs/docs-reality-sync.md | quick-win | Shipped | — |
-| 6 | Frontend tests into CI — enforce 44 vitest + production build (EXTENDS frontend-testing) | .agentcortex/specs/frontend-ci.md | quick-win | Shipped | — |
+| 1 | Frontend honest data states — remove mock-as-live (mockData.ts fallback → loading/no-data/error states) | docs/specs/frontend-honest-data-states.md | feature | Shipped | — |
+| 2 | Backend failure-state honesty — predictor.py stops faking `ai_prob=0.0`; propagate null/no-data | docs/specs/backend-failure-state-honesty.md | feature | Shipped | — |
+| 3 | UI honest model-state disclosure — surface "model unready / low-confidence" instead of selling degenerate output | docs/specs/ui-model-state-disclosure.md | feature | Shipped | #1, #2 |
+| 4 | Backtest metric label honesty — Sharpe rename/annotate, 9999→N/A, dynamic ±gain/-loss tooltips (EXTENDS backtest-and-performance-opt) | docs/specs/backtest-metric-label-honesty.md | quick-win | Shipped | — |
+| 5 | Docs ↔ reality sync — API_CONTRACT sync/trigger + backtest params, README auto-sync/10x/stock-count, ARCHITECTURE/TESTING fixes | docs/specs/docs-reality-sync.md | quick-win | Shipped | — |
+| 6 | Frontend tests into CI — enforce 44 vitest + production build (EXTENDS frontend-testing) | docs/specs/frontend-ci.md | quick-win | Shipped | — |
 
 ## Status Key
 - Pending: not yet started

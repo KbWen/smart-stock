@@ -4,7 +4,7 @@ status: frozen
 created: 2026-03-28
 owner: KbWen
 source: natural-language (retroactive)
-source_doc: .agentcortex/specs/_raw-intake.md
+source_doc: docs/specs/_raw-intake.md
 ---
 
 # Spec: 視覺衝擊力升級 Phase 2 — Sparkline 迷你走勢圖
@@ -61,4 +61,4 @@ Errors:
 
 ## File Relationship
 
-EXTENDS `.agentcortex/specs/visual-upgrade-phase1.md`
+EXTENDS `docs/specs/visual-upgrade-phase1.md`

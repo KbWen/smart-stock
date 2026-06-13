@@ -1,20 +1,26 @@
-# AgentCortex Runtime v5
+# Agentic OS Runtime — Anti-Drift Engine
 
 ## Antigravity Hard-Path Enforcement Overlay
 
-Version: v5.0
-Date: 2026-03-04
+Engine generation: v5 (anti-drift overlay) · Canonical contract: AGENTS.md §Agentic OS Runtime v1
+Date: 2026-04-17
+
+> **Two version axes — do not conflate.** "Runtime v5" throughout this file is this
+> anti-drift *engine spec's* own generation number; the canonical Antigravity runtime
+> **contract** version is **Runtime v1** (see `AGENTS.md §Agentic OS Runtime v1`). The
+> framework release version (v1.5.3) is tracked separately in `CHANGELOG.md`.
 Scope: **Antigravity environments** (token-generation agents where shell exit codes don’t halt execution)
 
 ### Why v5 exists
 
-AgentCortex v3.5+ already enforces strong process gates via workflows:
+Agentic OS already enforces strong process gates via workflows:
 
-* `/bootstrap` reads SSoT + Work Log, freezes classification, and sets next-step recommendations
+* `/bootstrap` reads SSoT + Work Log, locks classification, and only allows upward changes via rollback + re-entry
 * `/plan` is “NO CODING YET” and requires spec for feature/architecture-change
 * `/implement` has a hard gate `state >= IMPLEMENTABLE` and scope escalation checks
-* `/ship` requires state TESTED and handoff for non-tiny-fix, then updates SSoT only during ship
+* `/ship` requires state TESTED and handoff for non-tiny-fix, then updates SSoT via guarded writes. `/retro` is the only non-ship SSoT write exception, and only for structured Global Lessons.
 * AGENTS.md is injected every turn and already defines write isolation + evidence requirements
+* Handoff timing follows the cross-platform SSoT `AGENTS.md §Context Pruning` (context occupancy + phase boundary, NOT turn-count); per-platform caching/compaction detail in `.agentcortex/docs/guides/token-governance.md §6.1`. Antigravity/Gemini's large window (1M–2M) + implicit caching means fewer handoffs — reason in occupancy %, not absolute turns.
 
 **Remaining issue:** Antigravity sometimes “continues anyway” even when a workflow says STOP (because STOP is still text).
 Runtime v5 adds **hard generation-path checkpoints** that are short, deterministic, and token-cheap.
@@ -47,7 +53,7 @@ flowchart LR
     %% ==========================================
     subgraph GOV ["GOVERNANCE SHELL (Constraint Layer)"]
         direction TB
-        A1["AGENTS.md<br/>Runtime v4 Minimal Contract"]:::gov
+        A1["AGENTS.md<br/>Runtime v1 (Antigravity Contract)"]:::gov
         A2[".agent/rules<br/>engineering_guardrails.md + others"]:::gov
         A3["Write Isolation<br/>SSoT controlled writes"]:::gov
     end
@@ -59,7 +65,7 @@ flowchart LR
         direction TB
         IR["Intent Router<br/>NL == Slash"]:::rt
         CL{"Classifier<br/>tiny-fix / quick-win /<br/>hotfix / feature / arch-change"}:::decision
-        ESC["Escalation Check<br/>reclassify if scope too big"]:::rt
+        ESC["Escalation Check<br/>rollback + upgrade if scope grows"]:::rt
         GATE["Gate Engine<br/>Minimal Gate Block"]:::rt
         HS["Handshake (High Risk Only)<br/>PROCEED-PLAN / PROCEED-SHIP /<br/>PROCEED-IMPLEMENT"]:::rt
         SM["State Machine<br/>Plan→Implement→Review→Ship→Learn"]:::rt
@@ -81,11 +87,11 @@ flowchart LR
     %% Artifacts
     %% ==========================================
     subgraph ART ["ARTIFACTS LAYER (Outputs)"]
-        SPECS[".agentcortex/specs/&lt;feature&gt;.md"]:::art
-        WL[".agentcortex/context/work/&lt;branch&gt;.md<br/>Work Log + Drift + Evidence"]:::art
+        SPECS["docs/specs/&lt;feature&gt;.md"]:::art
+        WL[".agentcortex/context/work/&lt;worklog-key&gt;.md<br/>Work Log + Drift + Evidence"]:::art
         SSOT[".agentcortex/context/current_state.md<br/>SSoT (controlled writes)"]:::art
         CODE["src/** + tests/**"]:::art
-        GUIDE["docs/guides/antigravity-anti-drift.md"]:::art
+        GUIDE[".agentcortex/docs/guides/antigravity-v5-runtime.md"]:::art
     end
 
     %% ==========================================
@@ -93,8 +99,8 @@ flowchart LR
     %% ==========================================
     subgraph KL ["KNOWLEDGE LOOP (Learning)"]
         EV["Evidence Ledger<br/>tests / verification"]:::kl
-        EX["/ship Extraction<br/>lessons + ship refs"]:::kl
-        GL["Global Lessons<br/>append to SSoT"]:::kl
+        EX["/retro + /ship<br/>lessons + ship refs"]:::kl
+        GL["Global Lessons<br/>structured guarded append"]:::kl
     end
 
     %% ==========================================
@@ -267,7 +273,7 @@ For `feature` / `architecture-change`, plan output MUST include:
 
 ```text
 Docs:
-- <at least one path in .agentcortex/specs/ or .agentcortex/context/>
+- <at least one path in docs/specs/ or .agentcortex/context/>
 ```
 
 ---
@@ -276,7 +282,7 @@ Docs:
 
 To avoid the model “choosing tiny-fix because it’s easiest,” add this deterministic boundary:
 
-* `< 5 lines` and **no logic change** → `tiny-fix`
+* `< 3 files` and **no semantic change** → `tiny-fix` (canonical threshold — see `AGENTS.md §Agentic OS Runtime v1` rule 2 / `engineering_guardrails.md §10.1, §10.3`)
 * **bug fix** isolated to one area/module → `hotfix`
 * **new behavior** / cross-file / new module → `feature`
 
@@ -286,7 +292,7 @@ If “tiny-fix” touches logic or multiple files, escalate to `hotfix`.
 
 ## 7) Evidence discipline remains canonical
 
-AgentCortex already enforces “NO EVIDENCE = NO COMPLETION” at the AGENTS.md level and in shipping.
+Agentic OS already enforces “NO EVIDENCE = NO COMPLETION” at the AGENTS.md level and in shipping.
 Runtime v5 clarifies the minimum:
 
 * At least **one** test command OR verification output must be recorded (Work Log Evidence section).
@@ -296,11 +302,9 @@ Runtime v5 clarifies the minimum:
 
 ## 8) Sentinel Check (Injection Diagnostic)
 
-**SENTINEL: ACX-READ-OK**
+**Canonical sentinel: `⚡ ACX`** (defined in `AGENTS.md §Agentic OS Runtime v1` rule 11).
 
-Add this to the first line of `AGENTS.md`.
-Every response MUST end with `[ACX-READ-OK]`.
-If this token is missing, it signifies the prompt injection is broken or truncated.
+Every response MUST end with `⚡ ACX`. If this marker is missing, the prompt injection is broken or truncated. `validate.sh`/`validate.ps1` accept the emoji form `⚡ ACX` or the plain `ACX` tag when auditing Work Log Phase Summaries.
 
 ---
 

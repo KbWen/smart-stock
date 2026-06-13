@@ -22,4 +22,4 @@ Backtest metrics must not claim more rigor/precision than they have. Fix the una
 - Changing drawdown / friction math.
 
 ## File Relationship
-EXTENDS .agentcortex/specs/backtest-and-performance-opt.md
+EXTENDS docs/specs/backtest-and-performance-opt.md

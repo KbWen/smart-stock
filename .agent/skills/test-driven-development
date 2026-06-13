@@ -1,8 +1,13 @@
 ---
 name: test-driven-development
 description: Red→Green→Refactor cycle for logic changes. Auto-activate during /implement for feature and architecture-change classifications when testable logic is being written.
-phases: [implement, test]
+phases: ["implement", "test"]
 trigger: auto (when writing testable logic in feature/architecture-change tasks)
+trigger_priority: contextual
+load_policy: on-match
+cost_type: mixed
+cost_risk: high
+runtime_anchor: ["AGENTS.md#Skill Activation Triggers", ".agent/workflows/bootstrap.md#3.6", ".agent/workflows/implement.md#Skill Execution Overrides", ".agent/workflows/test.md#Step 3"]
 ---
 
 # Test-Driven Development
@@ -10,5 +15,5 @@ trigger: auto (when writing testable logic in feature/architecture-change tasks)
 Full instructions: `.agents/skills/test-driven-development/SKILL.md`.
 
 - **Trigger**: Auto — when implementing testable logic (not config changes, docs, or scaffolding)
-- **Cycle**: Red (write failing test) → Green (minimal code to pass) → Refactor (clean up)
-- **Ironclad**: Never write production code without a failing test first
+- **Runtime anchor**: bootstrap recommends it, then `/implement` and `/test` load the full skill only when the task shape matches
+- **Token note**: Read cost is low; the real cost comes from Red/Green/Refactor micro-cycles and repeated test output

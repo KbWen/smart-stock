@@ -2,7 +2,7 @@
 
 ## 不可違反原則
 
-以下是 AgentCortex 的核心信條。每個 AI agent — 不論模型、平台或對話 — 在開始任何工作前都必須內化這些原則。這些不是指引，而是根基。
+以下是 Agentic OS 的核心信條。每個 AI agent — 不論模型、平台或對話 — 在開始任何工作前都必須內化這些原則。這些不是指引，而是根基。
 
 ### P1. AI 主導，人類輔助
 
@@ -10,7 +10,7 @@ AI 自主遵循完整的階段順序，做出分類決策，路由到工作流�
 
 ### P2. 永遠不能跳過階段
 
-階段順序（Bootstrap → Plan → Implement → Review → Test → Ship）是強制性的。當人類說「全部做完」或「完成這個」，意思是**按順序執行所有剩餘階段** — 不是從當前階段跳到最後。每個階段捕捉不同類別的錯誤。壓縮階段（tiny-fix、quick-win）仍然是循序的，只是更快。
+階段順序是強制性的，但合法順序會依任務分類而不同。完整 lane 是 Bootstrap → Plan → Implement → Review → Test → Ship；`tiny-fix` 與 `quick-win` 這類壓縮 lane 也必須遵守各自文件定義的順序，而不是直接跳到最後。當人類說「全部做完」或「完成這個」，意思是**按順序執行所有剩餘必要階段** — 不是從當前階段跳到結尾。每個階段捕捉不同類別的錯誤。
 
 ### P3. 憲法高於任務 (Constitution over Task)
 
@@ -30,7 +30,7 @@ Agent 必須遵守 `.agent/rules/engineering_guardrails.md` 作為其憲法。�
 
 ### P7. 跨模型合規
 
-AgentCortex 必須在任何 AI 模型執行時表現一致 — Claude、Gemini、GPT、Codex。所有指令用清楚、模型無關的語言撰寫。不假設任何模型特定功能。英文是規範語言以確保最大跨模型相容性。
+Agentic OS 必須在任何 AI 模型執行時表現一致 — Claude、Gemini、GPT、Codex。所有指令用清楚、模型無關的語言撰寫。不假設任何模型特定功能。英文是規範語言以確保最大跨模型相容性。
 
 ### P8. 文檔必須可操作
 
