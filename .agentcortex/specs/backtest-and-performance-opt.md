@@ -1,5 +1,5 @@
 ---
-status: draft
+status: frozen
 module: backtest-perf
 version: 1.0.0
 ---

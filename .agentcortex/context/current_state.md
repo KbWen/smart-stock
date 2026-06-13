@@ -72,6 +72,10 @@
 
 ## Ship History
 
+### Ship-backtest-and-performance-opt-2026-06-13
+- Feature shipped: Backtest hardening + candidate list performance optimization (merged via PR #7). Backend: Taiwan-standard transaction friction — configurable `commission_rate`/`tax_rate`/`slippage_rate` on `/api/backtest` applied to Net ROI & Net Win Rate; Sharpe Ratio (mean net return / stddev) and Worst Drawdown (worst single-stock MDD) added to backtest summary; Net Profit Factor; configurable strategy parameters (`target_gain`/`stop_loss`/`holding_days`) exposed at API and wired to UI sliders. Frontend: candidate list virtualization + bulk sparkline preload via `/api/v4/meta` (eliminates per-row HTTP waterfall on dashboard render); collapsible transaction-cost panel + expanded metrics on Backtest page; `core/data.py:load_sparklines_from_db` single-query batched sparkline retrieval.
+- Tests: Pass (Backend 167/167, Frontend 44/44, Production build `tsc -b && vite build` ✅)
+
 ### Ship-gemini-audit-hardening-2026-06-02
 - Feature shipped: System hardening based on audit findings. Fixed GET API write side-effect in `GET /api/market_status` by moving history saving to background sync task. Added 0.5s-1.5s random sleep to yfinance download loop to prevent rate-limiting. Fixed US/Crypto stock suffix mapping bug in `get_ticker_suffix`. Integrated background sync trigger and real-time progress bar UI into the frontend dashboard. Added rate-limiting (5/minute) to `POST /api/sync`.
 - Tests: Pass (Backend 165/165, Frontend 44/44, Production build ✅)
