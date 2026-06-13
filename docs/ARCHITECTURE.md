@@ -44,7 +44,7 @@ graph TD
 ### `backend/` - The API Layer
 
 * **Role**: Serves data to the frontend, handles long-running tasks (backtests), and manages process lifecycles.
-* **Runtime State Safety**: Sync progress state is protected by a lock in `backend/main.py` and exposed via snapshot reads (`/api/sync/status`) to avoid concurrent mutation leaks.
+* **Runtime State Safety**: Sync progress state is protected by a lock in `backend/routes/sync.py` and exposed via snapshot reads (`/api/sync/status`) to avoid concurrent mutation leaks.
 * **Key Files**:
   * `main.py`: FastAPI entry point. Defines routes (`/api/v4/...`).
   * `backtest.py`: The "Time Machine" simulation logic.
