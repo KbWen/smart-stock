@@ -1,21 +1,20 @@
 import React, { Suspense, lazy, useMemo } from 'react'
 import ErrorBoundary from '../components/ErrorBoundary'
-import { Activity, Cpu, Database, Info, ShieldAlert, Thermometer } from 'lucide-react'
+import { Activity, AlertTriangle, Cpu, Database, Info, ShieldAlert, Thermometer } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import { useCachedApi } from '../hooks/useCachedApi'
-import { MOCK_MARKET_STATUS } from '../mockData'
 import type { MarketStatus } from '../hooks/useDashboardData'
 
 const MarketRiskHistoryChart = lazy(() => import('../components/charts/MarketRiskHistoryChart'))
 
 const MarketRisk: React.FC = () => {
-    const { data, loading } = useCachedApi<MarketStatus>('/api/market_status', {
-        fallbackData: MOCK_MARKET_STATUS as MarketStatus,
+    const { data, loading, error } = useCachedApi<MarketStatus>('/api/market_status', {
         ttlMs: 30_000,
         throttleMs: 600,
     })
 
     const riskColorClass = useMemo(() => {
+        if (!data) return 'text-dark-muted'
         if (data.risk_level.includes('HIGH')) {
             return 'text-red-500'
         }
@@ -23,10 +22,24 @@ const MarketRisk: React.FC = () => {
             return 'text-sniper-green'
         }
         return 'text-yellow-500'
-    }, [data.risk_level])
+    }, [data])
 
     if (loading && !data) {
         return <div className="p-6 text-dark-muted">Scanning Market Risk...</div>
+    }
+
+    if (error && !data) {
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 p-10 text-center text-red-400">
+                <AlertTriangle size={40} className="opacity-80" />
+                <p className="text-lg font-semibold">市場資料載入失敗</p>
+                <p className="text-sm text-dark-muted">無法取得市場狀態，請確認後端服務運作後重試。</p>
+            </div>
+        )
+    }
+
+    if (!data) {
+        return <div className="p-6 text-center text-dark-muted">目前無市場資料。</div>
     }
 
     return (

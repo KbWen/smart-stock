@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react'
-import { MOCK_CANDIDATES } from '../mockData'
 import { Info } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import { useCachedApi } from '../hooks/useCachedApi'
@@ -36,13 +35,13 @@ const INDICATORS_AI_THRESHOLD = 60
 const Indicators: React.FC = () => {
     const [filter, setFilter] = useState<'ALL' | 'HIGH SCORE' | 'HIGH AI'>('ALL')
 
-    const { data: rawData, loading, isPlaceholder } = useCachedApi<ApiCandidate[]>(
+    const { data: rawData, loading, isPlaceholder, error } = useCachedApi<ApiCandidate[]>(
         '/api/v4/sniper/candidates?limit=100',
-        { fallbackData: MOCK_CANDIDATES as ApiCandidate[], ttlMs: 30_000, throttleMs: 1_000 },
+        { ttlMs: 30_000, throttleMs: 1_000 },
     )
 
     const stocks = useMemo<StockTechnical[]>(() =>
-        rawData.map((s) => ({
+        (rawData ?? []).map((s) => ({
             ticker: s.ticker,
             name: s.name,
             price: s.price,
@@ -72,6 +71,8 @@ const Indicators: React.FC = () => {
     )
 
     if (loading && isPlaceholder) return <div className="p-6 text-dark-muted">Loading Technical Scanner...</div>
+
+    if (error && (!rawData || rawData.length === 0)) return <div className="p-6 text-center text-red-400">技術掃描資料載入失敗，請確認後端運作後重試。</div>
 
     return (
         <div className="space-y-6">

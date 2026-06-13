@@ -7,7 +7,7 @@ interface DetailHeaderProps {
     recommendation: {
         text: string
         color: string
-    }
+    } | null
     updatedAt?: string
 }
 

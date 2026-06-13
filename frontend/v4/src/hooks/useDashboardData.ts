@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCachedApi } from './useCachedApi'
 import { invalidateApiCache } from '../lib/apiClient'
-import { MOCK_MARKET_STATUS } from '../mockData'
 
 export interface MarketHistory {
     timestamp: string
@@ -49,8 +48,7 @@ export interface CandidateMeta {
 }
 
 export const useDashboardData = () => {
-    const { data: market, loading: isLoading, isPlaceholder } = useCachedApi<MarketStatus>('/api/market_status', {
-        fallbackData: MOCK_MARKET_STATUS,
+    const { data: market, loading: marketLoading, isPlaceholder, error: marketError } = useCachedApi<MarketStatus>('/api/market_status', {
         ttlMs: 30_000,
         throttleMs: 600,
     })
@@ -73,20 +71,22 @@ export const useDashboardData = () => {
     })
 
     const riskColorClass = useMemo(() => {
+        if (!market) return 'text-dark-muted'
         if (market.risk_level.includes('HIGH')) return 'text-red-500'
         if (market.risk_level.includes('LOW')) return 'text-sniper-green'
         return 'text-yellow-500'
-    }, [market.risk_level])
+    }, [market])
 
     const lastUpdated = useMemo(() => {
-        return market.history?.[market.history.length - 1]?.timestamp || 'Unknown'
-    }, [market.history])
+        return market?.history?.[market.history.length - 1]?.timestamp || 'Unknown'
+    }, [market])
 
-    const dbUpdatedAt = candidateMeta[0]?.updated_at || 'Unknown'
+    const dbUpdatedAt = candidateMeta?.[0]?.updated_at || 'Unknown'
 
     const isDbStale = useMemo(() => {
-        if (!candidateMeta[0]?.updated_at) return false
-        const updated = new Date(candidateMeta[0].updated_at)
+        const updatedAt = candidateMeta?.[0]?.updated_at
+        if (!updatedAt) return false
+        const updated = new Date(updatedAt)
         return updated.toDateString() !== new Date().toDateString()
     }, [candidateMeta])
 
@@ -158,8 +158,11 @@ export const useDashboardData = () => {
 
     return {
         market,
-        isLoading: isLoading || isPlaceholder,
+        // On a persistent fetch error, isPlaceholder stays true forever; gate on
+        // marketError so the UI breaks out of the skeleton into an honest error state.
+        isLoading: (marketLoading || isPlaceholder) && !marketError,
         isPlaceholder,
+        marketError,
         riskColorClass,
         lastUpdated,
         dbUpdatedAt,

@@ -1,5 +1,4 @@
 import React, { memo, useEffect, useMemo } from 'react'
-import { MOCK_CANDIDATES } from '../mockData'
 import { useCachedApi } from '../hooks/useCachedApi'
 import CandidateTable from './dashboard/CandidateTable'
 import type { StockCandidate } from '../hooks/useDashboardData'
@@ -63,16 +62,14 @@ const sameV4Signals = (
 
 const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
     // 1. Fetch initial candidates
-    const { data: rawStocks, loading: loadingCandidates, isPlaceholder: isListPlaceholder } = useCachedApi<StockCandidate[]>('/api/v4/sniper/candidates?limit=50', {
-        fallbackData: MOCK_CANDIDATES,
+    const { data: rawStocks, loading: loadingCandidates, isPlaceholder: isListPlaceholder, error: candidatesError } = useCachedApi<StockCandidate[]>('/api/v4/sniper/candidates?limit=50', {
         ttlMs: 30_000,
         throttleMs: 1000,
     })
 
     const tickersStr = useMemo(() => {
-        // Use whatever tickers are available (mock or real) so bulk-meta fetch
-        // starts immediately instead of waiting for candidates to resolve first.
-        return rawStocks.map(s => s.ticker).join(',')
+        // Start the bulk-meta fetch as soon as candidates resolve.
+        return (rawStocks ?? []).map(s => s.ticker).join(',')
     }, [rawStocks])
 
     // 2. Fetch bulk meta indicators for those tickers
@@ -86,16 +83,17 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
         }
     )
 
-    const metaByTicker = bulkMeta.data
+    const metaByTicker = bulkMeta?.data ?? {}
 
     // 3. Merge meta into stocks
     const enrichedStocks = useMemo(() => {
+        const baseStocks = rawStocks ?? []
         if (isListPlaceholder || Object.keys(metaByTicker).length === 0) {
-            return rawStocks
+            return baseStocks
         }
 
         let hasChanges = false
-        const next = rawStocks.map((stock) => {
+        const next = baseStocks.map((stock) => {
             const meta = metaByTicker[stock.ticker]
             if (!meta) {
                 return stock
@@ -126,7 +124,7 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
                 sparkline: meta.sparkline
             }
         })
-        return hasChanges ? next : rawStocks
+        return hasChanges ? next : baseStocks
     }, [rawStocks, metaByTicker, isListPlaceholder])
 
     useEffect(() => {
@@ -139,6 +137,10 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
 
     if (loading && isListPlaceholder) {
         return <div className="p-6 text-center text-dark-muted animate-pulse">Scanning AI Models...</div>
+    }
+
+    if (candidatesError && enrichedStocks.length === 0) {
+        return <div className="p-6 text-center text-red-400">候選清單載入失敗，請確認後端運作後重試。</div>
     }
 
     if (enrichedStocks.length === 0) {

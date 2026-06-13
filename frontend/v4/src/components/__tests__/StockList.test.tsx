@@ -145,6 +145,18 @@ describe('StockList — rendering', () => {
         render(<StockList onSelect={() => {}} selectedTicker={null} />)
         expect(screen.getByText(/No candidates found/i)).toBeInTheDocument()
     })
+
+    it('shows an honest connection-error state when candidates fail to load', () => {
+        mockUseCachedApi.mockImplementation((endpoint: unknown) => {
+            const ep = typeof endpoint === 'string' ? endpoint : ''
+            if (ep.includes('/api/v4/sniper/candidates')) {
+                return { data: null, loading: false, error: new Error('network'), isPlaceholder: true, refetch: vi.fn() }
+            }
+            return { data: { data: {} }, loading: false, error: null, isPlaceholder: false, refetch: vi.fn() }
+        })
+        render(<StockList onSelect={() => {}} selectedTicker={null} />)
+        expect(screen.getByText(/候選清單載入失敗/)).toBeInTheDocument()
+    })
 })
 
 describe('StockList — bulk meta signal enrichment (AC#2)', () => {

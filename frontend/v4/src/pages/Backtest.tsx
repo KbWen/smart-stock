@@ -3,7 +3,6 @@ import ErrorBoundary from '../components/ErrorBoundary'
 import { Info } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import { useCachedApi } from '../hooks/useCachedApi'
-import { MOCK_BACKTEST } from '../mockData'
 
 import BacktestEquityChart from '../components/charts/BacktestEquityChart'
 import BacktestTable from '../components/dashboard/BacktestTable'
@@ -62,7 +61,6 @@ const Backtest: React.FC = () => {
 
     const endpoint = `/api/backtest?days=${days}&version=${selectedVersion}&commission_rate=${commissionRate}&tax_rate=${taxRate}&slippage_rate=${slippageRate}&target_gain=${targetGain}&stop_loss=${stopLoss}&holding_days=${holdingDays}`
     const { data, loading, isPlaceholder, refetch } = useCachedApi<BacktestResponse>(endpoint, {
-        fallbackData: MOCK_BACKTEST as BacktestResponse,
         ttlMs: 20_000,
         throttleMs: 600,
     })
@@ -223,7 +221,11 @@ const Backtest: React.FC = () => {
                 )}
             </div>
 
-            {data?.error ? (
+            {!data ? (
+                <div className="rounded-xl border border-dark-border bg-dark-card p-8 text-center text-dark-muted">
+                    {loading ? '回測執行中...' : '無法載入回測資料，請點擊 Run Backtest 或確認後端運作後重試。'}
+                </div>
+            ) : data.error ? (
                 <div className="rounded-lg border border-red-500/50 bg-red-900/20 p-4 text-red-200">{data.error}</div>
             ) : (
                 <>

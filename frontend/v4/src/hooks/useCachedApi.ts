@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { fetchJsonWithCache, getCachedData } from '../lib/apiClient'
 
 interface UseCachedApiOptions<T> {
-    fallbackData: T
+    fallbackData?: T | null
     ttlMs?: number
     throttleMs?: number
     enabled?: boolean
 }
 
 interface UseCachedApiResult<T> {
-    data: T
+    data: T | null
     loading: boolean
     error: Error | null
     isPlaceholder: boolean
@@ -24,13 +24,13 @@ export function useCachedApi<T>(
     options: UseCachedApiOptions<T>,
 ): UseCachedApiResult<T> {
     const {
-        fallbackData,
+        fallbackData = null,
         ttlMs = 30_000,
         throttleMs = 500,
         enabled = true,
     } = options
 
-    const [data, setData] = useState<T>(fallbackData)
+    const [data, setData] = useState<T | null>(fallbackData)
     const [loading, setLoading] = useState<boolean>(enabled)
     const [error, setError] = useState<Error | null>(null)
     const [isPlaceholder, setIsPlaceholder] = useState<boolean>(true)

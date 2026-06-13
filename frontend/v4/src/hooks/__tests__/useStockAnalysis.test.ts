@@ -61,22 +61,22 @@ describe('useStockAnalysis — recommendationBadge', () => {
     it('returns STRONG BUY when ai_probability >= 70', () => {
         setupMock({ ai_probability: 75 })
         const { result } = renderHook(() => useStockAnalysis('2330.TW'))
-        expect(result.current.recommendationBadge.text).toBe('STRONG BUY')
-        expect(result.current.recommendationBadge.color).toContain('sniper-green')
+        expect(result.current.recommendationBadge!.text).toBe('STRONG BUY')
+        expect(result.current.recommendationBadge!.color).toContain('sniper-green')
     })
 
     it('returns HOLD when ai_probability is 50–69', () => {
         setupMock({ ai_probability: 60 })
         const { result } = renderHook(() => useStockAnalysis('2330.TW'))
-        expect(result.current.recommendationBadge.text).toBe('HOLD')
-        expect(result.current.recommendationBadge.color).toContain('yellow')
+        expect(result.current.recommendationBadge!.text).toBe('HOLD')
+        expect(result.current.recommendationBadge!.color).toContain('yellow')
     })
 
     it('returns HIGH RISK when ai_probability < 50', () => {
         setupMock({ ai_probability: 30 })
         const { result } = renderHook(() => useStockAnalysis('2330.TW'))
-        expect(result.current.recommendationBadge.text).toBe('HIGH RISK')
-        expect(result.current.recommendationBadge.color).toContain('red')
+        expect(result.current.recommendationBadge!.text).toBe('HIGH RISK')
+        expect(result.current.recommendationBadge!.color).toContain('red')
     })
 })
 
