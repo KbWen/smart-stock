@@ -9,7 +9,7 @@ try:
     import twstock
 except Exception:  # optional dependency used only for ticker universe refresh
     twstock = None
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from functools import lru_cache
 from threading import Lock
@@ -29,6 +29,9 @@ _ticker_suffix_lock = Lock()
 def get_ticker_suffix(ticker: str) -> str:
     """Returns '.TWO' for TPEX/OTC stocks, '.TW' for TWSE/Listed stocks."""
     code = standardize_ticker(ticker)
+    import re
+    if not re.match(r'^\d+$', code):
+        return ""
     global _ticker_suffix_map
     with _ticker_suffix_lock:
         if not _ticker_suffix_map and twstock is not None:
@@ -416,6 +419,8 @@ def fetch_stock_data(ticker: str, days: int = 730, force_download: bool = False)
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            import random
+            time.sleep(random.uniform(0.5, 1.5))
             yf_ticker = f"{clean_code}{suffix}"
             stock = yf.Ticker(yf_ticker)
             df = stock.history(period=f"{days}d", auto_adjust=True)
@@ -558,6 +563,52 @@ def search_stocks_global(query: str):
             name = get_stock_name(t)
             results.append({"ticker": t, "name": name or t})
         return results
+    finally:
+        conn.close()
+
+
+def load_sparklines_from_db(tickers: List[str], days: int = 30) -> Dict[str, List[Dict[str, Any]]]:
+    """Load cached sparkline close-only histories for multiple tickers in a single SQLite query."""
+    if not tickers:
+        return {}
+
+    conn = get_db_connection()
+    # Filter by date to avoid loading full history
+    start_date = (datetime.now() - timedelta(days=days + 15)).strftime('%Y-%m-%d')
+    placeholders = ",".join(["?"] * len(tickers))
+    query = f"""
+        SELECT ticker, date, close FROM stock_history
+        WHERE ticker IN ({placeholders}) AND date >= ?
+        ORDER BY date ASC
+    """
+    results = {}
+    try:
+        cursor = conn.cursor()
+        rows = cursor.execute(query, tickers + [start_date]).fetchall()
+        
+        # Group by ticker
+        grouped = {}
+        for row in rows:
+            ticker = row["ticker"]
+            if ticker not in grouped:
+                grouped[ticker] = []
+            date_val = row["date"]
+            if hasattr(date_val, "strftime"):
+                date_str = date_val.strftime("%Y-%m-%d")
+            else:
+                date_str = str(date_val)[:10]
+            grouped[ticker].append({
+                "date": date_str,
+                "close": round(safe_float(row["close"]), 2)
+            })
+            
+        # Take the tail(days) for each ticker
+        for t, points in grouped.items():
+            results[t] = points[-days:]
+        return results
+    except Exception as e:
+        logger.warning("Failed to load batched sparklines from DB", extra={"error": str(e)})
+        return {}
     finally:
         conn.close()
 

@@ -3,8 +3,9 @@ from datetime import datetime
 from threading import Lock
 from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request
 
+from backend.limiter import limiter
 from core import config
 from core.ai import get_model_version, predict_prob
 from core.data import (
@@ -176,12 +177,20 @@ def run_sync_task(limit: Optional[int] = None) -> None:
     except Exception:
         logger.exception("Fatal error in run_sync_task")
     finally:
+        try:
+            from core.market import get_market_status, save_market_history
+            status = get_market_status()
+            if status.get("bull_ratio") is not None:
+                save_market_history(status)
+        except Exception:
+            logger.exception("Failed to save market history during sync")
         _run_cache_clearers()
         _mark_sync_completed()
 
 
 @router.post("/api/sync")
-def trigger_sync(background_tasks: BackgroundTasks, limit: Optional[int] = None):
+@limiter.limit("5/minute")
+def trigger_sync(request: Request, background_tasks: BackgroundTasks, limit: Optional[int] = None):
     current_status = get_sync_status_snapshot()
     if current_status["is_syncing"]:
         return {"message": "Sync already in progress"}

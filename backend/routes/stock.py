@@ -142,9 +142,29 @@ def verify_stock_detail(ticker: str, refresh_db: bool = False):
 
 @router.get("/api/backtest")
 @limiter.limit(_RATE_BACKTEST)
-def run_backtest_simulation(request: Request, days: int = Query(30, ge=1, le=365), version: Optional[str] = None):
+def run_backtest_simulation(
+    request: Request,
+    days: int = Query(30, ge=1, le=365),
+    version: Optional[str] = None,
+    commission_rate: float = Query(0.001425, ge=0.0, le=0.05),
+    tax_rate: float = Query(0.003, ge=0.0, le=0.05),
+    slippage_rate: float = Query(0.001, ge=0.0, le=0.05),
+    target_gain: float = Query(0.15, ge=0.01, le=0.50),
+    stop_loss: float = Query(0.05, ge=0.01, le=0.50),
+    holding_days: int = Query(20, ge=1, le=90),
+):
     try:
-        return run_time_machine(days_ago=days, limit=100, version=version)
+        return run_time_machine(
+            days_ago=days,
+            limit=100,
+            version=version,
+            commission_rate=commission_rate,
+            tax_rate=tax_rate,
+            slippage_rate=slippage_rate,
+            target_gain=target_gain,
+            stop_loss=stop_loss,
+            holding_days=holding_days,
+        )
     except Exception as e:
         logger.error("Backtest API Error: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error")

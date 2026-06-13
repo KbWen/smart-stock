@@ -348,3 +348,118 @@ def test_run_time_machine_singleflight_cache_for_duplicate_ticker(monkeypatch):
 
     assert call_count["count"] == 1
     assert len(result["top_picks"]) == 2
+
+
+def test_run_time_machine_applies_transaction_costs_and_sharpe(monkeypatch):
+    dates = pd.date_range("2024-01-01", periods=8, freq="D")
+
+    monkeypatch.setattr(
+        backtest,
+        "get_all_tw_stocks",
+        lambda: [
+            {"code": "STK1", "name": "Stock1"},
+            {"code": "STK2", "name": "Stock2"},
+        ],
+    )
+
+    def _load(ticker, **_kwargs):
+        if ticker == "STK1":
+            closes = [100, 100, 100, 100, 100, 100, 110, 110]
+            lows = closes
+        else:
+            closes = [100, 100, 100, 100, 100, 100, 90, 90]
+            lows = [100, 100, 100, 100, 100, 100, 98, 98]
+        return pd.DataFrame(
+            {
+                "date": dates,
+                "open": [100] * len(dates),
+                "high": closes,
+                "low": lows,
+                "close": closes,
+                "volume": [1000] * len(dates),
+            }
+        )
+
+    monkeypatch.setattr(backtest, "_load_from_db", _load)
+
+    from core import indicators_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+
+    from core import rise_score_v2
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=1.0))
+
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_args, **_kwargs: {"prob": 0.9})
+
+    # Custom costs: commission_rate=0.002, tax_rate=0.003, slippage_rate=0.001
+    result = backtest.run_time_machine(
+        days_ago=3,
+        limit=2,
+        commission_rate=0.002,
+        tax_rate=0.003,
+        slippage_rate=0.001,
+    )
+
+    picks = result["top_picks"]
+    assert len(picks) == 2
+
+    # Verify Stock 1: raw return = 10%, net return = (1.1 * 0.994 / 1.003) - 1 = ~9.01%
+    s1 = next(p for p in picks if p["ticker"] == "STK1")
+    assert s1["actual_return"] == 0.1
+    assert round(s1["net_return"], 4) == 0.0901
+
+    # Verify Stock 2: raw return = -10%, net return = (0.9 * 0.994 / 1.003) - 1 = ~-10.81%
+    s2 = next(p for p in picks if p["ticker"] == "STK2")
+    assert s2["actual_return"] == -0.1
+    assert round(s2["net_return"], 4) == -0.1081
+
+    # Drawdown verification: STK2 worst drawdown should be -2.0%
+    assert result["summary"]["worst_drawdown"] == -2.0  # -0.02 * 100
+    
+    # Sharpe Ratio: mean / std
+    net_returns = [s1["net_return"], s2["net_return"]]
+    mean_val = sum(net_returns) / 2
+    import math
+    variance = sum((x - mean_val) ** 2 for x in net_returns) / 1 # sample variance (ddof=1)
+    std_val = math.sqrt(variance)
+    expected_sharpe = mean_val / std_val
+    assert abs(result["summary"]["sharpe_ratio"] - round(expected_sharpe, 3)) < 1e-5
+
+
+def test_run_time_machine_custom_strategy_params(monkeypatch):
+    dates = pd.date_range("2024-01-01", periods=10, freq="D")
+    # Entry index for days_ago=5 is 5 (10 - 5 = 5)
+    opens =  [100] * 10
+    highs =  [100, 100, 100, 100, 100, 100, 104, 104, 108, 104] # index 8 is Future Day 3
+    lows =   [100, 100, 100, 100, 100, 100, 96,  96,  96,  92]  # index 9 is Future Day 4
+    closes = [100] * 10
+
+    monkeypatch.setattr(backtest, "get_all_tw_stocks", lambda: [{"code": "2330", "name": "TSMC"}])
+    monkeypatch.setattr(backtest, "_load_from_db", lambda *args, **kwargs: pd.DataFrame({
+        "date": dates, "open": opens, "high": highs, "low": lows, "close": closes, "volume": [1000]*len(dates)
+    }))
+
+    from core import indicators_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+    from core import rise_score_v2
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=1.0))
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_args, **_kwargs: {"prob": 0.9})
+
+    # Test Case 1: Custom Target Gain (0.07) hits on Day 3
+    res1 = backtest.run_time_machine(days_ago=5, limit=1, target_gain=0.07, stop_loss=0.10, holding_days=5)
+    pick1 = res1["top_picks"][0]
+    assert pick1["sniper_result"] == "HIT"
+    assert pick1["actual_return"] == 0.08
+    assert pick1["holding_days"] == 3
+
+    # Test Case 2: Custom Stop Loss (0.06) hits on Day 4 (with high target_gain=0.20)
+    res2 = backtest.run_time_machine(days_ago=5, limit=1, target_gain=0.20, stop_loss=0.06, holding_days=5)
+    pick2 = res2["top_picks"][0]
+    assert pick2["sniper_result"] == "STOP"
+    assert pick2["actual_return"] == -0.08
+    assert pick2["holding_days"] == 4
+
+    # Test Case 3: Custom Holding Days (2) exit on Day 2
+    res3 = backtest.run_time_machine(days_ago=5, limit=1, target_gain=0.20, stop_loss=0.10, holding_days=2)
+    pick3 = res3["top_picks"][0]
+    assert pick3["sniper_result"] == "PENDING"
+    assert pick3["holding_days"] == 2

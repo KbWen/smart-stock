@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCachedApi } from './useCachedApi'
 import { invalidateApiCache } from '../lib/apiClient'
 import { MOCK_MARKET_STATUS } from '../mockData'
@@ -41,6 +41,7 @@ export interface StockCandidate {
     trend?: number
     momentum?: number
     volatility?: number
+    sparkline?: { date: string; close: number }[]
 }
 
 export interface CandidateMeta {
@@ -62,6 +63,14 @@ export const useDashboardData = () => {
             throttleMs: 700,
         },
     )
+
+    const [syncStatus, setSyncStatus] = useState({
+        isSyncing: false,
+        total: 0,
+        current: 0,
+        failedCount: 0,
+        currentTicker: '',
+    })
 
     const riskColorClass = useMemo(() => {
         if (market.risk_level.includes('HIGH')) return 'text-red-500'
@@ -88,6 +97,65 @@ export const useDashboardData = () => {
         await refetchCandidates()
     }, [refetchCandidates])
 
+    const triggerSync = useCallback(async () => {
+        try {
+            setSyncStatus((prev) => ({ ...prev, isSyncing: true }))
+            await fetch('/api/sync', { method: 'POST' })
+        } catch (err) {
+            console.error('Failed to trigger sync', err)
+            setSyncStatus((prev) => ({ ...prev, isSyncing: false }))
+        }
+    }, [])
+
+    useEffect(() => {
+        let intervalId: any = null
+
+        const checkStatus = async () => {
+            try {
+                const res = await fetch('/api/sync/status')
+                if (res.ok) {
+                    const data = await res.json()
+                    const isNowSyncing = data.is_syncing
+
+                    setSyncStatus({
+                        isSyncing: isNowSyncing,
+                        total: data.total || 0,
+                        current: data.current || 0,
+                        failedCount: data.failed_count || 0,
+                        currentTicker: data.current_ticker || '',
+                    })
+
+                    if (isNowSyncing) {
+                        if (!intervalId) {
+                            intervalId = setInterval(checkStatus, 2000)
+                        }
+                    } else if (intervalId) {
+                        clearInterval(intervalId)
+                        intervalId = null
+                        // Refresh all views when sync finishes
+                        await refreshCandidates()
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch sync status', err)
+            }
+        }
+
+        // Check immediately on mount
+        void checkStatus()
+
+        // Also check if triggerSync has updated isSyncing to true
+        if (syncStatus.isSyncing && !intervalId) {
+            intervalId = setInterval(checkStatus, 2000)
+        }
+
+        return () => {
+            if (intervalId) {
+                clearInterval(intervalId)
+            }
+        }
+    }, [syncStatus.isSyncing, refreshCandidates])
+
     return {
         market,
         isLoading: isLoading || isPlaceholder,
@@ -96,6 +164,8 @@ export const useDashboardData = () => {
         lastUpdated,
         dbUpdatedAt,
         isDbStale,
-        refreshCandidates
+        refreshCandidates,
+        syncStatus,
+        triggerSync,
     }
 }

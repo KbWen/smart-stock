@@ -4,6 +4,7 @@ from backend.repositories.indicator_repo import IndicatorRepository
 from backend.repositories.score_repo import ScoreRepository
 from backend.repositories.stock_repo import StockRepository
 from core.ai import get_model_version
+from core.data import load_sparklines_from_db
 from core.utils import safe_float
 
 
@@ -52,6 +53,7 @@ class V4MetaService:
 
         indicators_map = self.indicator_repo.load_for_tickers(normalized)
         latest_scores = self.score_repo.load_latest_scores_for_tickers(normalized)
+        sparklines = load_sparklines_from_db(normalized, days=30)
 
         data: dict[str, dict[str, Any]] = {}
         for requested_ticker, normalized_ticker in requested_pairs:
@@ -86,6 +88,7 @@ class V4MetaService:
                     or get_model_version()
                 ),
                 "name": self.stock_repo.get_stock_name(normalized_ticker),
+                "sparkline": sparklines.get(normalized_ticker, []),
             }
 
         return {"data": data}
