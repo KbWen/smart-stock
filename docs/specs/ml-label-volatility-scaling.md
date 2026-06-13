@@ -1,5 +1,5 @@
 ---
-status: frozen
+status: shipped
 title: ML Label Redesign — Volatility (ATR)-Scaled Triple-Barrier Targets
 source: external
 source_doc: _product-backlog.md (#2)

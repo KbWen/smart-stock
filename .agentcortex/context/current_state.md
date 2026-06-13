@@ -13,7 +13,7 @@
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
 - **ADR Index**:
   - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
-- **Active Backlog**: `docs/specs/_product-backlog.md` (Optimization Round 2 — #3 data-completeness Shipped 2026-06-13 via PR #22; #2 ML-labels P0 + #1 onboarding P1 pending. Prior honesty-first backlog archived to `docs/specs/_product-backlog-honesty-first-2026-06-13.md`)
+- **Active Backlog**: `docs/specs/_product-backlog.md` (Optimization Round 2 — #3 data-completeness (PR #22) + #2 ML-labels (PR #23) Shipped 2026-06-13; #1 onboarding P1 pending. Prior honesty-first backlog archived to `docs/specs/_product-backlog-honesty-first-2026-06-13.md`)
   - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `docs/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
   - `[api-perf] docs/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
@@ -41,6 +41,7 @@
   - `[docs-sync] docs/specs/docs-reality-sync.md [Frozen] — ✅ ALL 6 ACs done (API_CONTRACT/README/ARCHITECTURE/TESTING/db-operations corrected 2026-06-13)`
   - `[fe-ci] docs/specs/frontend-ci.md [Frozen] — ✅ ALL 3 ACs done (Frontend CI: vitest + production build) [EXTENDS frontend-test] 2026-06-13`
   - `[data-universe] docs/specs/listed-otc-data-completeness.md [Frozen] — ✅ ALL 6 ACs done (live TWSE/TPEX universe sourcing + ETF inclusion + market/kind tags + history-coverage report/backfill; twstock demoted to fallback) 2026-06-13`
+  - `[ml-labels] docs/specs/ml-label-volatility-scaling.md [Frozen] — ✅ ALL 6 ACs done (ATR volatility-scaled triple-barrier labels fix degenerate-model root cause; LABEL_MODE atr/fixed toggle; label_analysis evidence tool. Validated label rebalancing 91/5/4→59.5/13.7/26.8; full-universe OOS NOT claimed — retrain pending) 2026-06-13`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.
@@ -78,6 +79,10 @@
 - [Sidecar Parity]: Whenever a `.pkl` model file is deleted (rotation or prune), also delete matching `.sha256`/`.sig` sidecars. trainer.py rotation and manage_models.py:cmd_delete must stay in sync on this.
 
 ## Ship History
+
+### Ship-feature-ml-label-redesign-2026-06-13
+- Feature shipped: ML label redesign (#2 of Optimization Round 2, P0) — PR #23 (stacked on #22). Replaced the fixed-percentage triple-barrier training labels (+15%/+10%/-5% over 20d) — which ignore per-stock volatility and produced the degenerate class distribution (dev data Hold 91.1% / Buy 4.9% / Strong 4.0%, low-vol stocks ~100% Hold) behind the Buy/StrongBuy precision=recall=0 finding — with **ATR volatility-scaled** barriers. `core/config.py` + `core/ai/common.py`: `LABEL_MODE` (default `atr`), `ATR_TARGET_MULT`/`ATR_BUY_MULT`/`ATR_STOP_MULT` (config = SSoT). `core/ai/trainer.py`: extracted `_compute_targets()` branching on mode; `atr` scales barriers by per-row ATR-14 at entry (no look-ahead), `fixed` reproduces legacy labels byte-for-byte (toggle to revert); NaN-ATR warm-up → Hold then dropped. `core/ai/label_analysis.py` (new): reproducible distribution-evidence tool. Independent fresh-agent review READY + honesty audit clean (no overclaim). **HONEST SCOPE**: validates label-distribution rebalancing only (91/5/4 → 59.5/13.7/26.8 via shipped tool); full-universe OOS precision/recall NOT claimed (dev DB = 6 tickers); existing saved models + live predictions unchanged; new labels affect only the next training run. Out of scope: backtest exit rules, model architecture, retrain.
+- Tests: Pass (Backend 201/201, +11 new; full suite green; 1 integration deselected)
 
 ### Ship-feature-data-universe-completeness-2026-06-13
 - Feature shipped: Listed/OTC universe & price-data completeness (#3 of Optimization Round 2) — PR #22. Replaced the stale `twstock` static list as the primary universe source with authoritative live TWSE STOCK_DAY_ALL (上市) + TPEX daily-close (上櫃) endpoints, promoted into a reusable `core/universe_source.py` (de-duplicating `fetch_stocks.py`). ETFs (00-prefixed, 4–6 digits) now included and tagged `kind`; warrants/rights excluded. `get_all_tw_stocks` rewritten as a 5-tier fallback chain (memory→fresh-file→live→twstock→stale) that never blanks a good cache on an empty fetch; entries gain additive `market`/`kind` keys (legacy caches load via `_normalize_loaded`). Added `refresh_stock_universe(force)`, `report_history_coverage()` (predict/train coverage vs MIN_PREDICT_ROWS/MIN_TRAIN_ROWS), `backfill_history()`. Independent fresh-agent adversarial review READY; 2 LOW latent defects found & fixed in-branch (None→"None" phantom ticker guard; TPEX volume column). Out of scope: ML training-set semantics (#2), intraday data, DB schema.
