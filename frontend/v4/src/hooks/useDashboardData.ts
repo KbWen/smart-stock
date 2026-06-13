@@ -9,6 +9,12 @@ export interface MarketHistory {
     ai_sentiment: number
 }
 
+export interface ModelHealth {
+    status: 'ok' | 'degraded' | 'unavailable'
+    version?: string
+    message: string
+}
+
 export interface MarketStatus {
     bull_ratio: number
     market_temp: number
@@ -16,6 +22,7 @@ export interface MarketStatus {
     risk_level: string
     total_stocks: number
     model_version: string
+    model_health?: ModelHealth
     history?: MarketHistory[]
 }
 
@@ -158,6 +165,7 @@ export const useDashboardData = () => {
 
     return {
         market,
+        modelHealth: market?.model_health ?? null,
         // On a persistent fetch error, isPlaceholder stays true forever; gate on
         // marketError so the UI breaks out of the skeleton into an honest error state.
         isLoading: (marketLoading || isPlaceholder) && !marketError,

@@ -73,3 +73,38 @@ class TestSaveScoreNullAiProb:
         rows = data.get_top_scores_from_db(limit=10)
         row = next(r for r in rows if r['ticker'] == "8888")
         assert row['ai_probability'] == 0.55
+
+
+class TestModelHealth:
+    """Spec: ui-model-state-disclosure.md — get_model_health assessment."""
+
+    def test_unavailable_when_version_unknown(self, monkeypatch):
+        import core.ai.predictor as predictor
+        monkeypatch.setattr(predictor, "get_model_version", lambda: "unknown")
+        h = predictor.get_model_health()
+        assert h["status"] == "unavailable"
+        assert h["message"]
+
+    def test_degraded_when_buy_signal_power_zero(self, monkeypatch):
+        import core.ai.predictor as predictor
+        monkeypatch.setattr(predictor, "get_model_version", lambda: "v4.test")
+        monkeypatch.setattr(predictor, "list_available_models", lambda: [
+            {"version": "v4.test", "oos_metrics": {
+                "accuracy": 0.94, "precision_buy": 0.0, "recall_buy": 0.0,
+                "precision_strong": 0.0, "recall_strong": 0.0}},
+        ])
+        h = predictor.get_model_health()
+        assert h["status"] == "degraded"
+        assert h["message"]
+
+    def test_ok_when_model_has_buy_power(self, monkeypatch):
+        import core.ai.predictor as predictor
+        monkeypatch.setattr(predictor, "get_model_version", lambda: "v4.good")
+        monkeypatch.setattr(predictor, "list_available_models", lambda: [
+            {"version": "v4.good", "oos_metrics": {
+                "precision_buy": 0.4, "recall_buy": 0.3,
+                "precision_strong": 0.2, "recall_strong": 0.1}},
+        ])
+        h = predictor.get_model_health()
+        assert h["status"] == "ok"
+        assert h["message"] == ""

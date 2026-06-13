@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react'
 import { Info } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
+import ModelHealthBanner from '../components/ModelHealthBanner'
 import { useCachedApi } from '../hooks/useCachedApi'
+import type { MarketStatus } from '../hooks/useDashboardData'
 
 interface StockTechnical {
     ticker: string
@@ -40,6 +42,11 @@ const Indicators: React.FC = () => {
         { ttlMs: 30_000, throttleMs: 1_000 },
     )
 
+    const { data: marketData } = useCachedApi<MarketStatus>(
+        '/api/market_status',
+        { ttlMs: 60_000, throttleMs: 600 },
+    )
+
     const stocks = useMemo<StockTechnical[]>(() =>
         (rawData ?? []).map((s) => ({
             ticker: s.ticker,
@@ -76,6 +83,7 @@ const Indicators: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            <ModelHealthBanner health={marketData?.model_health} />
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-white">
                     Technical Scanner

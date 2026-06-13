@@ -3,7 +3,7 @@ status: living
 title: Product Backlog — Honesty-First (Data-Consistent-With-Claims)
 source: 2026-06-13 multi-agent code audit
 created: 2026-06-13
-last_updated: 2026-06-13 (#1 done on branch; #2 spec frozen, In Progress)
+last_updated: 2026-06-13 (#1, #2 done on branch; #3 unblocked, next)
 ---
 
 # Product Backlog
@@ -16,7 +16,7 @@ Stage goal: a stable/simple/**data-consistent-with-its-claims** smart-stock — 
 |---|---|---|---|---|---|
 | 1 | Frontend honest data states — remove mock-as-live (mockData.ts fallback → loading/no-data/error states) | .agentcortex/specs/frontend-honest-data-states.md | feature | In Progress | — |
 | 2 | Backend failure-state honesty — predictor.py stops faking `ai_prob=0.0`; propagate null/no-data | .agentcortex/specs/backend-failure-state-honesty.md | feature | In Progress | — |
-| 3 | UI honest model-state disclosure — surface "model unready / low-confidence" instead of selling degenerate output | — | feature | Pending | #1, #2 |
+| 3 | UI honest model-state disclosure — surface "model unready / low-confidence" instead of selling degenerate output | .agentcortex/specs/ui-model-state-disclosure.md | feature | In Progress | #1, #2 |
 | 4 | Backtest metric label honesty — Sharpe rename/annotate, 9999→N/A, dynamic ±gain/-loss tooltips (EXTENDS backtest-and-performance-opt) | — | quick-win | Pending | — |
 | 5 | Docs ↔ reality sync — API_CONTRACT sync/trigger + backtest params, README auto-sync/10x/stock-count, ARCHITECTURE/TESTING fixes | — | quick-win | Pending | — |
 | 6 | Frontend tests into CI — enforce 44 vitest + production build (EXTENDS frontend-testing) | — | quick-win | Pending | — |

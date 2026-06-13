@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from core.ai import get_model_version
+from core.ai import get_model_version, get_model_health
 from core.market import get_market_status
 
 router = APIRouter()
@@ -12,5 +12,6 @@ def market_status():
 
     status = get_market_status()
     status["model_version"] = get_model_version()
+    status["model_health"] = get_model_health()
     status["history"] = get_market_history()
     return status
