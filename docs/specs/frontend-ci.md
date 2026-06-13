@@ -21,4 +21,4 @@ Make the "Frontend 44/44" quality gate real by running the frontend unit tests a
 - Coverage thresholds / gating on coverage.
 
 ## File Relationship
-EXTENDS .agentcortex/specs/frontend-testing.md
+EXTENDS docs/specs/frontend-testing.md

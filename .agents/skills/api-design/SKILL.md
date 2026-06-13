@@ -98,6 +98,14 @@ During /review:
 - [ ] Error messages don't leak internal details (stack traces, SQL, paths)
 - [ ] CORS configured per ADR policy
 
+## Heading-Scoped Read Note
+
+For phase-entry loading, read only:
+- `When to Apply`
+- `Checklist`
+
+Load `Conventions`, `Anti-Patterns`, and `References` on full read or cache miss only.
+
 ## Anti-Patterns
 
 - **God endpoint**: One endpoint that does everything based on query params. Split into specific endpoints.
@@ -110,6 +118,6 @@ During /review:
 
 ## References
 
-- Project ADR: `.agentcortex/adr/ADR-002-project-architecture.md` § API Design
+- Project ADR: `docs/adr/ADR-002-project-architecture.md` § API Design
 - Security guardrails: `.agent/rules/security_guardrails.md` (A01: Access Control, A03: Injection)
 - Spec template: `.agentcortex/templates/spec-app-feature.md` § API Contract

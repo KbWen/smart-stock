@@ -1,34 +1,41 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: "[BUG] "
+name: Bug Report
+about: Report a bug in Agentic OS framework behavior
+title: "[Bug] "
 labels: bug
 assignees: ''
-
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Description
 
-**To Reproduce**
-Steps to reproduce the behavior:
+A clear description of what the bug is.
 
-1. Go to '...'
-2. Click on '...'
-3. Scroll down to '...'
-4. See error
+## Environment
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+- **AI Platform**: (Claude Code / Antigravity / Codex / Cursor / Other)
+- **AI Model**: (your AI model + version, e.g., Claude Opus, Gemini Pro, GPT flagship)
+- **OS**: (macOS / Windows / Linux)
+- **Agentic OS Version**: (from `.agentcortex-manifest` or CITATION.cff)
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+## Steps to Reproduce
 
-**Environment (please complete the following information):**
+1. Run `/bootstrap` with task: "..."
+2. Classification result: ...
+3. Run `/plan` → ...
+4. Observed behavior: ...
 
-- OS: [e.g. Windows]
-- Python Version: [e.g. 3.9]
-- Browser [e.g. chrome, safari]
+## Expected Behavior
 
-**Additional context**
-Add any other context about the problem here.
+What should have happened.
+
+## Actual Behavior
+
+What actually happened. Include terminal output or Work Log excerpts if relevant.
+
+## Classification
+
+- [ ] Gate Engine (phase enforcement)
+- [ ] Skill Activation (wrong skill loaded / missing skill)
+- [ ] Deploy Script (install / update issues)
+- [ ] Documentation (incorrect / outdated reference)
+- [ ] Other

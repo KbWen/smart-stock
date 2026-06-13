@@ -1,6 +1,6 @@
 # 導入範例（Node.js / Python）
 
-本文件提供可直接複製的「真實專案導入」範例，幫助團隊在 Google Antigravity、Codex Web、Codex App 使用同一套 AgentCortex 流程。
+本文件提供可直接複製的「真實專案導入」範例，幫助團隊在 Google Antigravity、Codex Web、Codex App 使用同一套 Agentic OS 流程。
 
 ## 範例 A：Node.js API 專案
 
@@ -14,7 +14,7 @@
 1. 部署模板
 
 ```bash
-./deploy_brain.sh .
+./installers/deploy_brain.sh .
 ./.agentcortex/bin/validate.sh
 ```
 
@@ -34,9 +34,9 @@
 1. 依序執行
 
 - `/brainstorm`
-- `/write-plan`
+- `/plan`
 - `/test-skeleton` (TDD 推薦：實作前先出測試藍圖)
-- `/execute-plan`
+- `/implement`
 - `/review`
 - `/test`
 - `/ship`
@@ -62,7 +62,7 @@ npm run lint
 1. 部署模板
 
 ```bash
-./deploy_brain.sh .
+./installers/deploy_brain.sh .
 ./.agentcortex/bin/validate.sh
 ```
 
@@ -102,7 +102,7 @@ ruff check .
 
 - Codex Web：每次新需求開新對話，先貼 `/bootstrap` 範本。
 - Codex App：每次提交前固定跑 `./.agentcortex/bin/validate.sh`。
-- Google Antigravity：優先使用 `/write-plan` + `/execute-plan`，避免長 prompt 漂移。
+- Google Antigravity：優先使用 `/plan` + `/implement`，避免長 prompt 漂移。
 
 ## 延伸閱讀
 

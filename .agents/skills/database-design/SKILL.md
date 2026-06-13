@@ -78,6 +78,14 @@ During /review:
 - [ ] Backward compatibility: old code can still function until deployed together
 - [ ] Sensitive data columns identified (for encryption/hashing per security guardrails)
 
+## Heading-Scoped Read Note
+
+For phase-entry loading, read only:
+- `When to Apply`
+- `Checklist`
+
+Load `Conventions`, `Anti-Patterns`, and `References` on full read or cache miss only.
+
 ## Anti-Patterns
 
 - **Schema via ORM only**: Relying on ORM auto-sync without migration files. No rollback, no history, no review.
@@ -91,6 +99,6 @@ During /review:
 
 ## References
 
-- Project ADR: `.agentcortex/adr/ADR-002-project-architecture.md` § Database Design
+- Project ADR: `docs/adr/ADR-002-project-architecture.md` § Database Design
 - Security guardrails: `.agent/rules/security_guardrails.md` (A03: SQL Injection, A02: Secrets in connection strings)
 - Spec template: `.agentcortex/templates/spec-app-feature.md` § Database Schema

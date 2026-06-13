@@ -11,7 +11,7 @@ The core goal of upgrading to vNext: **"Transition from process-driven to state-
 ### Step 1: Code Update
 
 ```bash
-./deploy_brain.sh /path/to/project-a
+./installers/deploy_brain.sh /path/to/project-a
 ```
 
 > [!NOTE]
@@ -25,7 +25,7 @@ Instruct the AI to perform a migration scan:
 
 ```text
 Please run /bootstrap.
-We've just upgraded to vNext v3.5.2.
+We've just upgraded to Agentic OS v1.2.0.
 Please scan the project for existing documentation and perform the following:
 1. Identify scattered notes, specs, and ADRs; move them to correct directories and rename.
 2. Initialize .agentcortex/context/current_state.md.
@@ -36,8 +36,8 @@ The AI will automatically perform:
 
 | AI Logic | Action | Target Location |
 | :--- | :--- | :--- |
-| Historical ARCH decision records | Move & Name as `ADR-NNN-<topic>.md` | `.agentcortex/adr/` |
-| Feature specs or requirements | Move & Name as `<feature-name>.md` | `.agentcortex/specs/` |
+| Historical ARCH decision records | Move & Name as `ADR-NNN-<topic>.md` | `docs/adr/` |
+| Feature specs or requirements | Move & Name as `<feature-name>.md` | `docs/specs/` |
 | Ongoing task logs | Move & Name as `<branch-name>.md` | `.agentcortex/context/work/` |
 | Completed historical logs | Move & Name as original filename | `.agentcortex/context/archive/` |
 | Unclassifiable files | No action; list in report for review | Original location |
@@ -60,7 +60,7 @@ Focus: **"Catch-up; the AI organizes, no manual preprocessing needed."**
 ### Step 1: Environment Deployment
 
 ```bash
-./deploy_brain.sh /path/to/project-b
+./installers/deploy_brain.sh /path/to/project-b
 ```
 
 ### Step 2: Raw Material Processing & Archiving
@@ -71,7 +71,7 @@ Use vNext's automated processing capabilities. **No manual organization required
 Please run /bootstrap.
 Integration into an mid-development project.
 Please perform:
-1. Process the following raw discussion materials, extract specs to .agentcortex/specs/.
+1. Process the following raw discussion materials, extract specs to docs/specs/.
 2. Scan existing project files, automatically classify and move.
 3. Initialize .agentcortex/context/current_state.md.
 4. Create Work Logs for ongoing tasks.
@@ -84,7 +84,7 @@ Please perform:
 
 The AI will follow the vNext logic:
 
-1. **Extract Specs**: Convert raw materials into detailed specs in `.agentcortex/specs/<feature-name>.md`.
+1. **Extract Specs**: Convert raw materials into detailed specs in `docs/specs/<feature-name>.md`.
 2. **Scan Existing Files**: Identify scattered docs and determine classification/naming.
 3. **Output Migration Plan**: List all proposed moves/renames for user confirmation.
 4. **Establish Map**: Produce `.agentcortex/context/current_state.md` to describe the project overview.
@@ -92,7 +92,7 @@ The AI will follow the vNext logic:
 
 ### Regarding Directory Conflicts
 
-If the project already has a `docs/` directory (e.g., API docs, manuals), the template's `.agentcortex/context/`, `.agentcortex/specs/`, and `.agentcortex/adr/` directories will be isolated and **not** interfere with existing `docs/api/`, `docs/architecture/`, etc.
+If the project already has a `docs/` directory (e.g., API docs, manuals), the template's `.agentcortex/context/`, `docs/specs/`, and `docs/adr/` directories will be isolated and **not** interfere with existing `docs/api/`, `docs/architecture/`, etc.
 
 ---
 

@@ -12,34 +12,34 @@
   - Active Work Log Path: derive <worklog-key> from the raw branch name using filesystem-safe normalization before any gate checks.
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
 - **ADR Index**:
-  - `.agentcortex/adr/ADR-001-vnext-self-managed-architecture.md`
-- **Active Backlog**: none (honesty-first backlog `.agentcortex/specs/_product-backlog.md` — all 6 features Shipped 2026-06-13)
-  - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `.agentcortex/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
+  - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
+- **Active Backlog**: `docs/specs/_product-backlog.md` (honesty-first — all 6 features Shipped 2026-06-13)
+  - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `docs/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
-  - `[api-perf] .agentcortex/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
-  - `[backend] .agentcortex/specs/backend-refactor-modular.md [Frozen] — ✅ ALL 8 ACs done (schema parity tests added 2026-03-17)`
-  - `[frontend-api] .agentcortex/specs/frontend-api-opt.md [Frozen] — ✅ ALL 4 ACs done (E2E real render benchmark added 2026-03-18)`
-  - `[frontend-test] .agentcortex/specs/frontend-testing.md [Frozen] — ✅ ALL 6 ACs done (82.7% coverage confirmed 2026-03-22) [Updated: 2026-03-22]`
-  - `[cache] .agentcortex/specs/smart-stock-cache.md [Frozen] — ✅ ALL 5 ACs done (GlassCard+Button extracted 2026-03-17)`
-  - `[ml-rotation] .agentcortex/specs/ml-model-rotation.md [Frozen] — ✅ ALL 4 ACs done (profit_factor rotation + None guard + MAX_SAVED_MODELS + active model protection 2026-03-18)`
-  - `[fe-lazy] .agentcortex/specs/frontend-lazy-loading.md [Frozen] — ✅ ALL 4 ACs done (already implemented: App.tsx full-page lazy, MarketRisk inner Suspense, recharts in async chunks 2026-03-18)`
-  - `[meta-norm] .agentcortex/specs/meta-normalization.md [Frozen] — ✅ ALL 3 ACs done (single-pass normalization, route passes requested_pairs to service 2026-03-18)`
-  - `[predictor-ts] .agentcortex/specs/predictor-thread-safety.md [Frozen] — ✅ ALL 3 ACs done (threading.Lock + OrderedDict LRU cache maxsize=3 2026-03-18)`
-  - `[meta-tests] .agentcortex/specs/meta-service-tests.md [Frozen] — ✅ ALL 5 ACs done (23 new tests: _to_bool, signals, safe defaults, updated_at fallback 2026-03-18)`
-  - `[api-security] .agentcortex/specs/api-security-hardening.md [Frozen] — ✅ ALL 12 ACs done (path traversal, info-leak, rate limits, ticker validation, bare excepts, SHA256 integrity 2026-03-19)`
-  - `[audit-doc-test] .agentcortex/specs/audit-doc-test-supplement.md [Frozen] — ✅ ALL 9 ACs done (HMAC tests 9/9, model-signing.md, rate-limiting.md 2026-03-21)`
-  - `[visual-upgrade-p1] .agentcortex/specs/visual-upgrade-phase1.md [Frozen] — ✅ ALL 6 ACs done (history endpoint + PriceSignalChart + count-up animation 2026-03-27)`
-  - `[visual-upgrade-p2] .agentcortex/specs/visual-upgrade-phase2.md [Frozen] — ✅ ALL 7 ACs done (sparkline endpoint + SparklineChart + CandidateRow integration 2026-03-28)`
-  - `[onboarding] .agentcortex/specs/onboarding-optimization.md [Frozen] — ✅ ALL 4 ACs done (dev startup and limit sync optimized 2026-06-01)`
-  - `[frontend-ai] .agentcortex/specs/frontend-ai-optimization.md [Frozen] — ✅ ALL 4 ACs done (SVG sparklines, animations, glassmorphism, AI verification 2026-06-01)`
-  - `[core-ai-opt] .agentcortex/specs/ai-pipeline-otc-optimization.md [Frozen] — ✅ ALL 5 ACs done + US/Crypto suffix lookup fix 2026-06-02`
-  - `[backtest-perf] .agentcortex/specs/backtest-and-performance-opt.md [Frozen] — ✅ ALL 5 ACs done (batch query + transaction cost sliders + sharpe & drawdown metrics + CandidateRow optimization + dynamic strategy parameters + production build 2026-06-02)`
-  - `[honest-fe] .agentcortex/specs/frontend-honest-data-states.md [Frozen] — ✅ ALL 6 ACs done (removed mockData fallback; nullable useCachedApi; honest loading/no-data/error states 2026-06-13)`
-  - `[honest-be] .agentcortex/specs/backend-failure-state-honesty.md [Frozen] — ✅ ALL 6 ACs done (predict_prob None on failure; ai_prob NULL not fake 0.0; to_ai_percent; frontend N/A 2026-06-13)`
-  - `[model-state] .agentcortex/specs/ui-model-state-disclosure.md [Frozen] — ✅ ALL 4 ACs done (get_model_health + market_status.model_health + ModelHealthBanner 2026-06-13)`
-  - `[backtest-labels] .agentcortex/specs/backtest-metric-label-honesty.md [Frozen] — ✅ ALL 4 ACs done (profit_factor None not 9999; unannualized Sharpe relabel; dynamic tooltips) [EXTENDS backtest-perf] 2026-06-13`
-  - `[docs-sync] .agentcortex/specs/docs-reality-sync.md [Frozen] — ✅ ALL 6 ACs done (API_CONTRACT/README/ARCHITECTURE/TESTING/db-operations corrected 2026-06-13)`
-  - `[fe-ci] .agentcortex/specs/frontend-ci.md [Frozen] — ✅ ALL 3 ACs done (Frontend CI: vitest + production build) [EXTENDS frontend-test] 2026-06-13`
+  - `[api-perf] docs/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
+  - `[backend] docs/specs/backend-refactor-modular.md [Frozen] — ✅ ALL 8 ACs done (schema parity tests added 2026-03-17)`
+  - `[frontend-api] docs/specs/frontend-api-opt.md [Frozen] — ✅ ALL 4 ACs done (E2E real render benchmark added 2026-03-18)`
+  - `[frontend-test] docs/specs/frontend-testing.md [Frozen] — ✅ ALL 6 ACs done (82.7% coverage confirmed 2026-03-22) [Updated: 2026-03-22]`
+  - `[cache] docs/specs/smart-stock-cache.md [Frozen] — ✅ ALL 5 ACs done (GlassCard+Button extracted 2026-03-17)`
+  - `[ml-rotation] docs/specs/ml-model-rotation.md [Frozen] — ✅ ALL 4 ACs done (profit_factor rotation + None guard + MAX_SAVED_MODELS + active model protection 2026-03-18)`
+  - `[fe-lazy] docs/specs/frontend-lazy-loading.md [Frozen] — ✅ ALL 4 ACs done (already implemented: App.tsx full-page lazy, MarketRisk inner Suspense, recharts in async chunks 2026-03-18)`
+  - `[meta-norm] docs/specs/meta-normalization.md [Frozen] — ✅ ALL 3 ACs done (single-pass normalization, route passes requested_pairs to service 2026-03-18)`
+  - `[predictor-ts] docs/specs/predictor-thread-safety.md [Frozen] — ✅ ALL 3 ACs done (threading.Lock + OrderedDict LRU cache maxsize=3 2026-03-18)`
+  - `[meta-tests] docs/specs/meta-service-tests.md [Frozen] — ✅ ALL 5 ACs done (23 new tests: _to_bool, signals, safe defaults, updated_at fallback 2026-03-18)`
+  - `[api-security] docs/specs/api-security-hardening.md [Frozen] — ✅ ALL 12 ACs done (path traversal, info-leak, rate limits, ticker validation, bare excepts, SHA256 integrity 2026-03-19)`
+  - `[audit-doc-test] docs/specs/audit-doc-test-supplement.md [Frozen] — ✅ ALL 9 ACs done (HMAC tests 9/9, model-signing.md, rate-limiting.md 2026-03-21)`
+  - `[visual-upgrade-p1] docs/specs/visual-upgrade-phase1.md [Frozen] — ✅ ALL 6 ACs done (history endpoint + PriceSignalChart + count-up animation 2026-03-27)`
+  - `[visual-upgrade-p2] docs/specs/visual-upgrade-phase2.md [Frozen] — ✅ ALL 7 ACs done (sparkline endpoint + SparklineChart + CandidateRow integration 2026-03-28)`
+  - `[onboarding] docs/specs/onboarding-optimization.md [Frozen] — ✅ ALL 4 ACs done (dev startup and limit sync optimized 2026-06-01)`
+  - `[frontend-ai] docs/specs/frontend-ai-optimization.md [Frozen] — ✅ ALL 4 ACs done (SVG sparklines, animations, glassmorphism, AI verification 2026-06-01)`
+  - `[core-ai-opt] docs/specs/ai-pipeline-otc-optimization.md [Frozen] — ✅ ALL 5 ACs done + US/Crypto suffix lookup fix 2026-06-02`
+  - `[backtest-perf] docs/specs/backtest-and-performance-opt.md [Frozen] — ✅ ALL 5 ACs done (batch query + transaction cost sliders + sharpe & drawdown metrics + CandidateRow optimization + dynamic strategy parameters + production build 2026-06-02)`
+  - `[honest-fe] docs/specs/frontend-honest-data-states.md [Frozen] — ✅ ALL 6 ACs done (removed mockData fallback; nullable useCachedApi; honest loading/no-data/error states 2026-06-13)`
+  - `[honest-be] docs/specs/backend-failure-state-honesty.md [Frozen] — ✅ ALL 6 ACs done (predict_prob None on failure; ai_prob NULL not fake 0.0; to_ai_percent; frontend N/A 2026-06-13)`
+  - `[model-state] docs/specs/ui-model-state-disclosure.md [Frozen] — ✅ ALL 4 ACs done (get_model_health + market_status.model_health + ModelHealthBanner 2026-06-13)`
+  - `[backtest-labels] docs/specs/backtest-metric-label-honesty.md [Frozen] — ✅ ALL 4 ACs done (profit_factor None not 9999; unannualized Sharpe relabel; dynamic tooltips) [EXTENDS backtest-perf] 2026-06-13`
+  - `[docs-sync] docs/specs/docs-reality-sync.md [Frozen] — ✅ ALL 6 ACs done (API_CONTRACT/README/ARCHITECTURE/TESTING/db-operations corrected 2026-06-13)`
+  - `[fe-ci] docs/specs/frontend-ci.md [Frozen] — ✅ ALL 3 ACs done (Frontend CI: vitest + production build) [EXTENDS frontend-test] 2026-06-13`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.

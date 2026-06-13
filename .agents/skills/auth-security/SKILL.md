@@ -115,6 +115,15 @@ During /test:
 - [ ] Test: rate limit triggers after N failures
 - [ ] Test: password change invalidates old tokens
 
+## Heading-Scoped Read Note
+
+For phase-entry loading, read only:
+- `When to Apply`
+- `Relationship to Security Guardrails`
+- `Checklist`
+
+Load `Conventions`, `Anti-Patterns`, and `References` on full read or cache miss only.
+
 ## Anti-Patterns
 
 - **JWT in localStorage**: Vulnerable to XSS. Use httpOnly cookies or in-memory only.
@@ -129,7 +138,7 @@ During /test:
 
 ## References
 
-- Project ADR: `.agentcortex/adr/ADR-002-project-architecture.md` § Auth & Security
+- Project ADR: `docs/adr/ADR-002-project-architecture.md` § Auth & Security
 - Security guardrails: `.agent/rules/security_guardrails.md` (A01, A02, A07 — primary references)
 - Red team skill: `.agents/skills/red-team-adversarial/SKILL.md` (auth bypass testing)
 - Spec template: `.agentcortex/templates/spec-app-feature.md` § Auth & Permissions
