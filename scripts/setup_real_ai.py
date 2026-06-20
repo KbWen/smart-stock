@@ -72,7 +72,10 @@ def setup_real_ai(days: int = 400, listed_only: bool = False, min_tickers: int =
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Opt-in: backfill + train + recalc for real AI (v1 #5).")
-    ap.add_argument("--days", type=int, default=400, help="Weekdays to backfill (default 400, ~1.5y).")
+    ap.add_argument("--days", type=int, default=1100,
+                    help="Weekdays to backfill (default 1100, ~4y). A usable model needs ~1000+ "
+                         "rows/ticker (the OOS scale); far fewer rows => a degenerate/weak model "
+                         "that model_health discloses honestly. Expect ~15-20 min at the default.")
     ap.add_argument("--listed-only", action="store_true", help="TWSE listed only (skip TPEX/OTC).")
     ap.add_argument("--min-tickers", type=int, default=50,
                     help="Minimum trainable tickers before training runs (default 50).")
