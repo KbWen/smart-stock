@@ -91,3 +91,16 @@ def test_seed_demo_missing_fixture_raises(monkeypatch, tmp_path):
     _fresh_db(monkeypatch, tmp_path)
     with pytest.raises(FileNotFoundError):
         seed_demo.seed(force=True, fixture=str(tmp_path / "nope.csv"))
+
+
+def test_demo_fixture_has_credible_largecap_set():
+    """The bundled demo fixture features recognizable large-cap TWSE names (not an
+    obscure handful) so the first-run 'Top Candidates' looks credible (v1 #2)."""
+    df = pd.read_csv(seed_demo.FIXTURE, dtype={"ticker": str})
+    tickers = set(df["ticker"].unique())
+    assert len(tickers) >= 12, f"expected a credible demo set, got {len(tickers)} tickers"
+    # household names that should anchor the demo
+    for code in ("2330", "2317", "2454", "2412"):
+        assert code in tickers, f"missing recognizable ticker {code}"
+    # enough history per ticker for technical indicators + a meaningful chart
+    assert df.groupby("ticker").size().min() >= 200
