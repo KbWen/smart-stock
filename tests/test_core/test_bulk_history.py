@@ -88,3 +88,29 @@ def test_backfill_bulk_assembles_per_ticker_and_saves():
     df = saved["2330"]
     assert list(df.columns) == ["date", "open", "high", "low", "close", "volume"]
     assert len(df) == 3  # 3 weekdays, one row each, distinct dates
+
+
+def test_backfill_reports_save_failures_honestly():
+    """A saver that fails the way save_to_db does (returns 0, swallows error)
+    must NOT be counted as saved — the report cannot over-state persistence."""
+    twse = _twse_payload([["2330", "台積電", "100", "1", "1", "10.0", "11.0", "9.0", "10.5", "+"]])
+
+    class _Http:
+        def get(self, url, **kw):
+            return _Resp(payload=twse) if "MI_INDEX" in url else _Resp(content=b"")
+
+    res = bh.backfill_bulk(days=2, save_fn=lambda code, df: 0, http=_Http(), end=datetime(2026, 6, 17))
+    assert res["tickers"] == 0       # nothing confirmed saved
+    assert res["rows"] == 0
+    assert res["save_failures"] == 1  # the failed ticker is surfaced, not hidden
+
+
+def test_parse_twse_skips_decoy_table_with_matching_fields_but_no_rows():
+    """A decoy table with 證券代號+開盤 fields but only short/empty rows must not
+    short-circuit selection of the real per-stock table that follows."""
+    payload = {"stat": "OK", "tables": [
+        {"fields": ["證券代號", "開盤價"], "data": [["x", "1"]]},  # < 9 cols -> no rows
+        {"fields": TWSE_FIELDS, "data": [["2330", "台積電", "100", "1", "1", "10.0", "11.0", "9.0", "10.5", "+"]]},
+    ]}
+    out = bh.parse_twse_mi_index(payload, "2026-06-17")
+    assert {r["code"] for r in out} == {"2330"}

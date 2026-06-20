@@ -80,13 +80,16 @@ def parse_twse_mi_index(payload: Dict[str, Any], date: str) -> List[Dict[str, An
         fields = [str(f) for f in (table.get("fields") or [])]
         if not (any("證券代號" in f for f in fields) and any("開盤" in f for f in fields)):
             continue
+        table_rows: List[Dict[str, Any]] = []
         for r in table.get("data") or []:
             if len(r) < 9:
                 continue
             row = _row(r[0], date, r[5], r[6], r[7], r[8], r[2])
             if row:
-                rows.append(row)
-        break
+                table_rows.append(row)
+        if table_rows:  # only accept a matching table that actually yielded stock rows
+            rows.extend(table_rows)
+            break
     return rows
 
 
@@ -179,13 +182,30 @@ def backfill_bulk(
             sleep_fn()
 
     total_rows = 0
+    tickers_saved = 0
+    save_failures = 0
     for code, recs in by_ticker.items():
         df = pd.DataFrame(recs).sort_values("date").drop_duplicates("date", keep="last")
-        save_fn(code, df[["date", "open", "high", "low", "close", "volume"]])
-        total_rows += len(df)
+        cols = df[["date", "open", "high", "low", "close", "volume"]]
+        written = save_fn(code, cols)
+        # Honest accounting: core.data.save_to_db returns rows actually written
+        # (0 on a swallowed DB error). A saver that returns None (e.g. a test
+        # stub) is trusted. Count only CONFIRMED saves so the report can never
+        # over-state persistence.
+        n = len(cols) if written is None else int(written)
+        if n > 0:
+            total_rows += n
+            tickers_saved += 1
+        elif len(cols) > 0:
+            save_failures += 1
 
     logger.info(
-        "bulk backfill complete: %d tickers, %d rows, %d trading days",
-        len(by_ticker), total_rows, days_with_data,
+        "bulk backfill complete: %d tickers saved, %d rows, %d trading days, %d save failures",
+        tickers_saved, total_rows, days_with_data, save_failures,
     )
-    return {"tickers": len(by_ticker), "rows": total_rows, "days_with_data": days_with_data}
+    return {
+        "tickers": tickers_saved,
+        "rows": total_rows,
+        "days_with_data": days_with_data,
+        "save_failures": save_failures,
+    }

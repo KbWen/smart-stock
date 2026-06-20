@@ -35,8 +35,11 @@ def main(argv=None):
     init_db()
     print(f"[fast_backfill] backfilling ~{args.days} weekdays via TWSE/TPEX bulk endpoints (raw prices)...")
     res = backfill_bulk(days=args.days, listed_only=args.listed_only, sleep_fn=lambda: time.sleep(0.2))
-    print(f"[fast_backfill] done: {res['tickers']} tickers, {res['rows']} rows, "
-          f"{res['days_with_data']} trading days.")
+    msg = (f"[fast_backfill] done: {res['tickers']} tickers, {res['rows']} rows saved, "
+           f"{res['days_with_data']} trading days.")
+    if res.get("save_failures"):
+        msg += f" WARNING: {res['save_failures']} tickers failed to persist (see logs)."
+    print(msg)
     print("[fast_backfill] Next: python backend/recalculate.py (or restart the backend) to compute scores.")
     return 0 if res["tickers"] > 0 else 1
 
