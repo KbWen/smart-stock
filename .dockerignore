@@ -1,0 +1,33 @@
+# Build deps / artifacts — rebuilt inside the image (stage 1 runs npm ci + build)
+**/node_modules
+frontend/v4/dist
+
+# Local runtime state — must NEVER be baked into the image.
+# The dev DB defaults to the repo ROOT (config.py DB_PATH = BASE_DIR/storage.db),
+# so exclude the root path as well as the data/ variant.
+storage.db
+storage.db-shm
+storage.db-wal
+data/storage.db
+data/storage.db-*
+*.pkl
+*.sha256
+*.sig
+logs/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# VCS / governance / dev tooling — not needed at runtime, huge context savings
+.git
+.github
+.githooks
+.agentcortex
+.agent
+.antigravity
+.claude
+.codex
+.gemini
+docs
+tests
+*.md

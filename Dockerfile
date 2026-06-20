@@ -29,8 +29,17 @@ COPY core/ ./core/
 COPY backend/ ./backend/
 COPY fetch_stocks.py ./
 
+# Bundle the offline demo fixture + seed script so the container self-seeds a
+# populated dashboard on first boot (no empty dashboard, no network needed).
+COPY scripts/ ./scripts/
+COPY data/demo/ ./data/demo/
+
 # Copy built frontend from stage 1
 COPY --from=frontend-build /app/frontend/v4/dist ./frontend/v4/dist
+
+# Seed-then-serve entrypoint (strip CR so a CRLF-authored file still runs in sh)
+COPY docker-entrypoint.sh ./
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 # Create data directories (override with volumes in production)
 RUN mkdir -p /app/data /app/logs
@@ -43,4 +52,5 @@ ENV DB_PATH=/app/data/storage.db \
 
 EXPOSE 8000
 
-CMD ["python", "backend/main.py"]
+# Seed the bundled offline demo (idempotent), then serve on :8000.
+ENTRYPOINT ["./docker-entrypoint.sh"]

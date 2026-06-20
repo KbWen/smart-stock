@@ -19,7 +19,7 @@ After Optimization Round 2 shipped (archived to `_product-backlog-optimization-r
 | 3 | Legible honest first-run UX — reframe AI N/A as "示範模式/尚未訓練", demo-mode badge, 繁中-ize scattered English UI, guard the sync button, first-run explainer (⚠️ §4.4 design-gate) | feature | ui, onboarding | P1 | docs/specs/honest-first-run-ux.md | feature | Shipped | #2 (soft) |
 | 4 | Accelerated full-universe history sync — switch full-universe backfill from per-stock yfinance to authoritative TWSE/TPEX per-day bulk endpoints (fewer calls, cleaner licensing, no redistribution); keep yfinance as fallback | feature | data | P1 | docs/specs/accelerated-universe-sync.md | feature | Shipped | — |
 | 5 | Real-AI first-run — opt-in quickstart step to sync the full universe (via #4) then train, so AI is populated not N/A; N/A stays the no-model default; do NOT bundle a `.pkl` | feature | ml, onboarding, data | P1 | docs/specs/real-ai-first-run.md | feature | Shipped | #4, #1 (soft) |
-| 6 | Docker self-seed + `.dockerignore` — COPY demo+scripts, entrypoint seeds before serving, handle compose volume shadowing; containerized one-command self-install | feature | onboarding, infra | P1 | — | feature | Pending | #1 (soft) |
+| 6 | Docker self-seed + `.dockerignore` — COPY demo+scripts, entrypoint seeds before serving, handle compose volume shadowing; containerized one-command self-install | feature | onboarding, infra | P1 | docs/specs/docker-self-seed.md | feature | Shipped | #1 (soft) |
 
 ## Column Reference
 - **Kind**: `feature` (planned) · `quick-win` (small planned) · `review-finding` (surfaced by review/audit) · `hotfix-spawn` (systemic issue from hotfix)
