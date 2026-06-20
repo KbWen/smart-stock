@@ -13,7 +13,7 @@
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
 - **ADR Index**:
   - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
-- **Active Backlog**: `docs/specs/_product-backlog.md` (Directly-Usable v1 — #1 one-command launch **Shipped 2026-06-20**; #2–#6 pending. Self-install distribution, full-universe via accelerated live sync, no public hosting. Prior Optimization Round 2 backlog archived to `docs/specs/_product-backlog-optimization-round2-2026-06-13.md`)
+- **Active Backlog**: `docs/specs/_product-backlog.md` (Directly-Usable v1 — #1 launch + #2 credible demo data **Shipped 2026-06-20**; #3–#6 pending. Self-install distribution, full-universe via accelerated live sync, no public hosting. Prior Optimization Round 2 backlog archived to `docs/specs/_product-backlog-optimization-round2-2026-06-13.md`)
   - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `docs/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
   - `[api-perf] docs/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
@@ -84,6 +84,10 @@
 - [Claim vs Real Target]: Verify "it works" against the REAL target scenario, not the local dev state. The onboarding "populated dashboard" claim was false for a fresh clone (gitignored storage.db/model) until a recalc model-gating bug was fixed — local dev had a model so it masked the gap.
 
 ## Ship History
+
+### Ship-quickwin-credible-demo-dataset-2026-06-20
+- Quick-win shipped: Credible demo dataset (#2 of Directly-Usable v1). Replaced the 6 obscure demo tickers (1240/1259/1264/1268/1336 + 2330) with 15 recognizable large-cap TWSE names (2330 台積電, 2317 鴻海, 2454 聯發科, 2412 中華電, 2882 國泰金, 2308 台達電, 2303 聯電, 2881 富邦金, 1301 台塑, 2002 中鋼, 2603 長榮, 3008 大立光, 2891 中信金, 2886 兆豐金, 1216 統一) so the first-run "Top Candidates" looks credible instead of broken. Added reproducible maintainer tool `scripts/gen_demo_fixture.py` that fetches REAL auto-adjusted prices via yfinance and rewrites `data/demo/demo_prices.csv` (15 tickers × 485 rows, 2024-06→2026-06, 362 KB); the demo runtime (`seed_demo.py`) stays fully offline. Honesty preserved (real prices, never synthesized; AI still NULL without a model). EXTENDS onboarding-quickstart.
+- Tests: Pass (Backend 212/212, +1 credible-set test; offline seed verified → 15 score rows, top picks 2454/1216/2303; full suite green, 1 integration deselected)
 
 ### Ship-feature-onboarding-single-command-launch-2026-06-20
 - Feature shipped: One-command launch + single-port served frontend (#1 of Directly-Usable v1, P0). A fresh clone was forced into a two-terminal, two-port setup (Vite dev :5173 + backend :8000) because `quickstart` never built the frontend, so the backend's existing `frontend/v4/dist` serving path 404'd. Now `quickstart.ps1`/`.sh` run `npm ci && npm run build` (graceful if Node absent); the backend serves the built SPA at a single URL (http://localhost:8000) via the existing `read_index` plus a new `spa_fallback` catch-all (`backend/main.py`) returning index.html for react-router deep links (/backtest, /risk, /indicators) while excluding `/api`, `/assets`, `/static` (bare + prefixed) so it never shadows them. `start.bat`/`start.sh` repurposed to single-port launch; new `start.ps1` for PowerShell parity (maintainer is on PowerShell); README reordered (offline single-URL primary, full yfinance sync demoted to optional/slow); the two-terminal dev workflow (`npm run dev`) is preserved and documented. Independent fresh-agent adversarial review READY (2 LOW findings fixed in-branch: bare reserved-segment 404, start.ps1 parity). Honesty-first unchanged (AI stays N/A; no data/model behavior touched). Out of scope: Docker self-seed (#6), demo-data swap (#2), UX legibility (#3), data-sync acceleration (#4), real-AI first-run (#5).
