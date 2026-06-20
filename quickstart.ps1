@@ -31,7 +31,7 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
 Write-Host ""
 Write-Host "[4/4] Ready. Launch the app (single URL):"
 Write-Host "    python backend/main.py      ->  http://localhost:8000"
-Write-Host "  (or just run .\start.bat)"
+Write-Host "  (or just run .\start.ps1)"
 Write-Host ""
 Write-Host "Note: no AI model is bundled, so AI probability shows N/A until you run"
 Write-Host "      'python backend/train_ai.py' to train one. Technical scores work offline now."

@@ -46,6 +46,14 @@ def test_spa_fallback_does_not_shadow_unknown_api():
     assert not _looks_like_html(response.text)
 
 
+def test_spa_fallback_404s_bare_reserved_segments():
+    """Bare /api, /assets, /static (no trailing slash) must 404, not serve HTML."""
+    for segment in ("/api", "/assets", "/static"):
+        response = client.get(segment)
+        assert response.status_code == 404, segment
+        assert not _looks_like_html(response.text), segment
+
+
 def test_known_api_route_still_works():
     """The catch-all must not break a real API route registered before it."""
     response = client.get("/api/health")

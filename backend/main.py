@@ -113,7 +113,9 @@ app.include_router(system_router)
 # paths are excluded so this catch-all can never mask them.
 @app.get("/{full_path:path}")
 async def spa_fallback(full_path: str):
-    if full_path.startswith(("api/", "assets/", "static/")):
+    if full_path in ("api", "assets", "static") or full_path.startswith(
+        ("api/", "assets/", "static/")
+    ):
         raise HTTPException(status_code=404, detail="Not found")
     return await read_index()
 
