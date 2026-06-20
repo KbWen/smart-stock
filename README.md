@@ -115,6 +115,8 @@ python backend/main.py
 
 *(同步過程約需 10-15 分鐘，請耐心等候)*
 
+> **⚡ 更快的全市場回補**：`python scripts/fast_backfill.py --days 180` 改用 TWSE/TPEX 官方**逐日批次**端點（一次呼叫取一日全市場 OHLCV），比逐檔 yfinance 快很多。注意：此來源為**未還原**價（非除權息調整），與 yfinance 調整後價不同，但整個 DB 內部一致。回補後執行 `python backend/recalculate.py` 計算分數。
+
 ### 3. 每日自動更新 (日常維運)
 
 直接執行自動化腳本，系統會執行「資料同步 -> 利用現有AI進行預測 -> 分數重算」流程：

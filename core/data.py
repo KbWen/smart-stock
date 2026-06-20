@@ -512,7 +512,7 @@ def get_stock_name(ticker: str) -> Optional[str]:
     return name_map.get(code_only)
 
 def save_to_db(ticker, df):
-    if df.empty: return
+    if df.empty: return 0
     
     conn = get_db_connection()
     try:
@@ -532,8 +532,10 @@ def save_to_db(ticker, df):
             VALUES (:ticker, :date, :open, :high, :low, :close, :volume)
         ''', records)
         conn.commit()
+        return len(records)
     except Exception as e:
         logger.error("DB error while saving price history", extra={"ticker": ticker, "error": str(e)})
+        return 0
     finally:
         conn.close()
 
