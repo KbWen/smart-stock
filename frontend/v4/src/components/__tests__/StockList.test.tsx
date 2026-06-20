@@ -137,13 +137,13 @@ describe('StockList — rendering', () => {
             return { data: { data: {} }, loading: false, error: null, isPlaceholder: false, refetch: vi.fn() }
         })
         render(<StockList onSelect={() => {}} selectedTicker={null} />)
-        expect(screen.getByText(/Scanning AI Models/i)).toBeInTheDocument()
+        expect(screen.getByText(/正在掃描 AI 模型/)).toBeInTheDocument()
     })
 
     it('shows empty state when no candidates', () => {
         setupMock({ candidates: [] })
         render(<StockList onSelect={() => {}} selectedTicker={null} />)
-        expect(screen.getByText(/No candidates found/i)).toBeInTheDocument()
+        expect(screen.getByText(/目前沒有候選標的/)).toBeInTheDocument()
     })
 
     it('shows an honest connection-error state when candidates fail to load', () => {

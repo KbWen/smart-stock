@@ -12,10 +12,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const appVersion = import.meta.env.VITE_APP_VERSION || '2026.02.14'
 
     const navItems = [
-        { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-        { path: '/backtest', label: 'AI Backtest', icon: LineChart },
-        { path: '/risk', label: 'Market Risk', icon: Activity },
-        { path: '/indicators', label: 'Scanner', icon: Scan },
+        { path: '/', label: '儀表板', icon: LayoutDashboard },
+        { path: '/backtest', label: 'AI 回測', icon: LineChart },
+        { path: '/risk', label: '市場風險', icon: Activity },
+        { path: '/indicators', label: '選股雷達', icon: Scan },
     ]
 
     return (

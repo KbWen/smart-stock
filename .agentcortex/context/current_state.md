@@ -13,7 +13,7 @@
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
 - **ADR Index**:
   - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
-- **Active Backlog**: `docs/specs/_product-backlog.md` (Directly-Usable v1 — #1 launch + #2 credible demo data **Shipped 2026-06-20**; #3–#6 pending. Self-install distribution, full-universe via accelerated live sync, no public hosting. Prior Optimization Round 2 backlog archived to `docs/specs/_product-backlog-optimization-round2-2026-06-13.md`)
+- **Active Backlog**: `docs/specs/_product-backlog.md` (Directly-Usable v1 — #1 launch + #2 demo data + #3 honest first-run UX **Shipped 2026-06-20**; #4–#6 pending. Self-install distribution, full-universe via accelerated live sync, no public hosting. Prior Optimization Round 2 backlog archived to `docs/specs/_product-backlog-optimization-round2-2026-06-13.md`)
   - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `docs/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
   - `[api-perf] docs/specs/api-refactor-perf.md [Frozen] — ✅ ALL 5 ACs done (batch benchmark test added 2026-03-17)`
@@ -45,6 +45,7 @@
   - `[onboarding-qs] docs/specs/onboarding-quickstart.md [Frozen] — ✅ ALL 6 ACs done (offline demo fixture data/demo/demo_prices.csv + idempotent scripts/seed_demo.py + quickstart.sh/.ps1 + README; recalc gating fix so no-model fresh clone gets technical scores w/ honest NULL AI) 2026-06-13`
   - `[ml-oos-eval] docs/specs/ml-label-oos-evaluation.md [Reference] — OOS eval of atr vs fixed on 92-ticker expanded data (scripts/eval_label_modes.py). HONEST: degeneracy did NOT reproduce at scale (small-data artifact); atr modestly better on StrongBuy (P .339→.363, R .424→.518); absolute precision still low; ~5% universe, not full. 2026-06-13`
   - `[onboarding-launch] docs/specs/onboarding-single-command-launch.md [Frozen] — ✅ ALL 6 ACs done (quickstart builds UI; backend serves built SPA single-port :8000 + react-router deep-link fallback excl. /api,/assets,/static; .ps1/.bat/.sh parity incl. new start.ps1; README reorder; honesty-first unchanged) [EXTENDS onboarding-quickstart] 2026-06-20`
+  - `[honest-ux] docs/specs/honest-first-run-ux.md [Frozen] — ✅ ALL 6 ACs done (繁中 nav/states; demo "示範模式" badge from model_health; AI N/A reframed + Tooltip; sync confirm; backend AI Analyst localized; +4 Dashboard tests; design-gate screenshot-verified) [EXTENDS frontend-honest-data-states + ui-model-state-disclosure] 2026-06-20`
   - When reading specs: only open files tagged with the current task's module.
 - **Canonical Commands**:
   - `/spec-intake`: Import external specs (from other LLMs, documents, or natural language). Handles large product specs via decomposition. Runs before `/bootstrap`.
@@ -84,6 +85,10 @@
 - [Claim vs Real Target]: Verify "it works" against the REAL target scenario, not the local dev state. The onboarding "populated dashboard" claim was false for a fresh clone (gitignored storage.db/model) until a recalc model-gating bug was fixed — local dev had a model so it masked the gap.
 
 ## Ship History
+
+### Ship-feature-honest-first-run-ux-2026-06-20
+- Feature shipped: Legible honest first-run UX (#3 of Directly-Usable v1, P1, UI/design-gated). Made the honest no-model/demo state read as an intentional demo instead of "broken": Traditional-Chinese sidebar nav (儀表板/AI 回測/市場風險/選股雷達) + SniperCard/StockList empty/loading/error states + backend AI Analyst (`v4_stock_detail_service`: 6 trend/RSI/signal phrases + neutral fallback, both code paths); a "示範模式 · AI 未訓練" demo badge in the dashboard header keyed off the existing `model_health.status==='unavailable'`; AI "N/A" reframed inline with a `Tooltip` ("尚未訓練 AI 模型…" / "尚未訓練模型") in `ScoreBreakdown` + `CandidateRow` (value stays honestly absent — never a fake number); the full-market sync button now gated behind a `window.confirm` warning of the ~10–15 min run. Reused the existing dark glassmorphism design system + `Tooltip` (no new visual language); §4.4 design-gate satisfied via documented deltas + a real-server Playwright screenshot. Independent fresh-agent adversarial review READY; one MEDIUM (badge + sync-confirm had no test) closed in-branch with a new `Dashboard.test.tsx` (4 tests). Honesty-first preserved (no data/model/scoring change). Out of scope: data-sync acceleration (#4), real-AI first-run (#5), Docker (#6), full app i18n.
+- Tests: Pass (Backend 212/212; Frontend 57/57, +4 Dashboard badge/sync tests; full suite green, 1 integration deselected; build ✓; e2e demo-state screenshot verified)
 
 ### Ship-quickwin-credible-demo-dataset-2026-06-20
 - Quick-win shipped: Credible demo dataset (#2 of Directly-Usable v1). Replaced the 6 obscure demo tickers (1240/1259/1264/1268/1336 + 2330) with 15 recognizable large-cap TWSE names (2330 台積電, 2317 鴻海, 2454 聯發科, 2412 中華電, 2882 國泰金, 2308 台達電, 2303 聯電, 2881 富邦金, 1301 台塑, 2002 中鋼, 2603 長榮, 3008 大立光, 2891 中信金, 2886 兆豐金, 1216 統一) so the first-run "Top Candidates" looks credible instead of broken. Added reproducible maintainer tool `scripts/gen_demo_fixture.py` that fetches REAL auto-adjusted prices via yfinance and rewrites `data/demo/demo_prices.csv` (15 tickers × 485 rows, 2024-06→2026-06, 362 KB); the demo runtime (`seed_demo.py`) stays fully offline. Honesty preserved (real prices, never synthesized; AI still NULL without a model). EXTENDS onboarding-quickstart.

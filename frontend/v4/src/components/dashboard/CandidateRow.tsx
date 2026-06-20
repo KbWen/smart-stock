@@ -2,6 +2,7 @@ import React, { memo } from 'react'
 import type { StockCandidate } from '../../hooks/useDashboardData'
 import { useSparkline } from '../../hooks/useSparkline'
 import SparklineChart from '../charts/SparklineChart'
+import Tooltip from '../Tooltip'
 
 interface CandidateRowProps {
     stock: StockCandidate
@@ -79,9 +80,15 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
                 </span>
             </div>
             <div>
-                <span className={`font-bold ${(stock.ai_prob ?? 0) >= 70 ? 'text-sniper-gold' : 'text-dark-muted'}`}>
-                    {stock.ai_prob == null ? 'N/A' : `${stock.ai_prob.toFixed(1)}%`}
-                </span>
+                {stock.ai_prob == null ? (
+                    <Tooltip content="尚未訓練模型">
+                        <span className="font-bold text-dark-muted cursor-help">N/A</span>
+                    </Tooltip>
+                ) : (
+                    <span className={`font-bold ${stock.ai_prob >= 70 ? 'text-sniper-gold' : 'text-dark-muted'}`}>
+                        {stock.ai_prob.toFixed(1)}%
+                    </span>
+                )}
             </div>
         </div>
     )
