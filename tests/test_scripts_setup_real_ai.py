@@ -35,6 +35,21 @@ def test_trains_then_recalcs_when_sufficient_data():
     assert calls == ["train", "recalc"]  # train BEFORE recalc
 
 
+def test_trains_with_weak_model_warning_below_oos_floor(capsys):
+    """Between min_tickers and the ~92 OOS floor: trains, but surfaces a weak-model warning."""
+    calls = []
+    res = setup.setup_real_ai(
+        backfill_fn=lambda: {"tickers": 100, "rows": 1},
+        coverage_fn=lambda: {"with_train_rows": 60},  # >= min_tickers but < OOS_FLOOR
+        train_fn=lambda: calls.append("train"),
+        recalc_fn=lambda: calls.append("recalc"),
+        min_tickers=50,
+    )
+    assert res["trained"] is True
+    assert calls == ["train", "recalc"]
+    assert "WARNING" in capsys.readouterr().out  # honest weak-model disclosure
+
+
 def test_min_tickers_boundary_is_inclusive():
     calls = []
     res = setup.setup_real_ai(

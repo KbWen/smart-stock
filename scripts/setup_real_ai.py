@@ -11,7 +11,7 @@ training is SKIPPED and AI stays N/A — a model trained on too little data woul
 be degenerate (worse than an honest N/A). When a model IS trained on a small set,
 the warning is surfaced and `model_health` discloses a weak model in the UI.
 
-Usage: python scripts/setup_real_ai.py [--days 400] [--listed-only] [--min-tickers 50]
+Usage: python scripts/setup_real_ai.py [--days 1100] [--listed-only] [--min-tickers 50]
 """
 import argparse
 import os
@@ -27,7 +27,7 @@ from core import config  # noqa: E402
 OOS_FLOOR = 92  # tickers at which the degenerate model stopped reproducing (ml-label-oos-evaluation)
 
 
-def setup_real_ai(days: int = 400, listed_only: bool = False, min_tickers: int = 50,
+def setup_real_ai(days: int = 1100, listed_only: bool = False, min_tickers: int = 50,
                   backfill_fn=None, coverage_fn=None, train_fn=None, recalc_fn=None) -> dict:
     """Backfill -> (gated) train -> recalc. Pure orchestration: all four steps are
     injectable for testing. Returns a summary dict. Honest: skips training when
