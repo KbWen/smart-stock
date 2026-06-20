@@ -2,7 +2,12 @@
 **/node_modules
 frontend/v4/dist
 
-# Local runtime state — must NEVER be baked into the image
+# Local runtime state — must NEVER be baked into the image.
+# The dev DB defaults to the repo ROOT (config.py DB_PATH = BASE_DIR/storage.db),
+# so exclude the root path as well as the data/ variant.
+storage.db
+storage.db-shm
+storage.db-wal
 data/storage.db
 data/storage.db-*
 *.pkl

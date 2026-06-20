@@ -24,8 +24,11 @@ def test_dockerfile_copies_seed_script_and_demo_fixture():
 
 def test_dockerfile_uses_seed_then_serve_entrypoint():
     df = _read("Dockerfile")
-    assert "docker-entrypoint.sh" in df
-    assert "ENTRYPOINT" in df
+    # a real, non-commented ENTRYPOINT line that runs the seed-then-serve script
+    assert any(
+        line.strip().startswith("ENTRYPOINT") and "docker-entrypoint.sh" in line
+        for line in df.splitlines()
+    ), "Dockerfile must use the seed-then-serve ENTRYPOINT"
 
 
 def test_entrypoint_seeds_before_serving_and_execs():
@@ -39,9 +42,11 @@ def test_entrypoint_seeds_before_serving_and_execs():
 
 def test_dockerignore_excludes_local_db_and_models_but_keeps_demo():
     di = _read(".dockerignore")
-    assert "data/storage.db" in di      # dev DB not baked
-    assert "*.pkl" in di                # models not baked (honesty)
-    assert "node_modules" in di
     lines = {line.strip() for line in di.splitlines()}
+    # the dev DB lives at the repo ROOT (config.py DB_PATH = BASE_DIR/storage.db),
+    # so a root-anchored exclude is required — `data/storage.db` alone is NOT enough.
+    assert "storage.db" in lines, "root dev storage.db must be excluded (never baked)"
+    assert "*.pkl" in lines, "models must be excluded (honesty — AI stays N/A in-container)"
+    assert "node_modules" in di
     assert not (lines & {"data", "data/", "data/demo", "data/demo/"}), \
         "the demo fixture must remain copyable into the image"
