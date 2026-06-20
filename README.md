@@ -40,8 +40,10 @@ python3 backend/main.py     # 前後端合一 → http://localhost:8000
 
 ```mermaid
 graph TD
-    A[資料來源: yfinance / twstock] --> B[核心資料層: core/data.py]
+    A[逐檔來源: yfinance / twstock] --> B[核心資料層: core/data.py]
+    A2[官方批次: TWSE/TPEX 逐日 raw] --> B2[加速回補: core/bulk_history.py]
     B --> C[(本地資料庫: storage.db)]
+    B2 --> C
     D[技術分析引擎: core/analysis.py]
     E[AI 預算引擎: core/ai/]
     C --> D

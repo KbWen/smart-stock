@@ -3,7 +3,7 @@ status: living
 title: Product Backlog — Directly-Usable v1 (Self-Install)
 source: 2026-06-20 user-directed "directly usable version" epic (4-expert brainstorm)
 created: 2026-06-20
-last_updated: 2026-06-20
+last_updated: 2026-06-20 (ALL 6 Shipped — epic complete: #1 PR #28, #2 #29, #3 #30, #4 #31, #5 #32, #6 #33)
 ---
 
 # Product Backlog
