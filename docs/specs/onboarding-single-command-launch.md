@@ -6,8 +6,6 @@ source_doc: _product-backlog.md (Directly-Usable v1, #1)
 created: 2026-06-20
 frozen: 2026-06-20
 shipped: 2026-06-20
-primary_domain: none
-secondary_domains: []
 ---
 
 # One-Command Launch + Single-Port Served Frontend
