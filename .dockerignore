@@ -1,0 +1,28 @@
+# Build deps / artifacts — rebuilt inside the image (stage 1 runs npm ci + build)
+**/node_modules
+frontend/v4/dist
+
+# Local runtime state — must NEVER be baked into the image
+data/storage.db
+data/storage.db-*
+*.pkl
+*.sha256
+*.sig
+logs/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# VCS / governance / dev tooling — not needed at runtime, huge context savings
+.git
+.github
+.githooks
+.agentcortex
+.agent
+.antigravity
+.claude
+.codex
+.gemini
+docs
+tests
+*.md
