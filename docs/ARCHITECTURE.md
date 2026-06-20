@@ -23,7 +23,9 @@ graph TD
         AI --> DB
         
         Sync[Daily Sync (scripts)] --> Data[Data Layer (core/data.py)]
+        FastSync[scripts/fast_backfill.py] --> Bulk[core/bulk_history.py]
         Data --> DB
+        Bulk --> DB
     end
     
     subgraph "Governance (Constitution Layer)"
@@ -34,8 +36,9 @@ graph TD
     end
 
     subgraph "External"
-        Data --> TWSE[TWSE / TPEX]
-        Data --> Yahoo[Yahoo Finance API]
+        Data --> Yahoo[Yahoo Finance API per-stock]
+        Data --> TWSE[TWSE / TPEX universe list]
+        Bulk --> TWSEBulk[TWSE/TPEX per-day bulk]
     end
 ```
 
@@ -54,7 +57,8 @@ graph TD
 
 * **Role**: Contains all business logic, math, and AI models. This layer is framework-agnostic (could be used by CLI or Web).
 * **Key Files**:
-  * `data.py`: Data fetching (yfinance/twstock) and database I/O.
+  * `data.py`: Per-stock data fetching (yfinance/twstock) and database I/O.
+  * `bulk_history.py`: Accelerated full-universe history via TWSE/TPEX per-day bulk endpoints (raw prices); used by `scripts/fast_backfill.py`.
   * `analysis.py`: Technical analysis (SMA, RSI, MACD, Bollinger Bands) and Rise Score logic.
   * `ai/`: Feature engineering, model training, and prediction package.
   * `logger.py`: Centralized logging with file rotation and alert triggers.
@@ -74,6 +78,7 @@ graph TD
 1. **Ingestion (Daily)**:
     * `daily_run.bat` (or Unix `daily_run.sh`) triggers `backend/main.py --sync`.
     * Market data (OHLCV) is fetched for both TWSE (.TW) and TPEX/OTC (.TWO) stocks using a cached suffix mapper and defensive suffix-alternating retry logic, then stored in `storage.db`.
+    * **Accelerated alternative**: `scripts/fast_backfill.py` (via `core/bulk_history.py`) backfills the whole universe from official TWSE/TPEX per-day bulk endpoints — far fewer calls than the per-stock yfinance crawl. Those prices are **raw** (not dividend-adjusted), so keep a DB to one source.
 2. **Processing**:
     * `recalculate.py` runs immediately after sync.
     * It computes V2 Indicators and V2 Rise Scores for all stocks.

@@ -1,5 +1,17 @@
 # Changelog
 
+## [Directly-Usable v1] - 2026-06-20
+
+A 6-feature epic making the project directly usable as a self-install product (no hosting). PRs #28–#33.
+
+- **One-command launch + single-port served frontend** (#28): quickstart builds the UI; the backend serves the built SPA at a single URL (`http://localhost:8000`) with a react-router deep-link fallback; `start.ps1` added; the two-terminal dev workflow is preserved.
+- **Credible demo dataset** (#29): 15 recognizable large-cap TWSE tickers (real prices) via a reproducible `scripts/gen_demo_fixture.py`.
+- **Legible honest first-run UX** (#30): Traditional-Chinese nav/states, a "示範模式" demo badge from `model_health`, AI N/A reframed with tooltips, sync-button confirm.
+- **Accelerated full-universe sync** (#31): `core/bulk_history.py` + `scripts/fast_backfill.py` backfill the whole universe from official TWSE/TPEX per-day bulk endpoints (raw prices); yfinance per-stock remains the fallback.
+- **Opt-in real-AI first-run** (#32): `scripts/setup_real_ai.py` chains backfill → gate → train → recalc; honest gating skips a degenerate train (AI stays N/A); weak models are disclosed by `model_health`.
+- **Docker self-seed** (#33): the image bundles the demo + seed script and seeds before serving (`docker-entrypoint.sh`); new `.dockerignore`; no model/dev-DB baked (AI stays N/A in-container).
+- **Honesty-first preserved throughout**: no bundled model, real data only; backend 227 tests passing.
+
 ## [Unreleased] - 2026-03-27
 
 ### ✨ 視覺衝擊力升級 Phase 1 — 買入信號視覺化 + AI 計數動畫

@@ -13,6 +13,15 @@ This document provides a detailed breakdown of the key Python modules in the sys
 * `fetch_stock_data(ticker, days)`: Downloads OHLCV data from yfinance or twstock.
 * `load_from_db(ticker)`: Retrieves DataFrame from SQLite.
 * `save_score_to_db(...)`: Persists V2 scores and AI probabilities.
+* `save_to_db(ticker, df)`: Upserts OHLCV history (`INSERT OR REPLACE`); returns rows written.
+* `report_history_coverage(...)`: Reports how many universe tickers have enough history for predict/train.
+
+### `core/bulk_history.py` (New in Directly-Usable v1 #4)
+
+**Purpose**: Accelerated full-universe history backfill via authoritative TWSE/TPEX per-day bulk endpoints (one call returns all stocks' OHLCV for a trading day). Raw (unadjusted) prices; pure, network-injectable parsers.
+
+* `parse_twse_mi_index(payload, date)` / `parse_tpex_daily(csv, date)`: Extract per-stock OHLCV (universe-filtered).
+* `backfill_bulk(days, ...)`: Iterate trading days, assemble per-ticker, persist via `save_to_db`. The yfinance per-stock path remains the fallback.
 
 ### `core/analysis.py`
 
@@ -71,3 +80,12 @@ This document provides a detailed breakdown of the key Python modules in the sys
 * Iterates through all 1000+ stocks in the DB.
 * Computes V2 indicators and scores.
 * Updates the `stock_scores` table.
+
+## Scripts (`scripts/`)
+
+User-facing one-command tools (Directly-Usable v1).
+
+* `seed_demo.py`: Seed the bundled offline demo (`data/demo/demo_prices.csv`) + compute technical scores — fully offline, idempotent. Used by quickstart and the Docker entrypoint.
+* `gen_demo_fixture.py`: Maintainer tool — regenerate the demo fixture with real auto-adjusted prices for ~15 large-cap TWSE tickers.
+* `fast_backfill.py [--days N]`: Fast full-universe history backfill via the `core/bulk_history.py` bulk endpoints.
+* `setup_real_ai.py [--days N]`: Opt-in real-AI first-run — backfill → coverage-gate → train → recalc, so AI probabilities populate (N/A stays the default; skips training on too little data, which `model_health` discloses).
