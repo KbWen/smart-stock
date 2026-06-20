@@ -29,6 +29,12 @@ const Dashboard: React.FC = () => {
         setSelectedTicker(ticker)
     }, [])
 
+    const handleSyncClick = useCallback(() => {
+        if (syncStatus.isSyncing) return
+        const ok = window.confirm('這會從網路同步全市場（約 1,800 檔，需約 10–15 分鐘）。要開始嗎？')
+        if (ok) void triggerSync()
+    }, [syncStatus.isSyncing, triggerSync])
+
     return (
         <div className="space-y-6">
             <ModelHealthBanner health={modelHealth} />
@@ -47,14 +53,21 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="overflow-hidden glass-card lg:col-span-2 transition-all duration-300 hover:shadow-[0_0_25px_rgba(16,185,129,0.15)] hover:border-sniper-green/30 hover:scale-[1.002]">
                     <div className="flex items-center justify-between border-b border-white/10 p-4 bg-white/5">
-                        <h3 className="premium-text">Top Candidates</h3>
-                        <span className="text-xs text-dark-muted">Updated: {isLoading ? '...' : lastUpdated}</span>
+                        <div className="flex items-center gap-2">
+                            <h3 className="premium-text">精選候選</h3>
+                            {modelHealth?.status === 'unavailable' && (
+                                <span className="rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-[10px] font-semibold text-yellow-400">
+                                    示範模式 · AI 未訓練
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-xs text-dark-muted">更新: {isLoading ? '...' : lastUpdated}</span>
                     </div>
                     <div className="flex items-center justify-between border-b border-dark-border/60 px-4 py-2 text-xs text-dark-muted">
                         <span>資料庫更新時間: {dbUpdatedAt}</span>
                         <button
                             type="button"
-                            onClick={() => { void (syncStatus.isSyncing ? null : triggerSync()) }}
+                            onClick={handleSyncClick}
                             disabled={syncStatus.isSyncing}
                             className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 transition-all duration-200 ${
                                 syncStatus.isSyncing
@@ -99,7 +112,7 @@ const Dashboard: React.FC = () => {
                         </div>
                     )}
                     <ErrorBoundary>
-                    <Suspense fallback={<div className="p-6 text-center text-dark-muted">Loading candidates...</div>}>
+                    <Suspense fallback={<div className="p-6 text-center text-dark-muted">載入候選清單…</div>}>
                         <StockList onSelect={handleSelectTicker} selectedTicker={selectedTicker} />
                     </Suspense>
                     </ErrorBoundary>
@@ -107,7 +120,7 @@ const Dashboard: React.FC = () => {
 
                 <div className="lg:col-span-1">
                     <ErrorBoundary>
-                    <Suspense fallback={<div className="p-6 text-center text-dark-muted">Loading detail card...</div>}>
+                    <Suspense fallback={<div className="p-6 text-center text-dark-muted">載入詳細卡片…</div>}>
                         <SniperCard ticker={selectedTicker} />
                     </Suspense>
                     </ErrorBoundary>

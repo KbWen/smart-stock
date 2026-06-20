@@ -25,8 +25,8 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
             <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted transition-all duration-300 hover:shadow-[0_0_25px_rgba(245,158,11,0.1)] hover:border-sniper-gold/20 hover:scale-[1.002]">
                 <Crosshair size={48} className="opacity-20" />
                 <div className="text-center">
-                    <p className="mb-1 text-lg font-semibold text-white">No Stock Selected</p>
-                    <p className="text-sm">Click on a ticker from the list to view detailed AI analysis, trends, and entry signals.</p>
+                    <p className="mb-1 text-lg font-semibold text-white">尚未選擇標的</p>
+                    <p className="text-sm">點選左側清單中的標的，查看 AI 狙擊分析、走勢與進場訊號。</p>
                 </div>
             </div>
         )
@@ -36,7 +36,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
         return (
             <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-4 glass-card p-8 text-dark-muted transition-all duration-300 hover:shadow-[0_0_25px_rgba(16,185,129,0.1)] hover:border-sniper-green/20 hover:scale-[1.002]">
                 <Loader2 size={40} className="animate-spin text-sniper-green" />
-                <p className="animate-pulse text-sm font-medium">Scanning AI Models for {ticker}...</p>
+                <p className="animate-pulse text-sm font-medium">正在掃描 {ticker} 的 AI 模型…</p>
             </div>
         )
     }
@@ -45,8 +45,8 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
         return (
             <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-3 glass-card p-8 text-red-500 transition-all duration-300 hover:shadow-[0_0_25px_rgba(239,68,68,0.15)] hover:border-red-500/20 hover:scale-[1.002]">
                 <AlertTriangle size={48} className="opacity-80" />
-                <p className="text-lg font-semibold">Error Loading Data</p>
-                <p className="text-center text-sm text-red-400 opacity-80">Failed to load details for {ticker}. Ensure backend is running and try again.</p>
+                <p className="text-lg font-semibold">資料載入失敗</p>
+                <p className="text-center text-sm text-red-400 opacity-80">無法載入 {ticker} 的詳細資料，請確認後端運作後重試。</p>
             </div>
         )
     }
@@ -55,7 +55,7 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
         return (
             <div className="sticky top-24 flex min-h-[400px] flex-col items-center justify-center gap-3 glass-card p-8 text-dark-muted">
                 <Crosshair size={48} className="opacity-20" />
-                <p className="text-sm">No data available for {ticker}.</p>
+                <p className="text-sm">{ticker} 目前無可用資料。</p>
             </div>
         )
     }

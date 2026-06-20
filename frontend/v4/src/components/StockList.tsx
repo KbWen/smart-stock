@@ -136,7 +136,7 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
     const loading = loadingCandidates || loadingMeta
 
     if (loading && isListPlaceholder) {
-        return <div className="p-6 text-center text-dark-muted animate-pulse">Scanning AI Models...</div>
+        return <div className="p-6 text-center text-dark-muted animate-pulse">正在掃描 AI 模型…</div>
     }
 
     if (candidatesError && enrichedStocks.length === 0) {
@@ -144,7 +144,7 @@ const StockList: React.FC<StockListProps> = ({ onSelect, selectedTicker }) => {
     }
 
     if (enrichedStocks.length === 0) {
-        return <div className="p-6 text-center text-dark-muted">No candidates found. Try running sync.</div>
+        return <div className="p-6 text-center text-dark-muted">目前沒有候選標的。點上方「同步資料庫」載入全市場，或執行 train_ai.py 啟用 AI 機率。</div>
     }
 
     return (

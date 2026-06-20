@@ -175,19 +175,19 @@ class V4StockDetailService:
             sma_60 = safe_float(cached_indicators.get("sma_60")) if cached_indicators else 0.0
             if sma_20 and sma_60:
                 if price > sma_20 > sma_60:
-                    analyst_text.append("Strong Uptrend: Price is consistently above SMA20 & SMA60.")
+                    analyst_text.append("強勢多頭：股價站穩 SMA20 與 SMA60 之上。")
                 elif sma_20 > sma_60:
-                    analyst_text.append("Recovering: Price is building momentum above SMA20.")
+                    analyst_text.append("回穩：股價於 SMA20 上方蓄積動能。")
             # RSI analysis using stored RSI value.
             rsi = safe_float(cached_indicators.get("rsi", 50)) if cached_indicators else 50.0
             if 40 <= rsi <= 70:
-                analyst_text.append("Momentum: RSI is in the bullish zone (40-70).")
+                analyst_text.append("動能：RSI 位於多方區間（40–70）。")
             elif rsi > 80:
-                analyst_text.append("Overheated: RSI indicates overbought territory.")
+                analyst_text.append("過熱：RSI 顯示超買。")
             if squeeze_flag:
-                analyst_text.append("Squeeze Alert: Low volatility detected, expecting a major move.")
+                analyst_text.append("壓縮警示：偵測到低波動，醞釀較大行情。")
             elif volume_spike_flag:
-                analyst_text.append("Volume Spike: Heavy trading activity detected.")
+                analyst_text.append("爆量：偵測到大量交易。")
 
             response = {
                 "ticker": ticker,
@@ -201,7 +201,7 @@ class V4StockDetailService:
                     "volatility": round(safe_float(db_score.get("volatility_score", 0)), 1),
                 },
                 "ai_probability": to_ai_percent(ai_prob),
-                "analyst_summary": " ".join(analyst_text) if analyst_text else "Market is neutral. Watch for setup signals.",
+                "analyst_summary": " ".join(analyst_text) if analyst_text else "目前為中性盤整，留意進場訊號。",
                 "signals": {
                     "squeeze": squeeze_flag,
                     "golden_cross": golden_cross_flag,
@@ -242,19 +242,19 @@ class V4StockDetailService:
 
         analyst_text = []
         if latest["trend_alignment"] == 1:
-            analyst_text.append("Strong Uptrend: Price is consistently above SMA20 & SMA60.")
+            analyst_text.append("強勢多頭：股價站穩 SMA20 與 SMA60 之上。")
         elif latest["sma20_slope"] > 0:
-            analyst_text.append("Recovering: Price is building momentum above SMA20.")
+            analyst_text.append("回穩：股價於 SMA20 上方蓄積動能。")
 
         if 40 <= latest["rsi"] <= 70:
-            analyst_text.append("Momentum: RSI is in the bullish zone (40-70).")
+            analyst_text.append("動能：RSI 位於多方區間（40–70）。")
         elif latest["rsi"] > 80:
-            analyst_text.append("Overheated: RSI indicates overbought territory.")
+            analyst_text.append("過熱：RSI 顯示超買。")
 
         if squeeze_flag:
-            analyst_text.append("Squeeze Alert: Low volatility detected, expecting a major move.")
+            analyst_text.append("壓縮警示：偵測到低波動，醞釀較大行情。")
         elif volume_spike_flag:
-            analyst_text.append("Volume Spike: Heavy trading activity detected.")
+            analyst_text.append("爆量：偵測到大量交易。")
 
         response = {
             "ticker": ticker,
@@ -268,7 +268,7 @@ class V4StockDetailService:
                 "volatility": round(safe_float(latest["volatility_score_v2"]), 1),
             },
             "ai_probability": to_ai_percent(ai_prob),
-            "analyst_summary": " ".join(analyst_text) if analyst_text else "Market is neutral. Watch for setup signals.",
+            "analyst_summary": " ".join(analyst_text) if analyst_text else "目前為中性盤整，留意進場訊號。",
             "signals": {
                 "squeeze": squeeze_flag,
                 "golden_cross": golden_cross_flag,
