@@ -5,6 +5,7 @@ source: external
 source_doc: _product-backlog.md (Directly-Usable v1, #5)
 created: 2026-06-20
 frozen: 2026-06-20
+shipped: 2026-06-20
 ---
 
 # Real-AI First-Run (opt-in)

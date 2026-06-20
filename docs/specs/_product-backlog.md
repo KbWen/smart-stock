@@ -18,7 +18,7 @@ After Optimization Round 2 shipped (archived to `_product-backlog-optimization-r
 | 2 | Credible demo dataset — swap the 6 obscure demo tickers for ~12–15 household-name TWSE stocks (2330/2317/2454/2412/2882…) with enough rows; keep the fixture small | quick-win | data | P1 | scripts/gen_demo_fixture.py (gen tool) | quick-win | Shipped | — |
 | 3 | Legible honest first-run UX — reframe AI N/A as "示範模式/尚未訓練", demo-mode badge, 繁中-ize scattered English UI, guard the sync button, first-run explainer (⚠️ §4.4 design-gate) | feature | ui, onboarding | P1 | docs/specs/honest-first-run-ux.md | feature | Shipped | #2 (soft) |
 | 4 | Accelerated full-universe history sync — switch full-universe backfill from per-stock yfinance to authoritative TWSE/TPEX per-day bulk endpoints (fewer calls, cleaner licensing, no redistribution); keep yfinance as fallback | feature | data | P1 | docs/specs/accelerated-universe-sync.md | feature | Shipped | — |
-| 5 | Real-AI first-run — opt-in quickstart step to sync the full universe (via #4) then train, so AI is populated not N/A; N/A stays the no-model default; do NOT bundle a `.pkl` | feature | ml, onboarding, data | P1 | — | feature | Pending | #4, #1 (soft) |
+| 5 | Real-AI first-run — opt-in quickstart step to sync the full universe (via #4) then train, so AI is populated not N/A; N/A stays the no-model default; do NOT bundle a `.pkl` | feature | ml, onboarding, data | P1 | docs/specs/real-ai-first-run.md | feature | Shipped | #4, #1 (soft) |
 | 6 | Docker self-seed + `.dockerignore` — COPY demo+scripts, entrypoint seeds before serving, handle compose volume shadowing; containerized one-command self-install | feature | onboarding, infra | P1 | — | feature | Pending | #1 (soft) |
 
 ## Column Reference
