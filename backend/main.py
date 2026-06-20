@@ -105,6 +105,21 @@ app.include_router(stock_router)
 app.include_router(system_router)
 
 
+# SPA deep-link fallback (registered LAST so it never shadows API routes or the
+# /assets, /static mounts). The frontend uses react-router BrowserRouter, so
+# client-side paths like /backtest or /risk exist only in the browser. A hard
+# refresh or direct navigation to one of them reaches the backend, which must
+# return the built index.html for the SPA to boot — NOT a 404. API and asset
+# paths are excluded so this catch-all can never mask them.
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    if full_path in ("api", "assets", "static") or full_path.startswith(
+        ("api/", "assets/", "static/")
+    ):
+        raise HTTPException(status_code=404, detail="Not found")
+    return await read_index()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sync", action="store_true", help="Run sync and exit")

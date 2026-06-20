@@ -14,13 +14,15 @@
 .\quickstart.ps1
 ```
 
-這會：安裝後端相依套件 → 把 demo 資料載入 `storage.db` 並離線算出技術分數 → 印出啟動指令。接著：
+這會：安裝後端相依套件 → 把 demo 資料載入 `storage.db` 並離線算出技術分數 → **建置前端 UI** → 印出啟動指令。接著用**單一指令、單一網址**啟動：
 
 ```bash
-python3 backend/main.py            # 後端 API → http://localhost:8000
-cd frontend/v4 && npm install && npm run dev   # 前端 → http://localhost:5173
-# 或 ./start.sh （Windows: start.bat）一次啟動兩者
+python3 backend/main.py     # 前後端合一 → http://localhost:8000
+# 或 ./start.sh （Windows: start.bat）：啟動伺服器並自動開啟瀏覽器
 ```
+
+> 後端會直接服務已建置的前端,所以**只需要一個埠 `:8000`**,不必再開第二個終端機。
+> （想要前端熱重載的開發者：`cd frontend/v4 && npm run dev` 仍可用,見下方「啟動系統」。）
 
 > **誠實說明**：repo 不附帶已訓練的模型（`.pkl` 已 gitignore），所以 demo 中「AI 機率」會誠實顯示為 **N/A**；執行 `python3 backend/train_ai.py` 即可訓練啟用。技術面分數則離線即可運作。
 
@@ -84,7 +86,7 @@ sequenceDiagram
 
 ## 🚀 快速上手 (Quick Start)
 
-> 建議第一次使用者直接走「每日自動更新」流程：安裝依賴 → 啟動系統 → 點擊 Sync Data。
+> 第一次使用建議走最上方的「⚡ 快速開始（離線 Demo）」：一個指令就能看到有資料的儀表板。下面是進階／全市場的手動流程（較慢，選用）。
 
 ### 1. 安裝環境
 
@@ -99,9 +101,11 @@ cd frontend/v4
 npm install
 ```
 
-### 2. 資料同步 (資料庫初始化)
+### 2. 資料同步 (選用，較慢 ~10–15 分鐘)
 
-下載台股約 1,800+ 檔股票（上市＋上櫃）的歷史資料到本地資料庫：
+> 上面的離線 Quickstart 已足以看到有資料的儀表板。**只有當你要真實全市場資料時**才需要這一步。
+
+下載台股約 1,800+ 檔股票（上市＋上櫃）的歷史資料到本地資料庫（約需 10–15 分鐘）：
 
 ```bash
 # 方法 A: 啟動後在網頁點擊 "Sync Data" 按鈕（推薦）
@@ -167,22 +171,22 @@ python backend/manage_models.py prune --keep=5
 
 ### 8. 啟動系統 (儀表板)
 
-開發環境下，您需要同時啟動後端 API 伺服器與前端 Vite 開發伺服器。
-
-**啟動後端伺服器 (終端機 1)：**
+**一般使用（單一網址，推薦）**：跑過 Quickstart 後，後端會直接服務已建置的前端：
 
 ```bash
+python backend/main.py        # → http://localhost:8000
+```
+
+訪問網址：`http://localhost:8000/`
+
+**開發模式（熱重載，選用）**：貢獻者若要前端熱重載，可分開啟兩個終端機：
+
+```bash
+# 終端機 1：後端
 python backend/main.py
+# 終端機 2：前端 (Vite dev server)
+cd frontend/v4 && npm run dev   # → http://localhost:5173
 ```
-
-**啟動前端伺服器 (終端機 2)：**
-
-```bash
-cd frontend/v4
-npm run dev
-```
-
-訪問網址：`http://localhost:5173/`
 
 ### 常見啟動問題 (Troubleshooting)
 
