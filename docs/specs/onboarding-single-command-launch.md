@@ -1,10 +1,11 @@
 ---
-status: frozen
+status: shipped
 title: One-Command Launch + Single-Port Served Frontend
 source: external
 source_doc: _product-backlog.md (Directly-Usable v1, #1)
 created: 2026-06-20
 frozen: 2026-06-20
+shipped: 2026-06-20
 primary_domain: none
 secondary_domains: []
 ---

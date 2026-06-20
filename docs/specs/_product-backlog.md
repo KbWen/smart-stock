@@ -14,7 +14,7 @@ After Optimization Round 2 shipped (archived to `_product-backlog-optimization-r
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | One-command launch + single-port served frontend — quickstart builds `dist`, backend serves the SPA at one URL (:8000), collapse the two-terminal dev setup, `.ps1`/`.bat`/`.sh` parity, SPA deep-link fallback | feature | onboarding | P0 | docs/specs/onboarding-single-command-launch.md | feature | In Progress | — |
+| 1 | One-command launch + single-port served frontend — quickstart builds `dist`, backend serves the SPA at one URL (:8000), collapse the two-terminal dev setup, `.ps1`/`.bat`/`.sh` parity, SPA deep-link fallback | feature | onboarding | P0 | docs/specs/onboarding-single-command-launch.md | feature | Shipped | — |
 | 2 | Credible demo dataset — swap the 6 obscure demo tickers for ~12–15 household-name TWSE stocks (2330/2317/2454/2412/2882…) with enough rows; keep the fixture small | quick-win | data | P1 | — | quick-win | Pending | — |
 | 3 | Legible honest first-run UX — reframe AI N/A as "示範模式/尚未訓練", demo-mode badge, 繁中-ize scattered English UI, guard the sync button, first-run explainer (⚠️ §4.4 design-gate) | feature | ui, onboarding | P1 | — | feature | Pending | #2 (soft) |
 | 4 | Accelerated full-universe history sync — switch full-universe backfill from per-stock yfinance to authoritative TWSE/TPEX per-day bulk endpoints (fewer calls, cleaner licensing, no redistribution); keep yfinance as fallback | feature | data | P1 | — | feature | Pending | — |
