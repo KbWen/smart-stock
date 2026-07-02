@@ -3,6 +3,9 @@
 # Opt-in Agentic OS validation hook.
 # INSTALL: cp .githooks/pre-commit.guard-ssot.sample .githooks/pre-commit && chmod +x .githooks/pre-commit
 #          git config core.hooksPath .githooks
+# UPDATING: the installed pre-commit is a COPY (not auto-updated). After a framework
+#          update, re-run the INSTALL copy to pick up hook improvements (e.g. the
+#          no-python credential floor). The floor/scanner scripts themselves force-update.
 #
 # Validator failures block commits. Guarded SSoT receipt checks remain advisory.
 
@@ -16,28 +19,30 @@ fi
 
 cd "$ROOT" || exit 1
 
-# Credential pattern pre-screen (issue #225): block secrets BEFORE they enter
-# object history — CI TruffleHog only fires post-commit, by which point rotation
-# (not deletion) is the remedy. Scans the staged diff's added lines. Opt-in hook;
-# bypassable with --no-verify; TruffleHog is the CI backstop either way.
+# Credential pre-screen (issue #225): block secrets BEFORE they enter object history
+# — CI TruffleHog only fires post-commit, by which point rotation (not deletion) is the
+# remedy. Python path = scan_credentials.py (full detection); NO-PYTHON path =
+# credential_floor.sh (narrow FP-free AKIA/PEM/ghp_ subset; no silent skip). Opt-in hook;
+# --no-verify-bypassable; TruffleHog is the CI backstop either way.
 CREDENTIAL_SCANNER=".agentcortex/tools/scan_credentials.py"
-if [[ -f "$CREDENTIAL_SCANNER" ]]; then
-  CRED_PY=""
-  command -v python >/dev/null 2>&1 && CRED_PY=python
-  [[ -z "$CRED_PY" ]] && command -v python3 >/dev/null 2>&1 && CRED_PY=python3
-  if [[ -n "$CRED_PY" ]]; then
-    "$CRED_PY" "$CREDENTIAL_SCANNER" --staged
-    cred_rc=$?
-    if [[ "$cred_rc" -eq 1 ]]; then
-      echo "ACX pre-commit: credential pattern detected in staged changes; commit blocked."
-      echo "   Rotate the exposed secret, remove it from the change, then re-commit."
-      exit 1
-    elif [[ "$cred_rc" -ne 0 ]]; then
-      echo "ACX pre-commit: credential pre-screen could not run (exit $cred_rc); continuing (CI TruffleHog backstops)."
-    fi
-  else
-    echo "ACX pre-commit: python unavailable; skipping credential pre-screen (CI TruffleHog backstops)."
-  fi
+CREDENTIAL_FLOOR=".agentcortex/tools/credential_floor.sh"
+CRED_PY=""
+command -v python >/dev/null 2>&1 && CRED_PY=python
+[[ -z "$CRED_PY" ]] && command -v python3 >/dev/null 2>&1 && CRED_PY=python3
+cred_rc=0
+if [[ -n "$CRED_PY" && -f "$CREDENTIAL_SCANNER" ]]; then
+  "$CRED_PY" "$CREDENTIAL_SCANNER" --staged; cred_rc=$?
+elif [[ -f "$CREDENTIAL_FLOOR" ]]; then
+  bash "$CREDENTIAL_FLOOR" --staged; cred_rc=$?            # no-python narrow floor
+else
+  echo "ACX pre-commit: no credential pre-screen available on this host; CI TruffleHog backstops."
+fi
+if [[ "$cred_rc" -eq 1 ]]; then
+  echo "ACX pre-commit: credential pattern detected in staged changes; commit blocked."
+  echo "   Rotate the exposed secret, remove it from the change, then re-commit."
+  exit 1
+elif [[ "$cred_rc" -ne 0 ]]; then
+  echo "ACX pre-commit: credential pre-screen could not run (exit $cred_rc); continuing (CI TruffleHog backstops)."
 fi
 
 GUARD_RECEIPT=".agentcortex/context/.guard_receipts"
