@@ -9,7 +9,7 @@ from backend.repositories.indicator_repo import IndicatorRepository
 from backend.repositories.score_repo import ScoreRepository
 from backend.repositories.stock_repo import StockRepository
 from backend.repositories.system_repo import SystemRepository
-from core.ai import predict_prob
+from core.ai import get_model_health, predict_prob
 from core.utils import safe_float, to_ai_percent
 
 
@@ -159,6 +159,15 @@ class V4StockDetailService:
 
         db_score = self.score_repo.get_latest_score(ticker)
         cached_indicators = self.indicator_repo.load_for_ticker(ticker)
+        # Qualify the AI probability at the point it is shown (epic #3 honesty):
+        # cheap (cached version + models_history.json, no model load). Guarded so a
+        # corrupt models_history.json can NEVER 500 the primary detail path — a
+        # diagnostics helper must degrade honestly, not take down the panel.
+        try:
+            model_health = get_model_health()
+        except Exception:
+            model_health = {"status": "unavailable", "version": "unknown",
+                            "message": "AI 模型健康資訊暫時無法取得。"}
 
         db_updated_at = self._parse_db_datetime(db_score.get("updated_at")) if db_score else None
         if db_score and db_updated_at and datetime.now() - db_updated_at < timedelta(hours=6):
@@ -207,6 +216,7 @@ class V4StockDetailService:
                     "golden_cross": golden_cross_flag,
                     "volume_spike": volume_spike_flag,
                 },
+                "model_health": model_health,
             }
             self._write_cache(cache_key, response)
             return response
@@ -274,6 +284,7 @@ class V4StockDetailService:
                 "golden_cross": golden_cross_flag,
                 "volume_spike": volume_spike_flag,
             },
+            "model_health": model_health,
         }
         self._write_cache(cache_key, response)
         return response

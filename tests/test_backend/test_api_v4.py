@@ -213,6 +213,107 @@ def test_api_v4_stock_detail_prefers_local_db_snapshot(monkeypatch):
     assert body["ai_probability"] == 55.0
 
 
+def test_api_v4_stock_detail_includes_model_health(monkeypatch):
+    """Epic #3: the detail response must carry model_health so the AI number can
+    be honestly qualified at the point it is shown (a degraded model must be
+    visible next to its probability)."""
+    import pandas as pd
+    import backend.routes.stock as stock_route
+    import backend.services.v4_stock_detail_service as detail_mod
+    stock_route.clear_api_caches()
+    stock_route.v4_stock_detail_service.clear_cache()
+
+    df = pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01", periods=80, freq="D"),
+            "open": [100.0] * 80,
+            "high": [101.0] * 80,
+            "low": [99.0] * 80,
+            "close": [100.0 + i * 0.1 for i in range(80)],
+            "volume": [1000] * 80,
+        }
+    )
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", lambda _t: df.copy())
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.score_repo, "get_latest_score", lambda _t: {"updated_at": "2024-01-10"})
+    monkeypatch.setattr(stock_route.v4_stock_detail_service, "predict_prob", lambda _df: {"prob": 0.5})
+    monkeypatch.setattr(detail_mod, "get_model_health", lambda: {"status": "degraded", "version": "v4.x", "message": "辨識力不足"})
+
+    from core import indicators_v2, rise_score_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df.assign(trend_alignment=1, sma20_slope=1, rsi=55, is_squeeze=False, rel_vol=1.2, kd_cross_flag=False))
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=80.0, trend_score_v2=30.0, momentum_score_v2=30.0, volatility_score_v2=20.0))
+
+    body = client.get("/api/v4/stock/2330").json()
+    assert body["model_health"]["status"] == "degraded"
+    assert body["model_health"]["message"] == "辨識力不足"
+
+
+def test_api_v4_stock_detail_cached_db_path_includes_model_health(monkeypatch):
+    """AC1 'both paths': the cached-DB (<6h) builder must also carry model_health.
+    The recompute-path test uses a stale date and never hits this branch."""
+    from datetime import datetime
+    import backend.routes.stock as stock_route
+    import backend.services.v4_stock_detail_service as detail_mod
+    stock_route.clear_api_caches()
+    stock_route.v4_stock_detail_service.clear_cache()
+
+    recent = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    monkeypatch.setattr(
+        stock_route.v4_stock_detail_service.score_repo, "get_latest_score",
+        lambda _t: {"updated_at": recent, "last_price": 100.0, "ai_probability": 0.5,
+                    "total_score": 80.0, "trend_score": 30.0, "momentum_score": 30.0, "volatility_score": 20.0},
+    )
+    monkeypatch.setattr(
+        stock_route.v4_stock_detail_service.indicator_repo, "load_for_ticker",
+        lambda _t: {"sma_20": 100.0, "sma_60": 95.0, "rsi": 55.0, "is_squeeze": False, "kd_cross_flag": True, "rel_vol": 1.2},
+    )
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+
+    def _should_not_recompute(_t):
+        raise AssertionError("cached-DB path must not load price history")
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", _should_not_recompute)
+    monkeypatch.setattr(detail_mod, "get_model_health", lambda: {"status": "ok", "version": "v4.x", "message": ""})
+
+    body = client.get("/api/v4/stock/2330").json()
+    assert body["model_health"]["status"] == "ok"
+    assert body["signals"]["golden_cross"] is True  # derived from kd_cross_flag
+
+
+def test_api_v4_stock_detail_survives_model_health_failure(monkeypatch):
+    """Resilience (tenth-man): get_model_health() is a diagnostics helper — if it
+    raises (e.g. corrupt models_history.json), the detail panel must degrade
+    honestly, NOT 500 the whole endpoint."""
+    import pandas as pd
+    import backend.routes.stock as stock_route
+    import backend.services.v4_stock_detail_service as detail_mod
+    stock_route.clear_api_caches()
+    stock_route.v4_stock_detail_service.clear_cache()
+
+    df = pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01", periods=80, freq="D"),
+            "open": [100.0] * 80, "high": [101.0] * 80, "low": [99.0] * 80,
+            "close": [100.0 + i * 0.1 for i in range(80)], "volume": [1000] * 80,
+        }
+    )
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", lambda _t: df.copy())
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.score_repo, "get_latest_score", lambda _t: {"updated_at": "2024-01-10"})
+    monkeypatch.setattr(stock_route.v4_stock_detail_service, "predict_prob", lambda _df: {"prob": 0.5})
+
+    def _boom():
+        raise RuntimeError("corrupt models_history.json")
+    monkeypatch.setattr(detail_mod, "get_model_health", _boom)
+
+    from core import indicators_v2, rise_score_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df.assign(trend_alignment=1, sma20_slope=1, rsi=55, is_squeeze=False, rel_vol=1.2, kd_cross_flag=False))
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=80.0, trend_score_v2=30.0, momentum_score_v2=30.0, volatility_score_v2=20.0))
+
+    resp = client.get("/api/v4/stock/2330")
+    assert resp.status_code == 200  # NOT 500
+    assert resp.json()["model_health"]["status"] == "unavailable"  # honest degradation
+
+
 def test_api_v4_stock_detail_falls_back_to_fetch_when_db_empty(monkeypatch):
     import pandas as pd
     import backend.routes.stock as stock_route

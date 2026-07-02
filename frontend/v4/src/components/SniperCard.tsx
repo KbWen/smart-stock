@@ -87,6 +87,8 @@ const SniperCard: React.FC<SniperCardProps> = ({ ticker }) => {
                 <ScoreBreakdown
                     scores={data.rise_score_breakdown}
                     aiProbability={data.ai_probability}
+                    signals={data.signals}
+                    modelHealth={data.model_health}
                 />
 
                 <PriceSignalChart ticker={ticker} />
