@@ -77,6 +77,16 @@ def _validate_name(name: str) -> str:
     return name
 
 
+def _require_xrw(request: Request) -> None:
+    """Lightweight CSRF defense on mutating endpoints — parity with
+    /api/smart_scan (stock.py). The app has no cookie auth, so this is not a full
+    CSRF token, but requiring X-Requested-With blocks naive cross-site form
+    submissions and direct browser POSTs. The frontend's mutateJson already sends
+    this header."""
+    if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+        raise HTTPException(status_code=403, detail="Missing X-Requested-With header")
+
+
 @router.get("/api/strategies")
 @limiter.limit(_RATE_STRATEGY)
 def list_strategies(request: Request):
@@ -90,6 +100,7 @@ def list_strategies(request: Request):
 @router.post("/api/strategies")
 @limiter.limit(_RATE_STRATEGY)
 def create_strategy(request: Request, body: StrategyIn):
+    _require_xrw(request)
     name = _validate_name(body.name)
     try:
         return strategy_repo.create(name=name, params=body.params.model_dump(), notes=body.notes)
@@ -105,6 +116,7 @@ def create_strategy(request: Request, body: StrategyIn):
 @router.put("/api/strategies/{id:int}")
 @limiter.limit(_RATE_STRATEGY)
 def update_strategy(request: Request, id: int, body: StrategyPatch):
+    _require_xrw(request)
     try:
         existing = strategy_repo.get(id)
         if not existing:
@@ -149,6 +161,7 @@ def update_strategy(request: Request, id: int, body: StrategyPatch):
 @router.delete("/api/strategies/{id:int}")
 @limiter.limit(_RATE_STRATEGY)
 def delete_strategy(request: Request, id: int):
+    _require_xrw(request)
     try:
         ok = strategy_repo.delete(id)
         if not ok:
