@@ -211,7 +211,13 @@ def compare_strategies(request: Request, ids: str = Query(..., min_length=1)):
         strategies.append(record)
 
     results: list[dict[str, Any]] = []
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_COMPARE_IDS)
+    # SERIALIZE the per-strategy backtests (max_workers=1). run_time_machine is
+    # itself internally parallel over a ~300-candidate pool (backtest.py), so
+    # running 4 concurrently would multiply the live thread/CPU load ~4x and can
+    # stall the single uvicorn worker on a full-universe DB. Serialized, a compare
+    # of N strategies costs N sequential /api/backtest-equivalent runs — a
+    # known-acceptable load — while the per-id timeout still bounds each slot.
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
         futures = {executor.submit(_run_one, s["params"]): s for s in strategies}
         for future, strategy in futures.items():

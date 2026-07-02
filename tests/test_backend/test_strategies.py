@@ -246,6 +246,40 @@ def test_compare_multi_id_happy_path(app_client, monkeypatch):
         assert "top_picks" not in r
 
 
+def test_compare_runs_serialized_not_concurrent(app_client, monkeypatch):
+    """Compare must run the per-strategy backtests ONE AT A TIME. run_time_machine
+    is itself internally parallel over a ~300-candidate pool, so running compares
+    concurrently would multiply live thread/CPU load and can stall the single
+    uvicorn worker on a full-universe DB (tenth-man pre-mortem finding)."""
+    import threading
+    import time
+
+    s1 = app_client.post("/api/strategies", json={"name": "SerA", "params": _params()}).json()
+    s2 = app_client.post("/api/strategies", json={"name": "SerB", "params": _params(holding_days=30)}).json()
+    s3 = app_client.post("/api/strategies", json={"name": "SerC", "params": _params(holding_days=40)}).json()
+
+    lock = threading.Lock()
+    state = {"active": 0, "max_active": 0}
+
+    def fake_run(**kwargs):
+        with lock:
+            state["active"] += 1
+            state["max_active"] = max(state["max_active"], state["active"])
+        time.sleep(0.05)
+        with lock:
+            state["active"] -= 1
+        return {"summary": {"avg_net_return": 0.01}}
+
+    import backend.routes.strategies as strategies_mod
+    monkeypatch.setattr(strategies_mod, "run_time_machine", fake_run)
+
+    resp = app_client.get(f"/api/strategies/compare?ids={s1['id']},{s2['id']},{s3['id']}")
+    assert resp.status_code == 200
+    assert len(resp.json()["results"]) == 3
+    # Core assertion: at most ONE backtest ran at any instant.
+    assert state["max_active"] == 1
+
+
 def test_compare_dedupes_ids(app_client, monkeypatch):
     s1 = app_client.post("/api/strategies", json={"name": "DedupA", "params": _params()}).json()
 

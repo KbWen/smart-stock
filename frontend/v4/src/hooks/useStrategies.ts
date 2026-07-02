@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchJsonWithCache, mutateJson } from '../lib/apiClient'
+import { fetchJsonWithCache, invalidateApiCache, mutateJson } from '../lib/apiClient'
 
 /** The name of the seeded preset the UI highlights as a novice starting point. */
 export const SUGGESTED_DEFAULT_NAME = 'Balanced'
@@ -90,6 +90,9 @@ export function useStrategies(): UseStrategiesResult {
     const reload = useCallback(async (): Promise<void> => {
         setLoading(true)
         setError(null)
+        // Clear the shared cache so any other consumer of /api/strategies can't
+        // serve a stale list after a create/rename/delete (mutations call reload).
+        invalidateApiCache('/api/strategies')
         try {
             // Short TTL: strategies change via mutations in this same UI.
             const data = await fetchJsonWithCache<Strategy[]>('/api/strategies', 0, 0)
