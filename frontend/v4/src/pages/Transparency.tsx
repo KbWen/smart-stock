@@ -173,6 +173,18 @@ const Transparency: React.FC = () => {
                                                 <Metric label="測試樣本" value={fmtNum(data.model.test_samples)} />
                                                 <Metric label="版本" value={data.model.version} />
                                             </div>
+                                            {data.model.class_distribution && (
+                                                <div className="mb-3 rounded-lg border border-dark-border/40 bg-dark-bg/30 p-3">
+                                                    <div className="mb-1 text-[10px] uppercase tracking-wider text-dark-muted">
+                                                        訓練標籤分布（類別越不平衡，上面的「整體正確率」越容易被灌高）
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-4 text-sm text-white">
+                                                        <span>持有 {fmtPct(data.model.class_distribution.hold)}</span>
+                                                        <span>買進 {fmtPct(data.model.class_distribution.buy)}</span>
+                                                        <span>強買 {fmtPct(data.model.class_distribution.strong)}</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                             <div className="space-y-2">
                                                 {OOS_LABELS.map((m) => (
                                                     <div key={m.key} className="flex items-start justify-between gap-3 border-t border-dark-border/30 pt-2">

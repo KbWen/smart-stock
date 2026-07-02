@@ -99,6 +99,37 @@ def test_transparency_shape_with_model_present(app_client, monkeypatch):
     assert model["oos_metrics"] == FAKE_ENTRY["oos_metrics"]
 
 
+def test_transparency_trained_at_falls_back_to_timestamp_real_schema(app_client, monkeypatch):
+    """Pin the REAL models_history.json schema (trainer.py:427): entries carry
+    `timestamp` (YYYYMMDD_HHMM) and have NO `trained_at` key. The endpoint MUST
+    fall back to `timestamp`, so a genuinely trained model never reads a null
+    training time. (Tenth-man pre-mortem: FAKE_ENTRY carried both keys, which
+    would let a future refactor drop the fallback with the suite still green.)"""
+    import backend.routes.transparency as transparency_mod
+
+    real_schema_entry = {
+        "timestamp": "20260601_2031",
+        "version": "v4.20260601_2031",
+        # deliberately NO "trained_at" key
+        "samples": 1065,
+        "test_samples": 213,
+        "class_distribution": {"hold": 0.907, "buy": 0.069, "strong": 0.024},
+        "oos_metrics": {
+            "accuracy": 0.94, "precision_strong": 0.0, "recall_strong": 0.0,
+            "f1_strong": 0.0, "precision_buy": 0.0, "recall_buy": 0.0,
+        },
+    }
+    monkeypatch.setattr(
+        transparency_mod, "get_model_health",
+        lambda: {"status": "degraded", "version": "v4.20260601_2031", "message": "x"},
+    )
+    monkeypatch.setattr(transparency_mod, "list_available_models", lambda: [real_schema_entry])
+
+    model = app_client.get("/api/transparency").json()["model"]
+    assert model["trained_at"] == "20260601_2031"  # fell back to timestamp, not null
+    assert model["samples"] == 1065
+
+
 # ---------------------------------------------------------------------------
 # (b) model absent -> honest nulls
 # ---------------------------------------------------------------------------
