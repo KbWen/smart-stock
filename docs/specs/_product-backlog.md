@@ -3,7 +3,7 @@ status: living
 title: Product Backlog — Honest Research Workbench
 source: 2026-07-02 user-directed post-v1 product direction
 created: 2026-07-02
-last_updated: 2026-07-02 (#1 Strategy Lab Shipped; #6 CSRF-parity added as review-finding)
+last_updated: 2026-07-02 (ALL SHIPPED — epic complete: #1 Strategy Lab, #2 Transparency Panel, #3 Explainable Screening, #4 Novice Entry, #5 Reproducible Reference Layer, #6 CSRF-parity)
 ---
 
 # Product Backlog
@@ -22,7 +22,7 @@ After the "Directly-Usable v1" self-install epic completed (all 6 shipped 2026-0
 | 2 | Transparency Panel — first-class "what does the system actually know" view: data coverage (history depth/universe completeness), model_health, last-trained, sample size, OOS metrics | feature | transparency | P1 | docs/specs/transparency-panel.md | feature | Shipped | — |
 | 3 | Explainable Screening — deepen ScoreBreakdown on 選股雷達: which signals fired + that combo's backtested hit-rate + model_health/sample-size-qualified AI number | feature | screening | P1 | docs/specs/explainable-screening.md | feature | Shipped | #1 (soft) |
 | 4 | Novice Entry — progressive-disclosure simple default / guided mode so casual "just want to invest" users have a good starting destination; expert depth on demand | feature | onboarding, ux | P2 | docs/specs/novice-entry.md | feature | Shipped | #2, #3 (soft) |
-| 5 | Reproducible Reference Layer — one-command data→label→train→backtest→eval flow + walkthrough doc for the developer/learner audience (Docker self-seed already exists) | feature | docs, ml | P2 | — | feature | Pending | — |
+| 5 | Reproducible Reference Layer — one-command data→label→train→backtest→eval flow + walkthrough doc for the developer/learner audience (Docker self-seed already exists) | feature | docs, ml | P2 | docs/specs/reproducible-reference.md | feature | Shipped | — |
 | 6 | CSRF-header parity — add the `smart_scan`-style `X-Requested-With` check to `/api/strategies` mutations (POST/PUT/DELETE) for security-baseline consistency (no active vuln — app has no cookie auth; frontend already sends the header). Surfaced by #1 independent review. | review-finding | api, security | P2 | docs/specs/strategies-csrf-parity.md | quick-win | Shipped | #1 |
 
 ## Column Reference
