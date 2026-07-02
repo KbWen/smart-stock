@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, LineChart, Activity, Scan, Settings, Menu, X } from 'lucide-react'
+import { LayoutDashboard, LineChart, Activity, Scan, ShieldCheck, Settings, Menu, X } from 'lucide-react'
 
 interface LayoutProps {
     children: React.ReactNode
@@ -16,6 +16,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/backtest', label: 'AI 回測', icon: LineChart },
         { path: '/risk', label: '市場風險', icon: Activity },
         { path: '/indicators', label: '選股雷達', icon: Scan },
+        { path: '/transparency', label: '系統透明度', icon: ShieldCheck },
     ]
 
     return (
