@@ -6,6 +6,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,8 +16,10 @@ from backend.limiter import limiter
 
 from backend.routes.market import router as market_router
 from backend.routes.stock import router as stock_router
+from backend.routes.strategies import router as strategies_router
 from backend.routes.sync import run_sync_task, router as sync_router
 from backend.routes.system import router as system_router
+from backend.repositories.strategy_repo import StrategyRepository
 from core.data import get_all_tw_stocks, init_db
 from core.logger import setup_logger
 
@@ -25,6 +28,15 @@ logger = setup_logger("backend")
 app = FastAPI(title="Smart Stock Selector")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.on_event("startup")
+def _seed_strategy_presets() -> None:
+    """Idempotent: seeds 2-3 preset strategies on first run (docs/specs/strategy-lab.md AC4)."""
+    try:
+        StrategyRepository().seed_presets()
+    except Exception as e:
+        logger.error("Strategy preset seeding failed: %s", e)
 
 
 @app.exception_handler(Exception)
@@ -46,6 +58,19 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"status": "error", "message": exc.detail},
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # FastAPI's default handler echoes the raw offending input (e.g. NaN/Infinity)
+    # back into the JSON error body, which crashes stdlib json.dumps (not JSON
+    # compliant) and turns a clean 422 into an unhandled 500. Return a generic,
+    # always-serializable structured message instead (no raw input echo).
+    errors = [
+        {"loc": list(e.get("loc", [])), "msg": e.get("msg", "Invalid request"), "type": e.get("type", "value_error")}
+        for e in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"status": "error", "detail": errors})
 
 
 # CORS allowed origins: configure via env var CORS_ORIGINS (comma-separated).
@@ -103,6 +128,7 @@ app.include_router(sync_router)
 app.include_router(market_router)
 app.include_router(stock_router)
 app.include_router(system_router)
+app.include_router(strategies_router)
 
 
 # SPA deep-link fallback (registered LAST so it never shadows API routes or the

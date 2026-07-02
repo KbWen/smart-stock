@@ -76,6 +76,30 @@ def get_db_connection():
     ensure_db_initialized()
     return _create_db_connection()
 
+
+def get_history_context() -> Optional[Dict[str, Any]]:
+    """Honest data-sufficiency context: distinct ticker count + date range of stock_history.
+
+    Returns None if the table is empty or the query fails — never fabricates a value.
+    """
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT ticker) AS n, MIN(date) AS min_date, MAX(date) AS max_date "
+            "FROM stock_history"
+        ).fetchone()
+        if not row or not row["n"]:
+            return None
+        return {
+            "sample_size": int(row["n"]),
+            "date_range": {"start": row["min_date"], "end": row["max_date"]},
+        }
+    except Exception as e:
+        logger.warning("Failed to compute history context", extra={"error": str(e)})
+        return None
+    finally:
+        conn.close()
+
 def standardize_ticker(ticker: str) -> str:
     """Standardizes Taiwan stock tickers to numeric codes (e.g., 2454.TW -> 2454)."""
     if not ticker: return ticker
@@ -129,6 +153,19 @@ def init_db():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_scores_version ON stock_scores (model_version)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_scores_updated ON stock_scores (updated_at DESC)')
     
+    # Strategy Lab: saved backtest parameter bundles (local-only, additive).
+    # Never touched by seed_demo / recalculate_all — those only touch stock_* tables.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS strategies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            params TEXT NOT NULL,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+    ''')
+
     # Create indicators table for caching computation results
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stock_indicators (
