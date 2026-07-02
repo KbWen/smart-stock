@@ -7,6 +7,7 @@
  * Dashboard's own badge + sync-confirm logic.
  */
 import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const mockTriggerSync = vi.fn()
@@ -34,29 +35,39 @@ const baseState = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('Dashboard — demo-mode badge (AC1)', () => {
-    beforeEach(() => { mockUseDashboardData.mockReset(); mockTriggerSync.mockReset() })
+    beforeEach(() => {
+        mockUseDashboardData.mockReset()
+        mockTriggerSync.mockReset()
+        // Collapse the novice guide so these tests isolate Dashboard's own badge.
+        try { localStorage.setItem('novice_guide_dismissed', '1') } catch { /* ignore */ }
+    })
 
     it('shows the 示範模式 badge when the AI model is unavailable', async () => {
         mockUseDashboardData.mockReturnValue(baseState({ modelHealth: { status: 'unavailable', message: '模型尚未訓練' } }))
-        render(<Dashboard />)
+        render(<MemoryRouter><Dashboard /></MemoryRouter>)
         expect(await screen.findByText(/示範模式/)).toBeInTheDocument()
     })
 
     it('hides the 示範模式 badge when the model is ok', async () => {
         mockUseDashboardData.mockReturnValue(baseState({ modelHealth: { status: 'ok', message: '' } }))
-        render(<Dashboard />)
+        render(<MemoryRouter><Dashboard /></MemoryRouter>)
         await screen.findByText('同步資料庫')
         expect(screen.queryByText(/示範模式/)).not.toBeInTheDocument()
     })
 })
 
 describe('Dashboard — sync confirm gate (AC4)', () => {
-    beforeEach(() => { mockUseDashboardData.mockReset(); mockTriggerSync.mockReset() })
+    beforeEach(() => {
+        mockUseDashboardData.mockReset()
+        mockTriggerSync.mockReset()
+        // Collapse the novice guide so these tests isolate Dashboard's own badge.
+        try { localStorage.setItem('novice_guide_dismissed', '1') } catch { /* ignore */ }
+    })
 
     it('triggers a full-market sync only after the user confirms', async () => {
         mockUseDashboardData.mockReturnValue(baseState())
         const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-        render(<Dashboard />)
+        render(<MemoryRouter><Dashboard /></MemoryRouter>)
         fireEvent.click(await screen.findByText('同步資料庫'))
         expect(confirmSpy).toHaveBeenCalledTimes(1)
         expect(mockTriggerSync).toHaveBeenCalledTimes(1)
@@ -66,7 +77,7 @@ describe('Dashboard — sync confirm gate (AC4)', () => {
     it('does not sync when the user cancels the confirm', async () => {
         mockUseDashboardData.mockReturnValue(baseState())
         const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-        render(<Dashboard />)
+        render(<MemoryRouter><Dashboard /></MemoryRouter>)
         fireEvent.click(await screen.findByText('同步資料庫'))
         expect(mockTriggerSync).not.toHaveBeenCalled()
         confirmSpy.mockRestore()

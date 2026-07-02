@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import MarketStatusHeader from '../components/dashboard/MarketStatusHeader'
+import GettingStarted from '../components/dashboard/GettingStarted'
 import ModelHealthBanner from '../components/ModelHealthBanner'
 import { useDashboardData } from '../hooks/useDashboardData'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -37,6 +38,7 @@ const Dashboard: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            <GettingStarted modelHealth={modelHealth} />
             <ModelHealthBanner health={modelHealth} />
             {marketError && !market && (
                 <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-900/20 px-4 py-2 text-sm text-red-300">
