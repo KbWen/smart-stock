@@ -20,6 +20,11 @@ export interface StockDetail {
         golden_cross: boolean
         volume_spike: boolean
     }
+    model_health?: {
+        status: 'unavailable' | 'degraded' | 'ok'
+        message?: string
+        version?: string
+    }
 }
 
 export const useStockAnalysis = (ticker: string | null) => {

@@ -213,6 +213,41 @@ def test_api_v4_stock_detail_prefers_local_db_snapshot(monkeypatch):
     assert body["ai_probability"] == 55.0
 
 
+def test_api_v4_stock_detail_includes_model_health(monkeypatch):
+    """Epic #3: the detail response must carry model_health so the AI number can
+    be honestly qualified at the point it is shown (a degraded model must be
+    visible next to its probability)."""
+    import pandas as pd
+    import backend.routes.stock as stock_route
+    import backend.services.v4_stock_detail_service as detail_mod
+    stock_route.clear_api_caches()
+    stock_route.v4_stock_detail_service.clear_cache()
+
+    df = pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01", periods=80, freq="D"),
+            "open": [100.0] * 80,
+            "high": [101.0] * 80,
+            "low": [99.0] * 80,
+            "close": [100.0 + i * 0.1 for i in range(80)],
+            "volume": [1000] * 80,
+        }
+    )
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "load_price_history", lambda _t: df.copy())
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.stock_repo, "get_stock_name", lambda _t: "TSMC")
+    monkeypatch.setattr(stock_route.v4_stock_detail_service.score_repo, "get_latest_score", lambda _t: {"updated_at": "2024-01-10"})
+    monkeypatch.setattr(stock_route.v4_stock_detail_service, "predict_prob", lambda _df: {"prob": 0.5})
+    monkeypatch.setattr(detail_mod, "get_model_health", lambda: {"status": "degraded", "version": "v4.x", "message": "辨識力不足"})
+
+    from core import indicators_v2, rise_score_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df.assign(trend_alignment=1, sma20_slope=1, rsi=55, is_squeeze=False, rel_vol=1.2, kd_cross_flag=False))
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=80.0, trend_score_v2=30.0, momentum_score_v2=30.0, volatility_score_v2=20.0))
+
+    body = client.get("/api/v4/stock/2330").json()
+    assert body["model_health"]["status"] == "degraded"
+    assert body["model_health"]["message"] == "辨識力不足"
+
+
 def test_api_v4_stock_detail_falls_back_to_fetch_when_db_empty(monkeypatch):
     import pandas as pd
     import backend.routes.stock as stock_route

@@ -1,5 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import Tooltip from '../Tooltip'
+
+export interface ScoreSignals {
+    squeeze: boolean
+    golden_cross: boolean
+    volume_spike: boolean
+}
+
+export interface ScoreModelHealth {
+    status: 'unavailable' | 'degraded' | 'ok'
+    message?: string
+    version?: string
+}
 
 interface ScoreBreakdownProps {
     scores: {
@@ -9,6 +22,26 @@ interface ScoreBreakdownProps {
         volatility: number
     }
     aiProbability: number | null
+    signals?: ScoreSignals | null
+    modelHealth?: ScoreModelHealth | null
+}
+
+// Plain-language explanations — the point of epic #3 (novices won't hover).
+const SIGNAL_META: Record<keyof ScoreSignals, { label: string; plain: string }> = {
+    golden_cross: { label: 'KD 黃金交叉', plain: '短線 KD 指標向上交叉，偏多訊號。' },
+    volume_spike: { label: '爆量', plain: '成交量明顯放大（>1.5×），資金開始關注。' },
+    squeeze: { label: '低波壓縮', plain: '波動收斂，常醞釀較大行情（方向未定）。' },
+}
+
+const SUBSCORE_CAPTION: Record<'trend' | 'momentum' | 'volatility', string> = {
+    trend: '均線多頭排列與斜率的強度',
+    momentum: 'RSI／MACD 等動能指標的強度',
+    volatility: '波動結構（壓縮或擴張）的評分',
+}
+
+function healthCaption(h: ScoreModelHealth): string {
+    if (h.message) return h.message
+    return h.status === 'unavailable' ? '示範模式 · AI 尚未訓練' : 'AI 模型辨識力不足，僅供參考'
 }
 
 function useCountUp(target: number, duration = 1000): number {
@@ -18,26 +51,17 @@ function useCountUp(target: number, duration = 1000): number {
     const fromRef = useRef(0)
 
     useEffect(() => {
-        // Capture current display as animation start point (smooth mid-animation transition).
-        // `display` intentionally omitted from deps — re-running on display changes would loop.
         fromRef.current = display
         startRef.current = null
-
-        if (rafRef.current !== null) {
-            cancelAnimationFrame(rafRef.current)
-        }
-
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
         const animate = (timestamp: number) => {
             if (startRef.current === null) startRef.current = timestamp
             const elapsed = timestamp - startRef.current
             const progress = Math.min(elapsed / duration, 1)
             const eased = 1 - Math.pow(1 - progress, 3)
             setDisplay(parseFloat((fromRef.current + (target - fromRef.current) * eased).toFixed(1)))
-            if (progress < 1) {
-                rafRef.current = requestAnimationFrame(animate)
-            }
+            if (progress < 1) rafRef.current = requestAnimationFrame(animate)
         }
-
         rafRef.current = requestAnimationFrame(animate)
         return () => {
             if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
@@ -48,11 +72,22 @@ function useCountUp(target: number, duration = 1000): number {
     return display
 }
 
-const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability }) => {
+const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability, signals, modelHealth }) => {
     const displayProb = useCountUp(aiProbability ?? 0)
     const safeScores = scores || { total: 0, trend: 0, momentum: 0, volatility: 0 }
+    const aiUnhealthy = !!modelHealth && modelHealth.status !== 'ok'
 
-    const renderProgressBar = (label: string, value: number, max: number, colorClass: string) => {
+    const firedSignals = signals
+        ? (Object.keys(SIGNAL_META) as (keyof ScoreSignals)[]).filter((k) => signals[k])
+        : []
+
+    const renderProgressBar = (
+        key: 'trend' | 'momentum' | 'volatility',
+        label: string,
+        value: number,
+        max: number,
+        colorClass: string,
+    ) => {
         const safeValue = value ?? 0
         const percentage = Math.min(100, Math.max(0, (safeValue / max) * 100))
         return (
@@ -60,12 +95,13 @@ const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability }
                 <div className="mb-1 flex justify-between text-[11px] uppercase tracking-wider font-bold">
                     <span className="text-dark-muted">{label}</span>
                     <span className="text-white">
-                        {(safeValue).toFixed(1)} <span className="font-normal text-dark-muted">/ {max}</span>
+                        {safeValue.toFixed(1)} <span className="font-normal text-dark-muted">/ {max}</span>
                     </span>
                 </div>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-dark-bg/50 border border-white/5">
                     <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${percentage}%` }} />
                 </div>
+                <div className="mt-1 text-[10px] leading-tight text-dark-muted">{SUBSCORE_CAPTION[key]}</div>
             </div>
         )
     }
@@ -86,13 +122,39 @@ const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability }
                             </Tooltip>
                         ) : `${(displayProb ?? 0).toFixed(1)}%`}
                     </div>
+                    {/* Honest qualifier: never show the AI number as reliable when the model isn't. */}
+                    {aiUnhealthy && modelHealth && (
+                        <div className="mt-1 flex items-start gap-1 text-[10px] leading-tight text-yellow-400/90">
+                            <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                            <span>{healthCaption(modelHealth)}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
+            {/* Explainable signals — which technical factors fired, in plain language. */}
+            {firedSignals.length > 0 && (
+                <div className="rounded-lg border border-dark-border bg-dark-bg/40 p-3">
+                    <div className="mb-2 text-[10px] uppercase tracking-wider font-bold text-dark-muted">觸發的技術訊號</div>
+                    <div className="flex flex-wrap gap-2">
+                        {firedSignals.map((k) => (
+                            <Tooltip key={k} content={SIGNAL_META[k].plain}>
+                                <span className="cursor-help rounded-full border border-sniper-green/30 bg-sniper-green/10 px-2.5 py-1 text-xs font-medium text-sniper-green">
+                                    {SIGNAL_META[k].label}
+                                </span>
+                            </Tooltip>
+                        ))}
+                    </div>
+                    <p className="mt-2 text-[10px] leading-tight text-dark-muted">
+                        這些是構成分數的技術因子，<strong className="text-dark-text">非經驗證的個別勝率</strong>；僅供研究參考。
+                    </p>
+                </div>
+            )}
+
             <div className="rounded-lg bg-dark-border/10 p-4 space-y-4">
-                {renderProgressBar('趨勢', safeScores.trend, 40, 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]')}
-                {renderProgressBar('動能', safeScores.momentum, 30, 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]')}
-                {renderProgressBar('波動', safeScores.volatility, 30, 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]')}
+                {renderProgressBar('trend', '趨勢', safeScores.trend, 40, 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]')}
+                {renderProgressBar('momentum', '動能', safeScores.momentum, 30, 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]')}
+                {renderProgressBar('volatility', '波動', safeScores.volatility, 30, 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]')}
             </div>
         </div>
     )
