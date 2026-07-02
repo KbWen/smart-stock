@@ -1,25 +1,28 @@
 ---
 status: living
-title: Product Backlog — Directly-Usable v1 (Self-Install)
-source: 2026-06-20 user-directed "directly usable version" epic (4-expert brainstorm)
-created: 2026-06-20
-last_updated: 2026-06-20 (ALL 6 Shipped — epic complete: #1 PR #28, #2 #29, #3 #30, #4 #31, #5 #32, #6 #33)
+title: Product Backlog — Honest Research Workbench
+source: 2026-07-02 user-directed post-v1 product direction
+created: 2026-07-02
+last_updated: 2026-07-02 (epic opened; #1 Strategy Lab selected as starting feature)
 ---
 
 # Product Backlog
 
 ## Source Summary
-After Optimization Round 2 shipped (archived to `_product-backlog-optimization-round2-2026-06-13.md`), the user asked for "a version users can at least directly use," **distributed for users to self-install** (explicitly NOT a hosted service). A 4-expert brainstorm (product/adoption, ML-data-honesty, DevOps/packaging, UX/first-run, all grounded in the repo) found the blocker is **launch friction + first-run legibility, not model quality**. Key user decisions: (1) NO public hosting — self-install distribution; (2) the real product targets the **full ~1,800-stock universe**, not a toy subset; (3) data reaches users via **accelerated live sync** (option C — switch full-universe history backfill from per-stock yfinance to authoritative TWSE/TPEX per-day bulk endpoints; no data redistribution, cleanest licensing). The small bundled demo fixture stays small (repo-size limit) and is reframed as an instant offline preview only. Honesty-first is preserved throughout (AI stays N/A by default; no bundled/weak model committed). Full source detail + expert briefs: `_raw-intake.md`.
+After the "Directly-Usable v1" self-install epic completed (all 6 shipped 2026-06-20; archived to `_product-backlog-directly-usable-v1-2026-06-20.md`), the user set the next-stage direction: an **honest, self-hostable TW-stock research workbench** — primary audience TW retail investors (an antidote to black-box "AI 飆股" tools), secondary audience developers/quant learners wanting a transparent reproducible reference. **Differentiator = transparency/honesty, NOT prediction accuracy** (honesty-first preserved: the ML model is honestly weak; do not chase model quality as the headline).
+
+**Cross-cutting design constraint (applies to every feature in this epic)**: the audience spans experts and complete novices, so the product must offer a solid base architecture + flexibility via **progressive disclosure — simple, good defaults up front; depth revealed on demand** — so even someone who "just wants to invest" has a good place to go. Each feature spec MUST state how it satisfies this (simple default path + expert depth path).
+
+**Out of scope (honesty guards)**: no 飆股/guaranteed-profit framing; no fake numbers hiding a weak model (honest N/A stays honest); no live trading/order execution/money movement; no hosted service or external data send (self-install/local-only stays). Full source detail: `_raw-intake.md` (deleted after all first-round specs are generated).
 
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | One-command launch + single-port served frontend — quickstart builds `dist`, backend serves the SPA at one URL (:8000), collapse the two-terminal dev setup, `.ps1`/`.bat`/`.sh` parity, SPA deep-link fallback | feature | onboarding | P0 | docs/specs/onboarding-single-command-launch.md | feature | Shipped | — |
-| 2 | Credible demo dataset — swap the 6 obscure demo tickers for ~12–15 household-name TWSE stocks (2330/2317/2454/2412/2882…) with enough rows; keep the fixture small | quick-win | data | P1 | scripts/gen_demo_fixture.py (gen tool) | quick-win | Shipped | — |
-| 3 | Legible honest first-run UX — reframe AI N/A as "示範模式/尚未訓練", demo-mode badge, 繁中-ize scattered English UI, guard the sync button, first-run explainer (⚠️ §4.4 design-gate) | feature | ui, onboarding | P1 | docs/specs/honest-first-run-ux.md | feature | Shipped | #2 (soft) |
-| 4 | Accelerated full-universe history sync — switch full-universe backfill from per-stock yfinance to authoritative TWSE/TPEX per-day bulk endpoints (fewer calls, cleaner licensing, no redistribution); keep yfinance as fallback | feature | data | P1 | docs/specs/accelerated-universe-sync.md | feature | Shipped | — |
-| 5 | Real-AI first-run — opt-in quickstart step to sync the full universe (via #4) then train, so AI is populated not N/A; N/A stays the no-model default; do NOT bundle a `.pkl` | feature | ml, onboarding, data | P1 | docs/specs/real-ai-first-run.md | feature | Shipped | #4, #1 (soft) |
-| 6 | Docker self-seed + `.dockerignore` — COPY demo+scripts, entrypoint seeds before serving, handle compose volume shadowing; containerized one-command self-install | feature | onboarding, infra | P1 | docs/specs/docker-self-seed.md | feature | Shipped | #1 (soft) |
+| 1 | Strategy Lab — named/saveable/side-by-side backtest workbench built on existing `/api/backtest` + TW cost sliders; compare net-of-cost equity/Sharpe/drawdown across saved strategies (flagship; needs no model improvement) | feature | backtest | P1 | docs/specs/strategy-lab.md | feature | In Progress | — |
+| 2 | Transparency Panel — first-class "what does the system actually know" view: data coverage (history depth/universe completeness), model_health, last-trained, sample size, OOS metrics | feature | transparency | P1 | — | feature | Pending | — |
+| 3 | Explainable Screening — deepen ScoreBreakdown on 選股雷達: which signals fired + that combo's backtested hit-rate + model_health/sample-size-qualified AI number | feature | screening | P1 | — | feature | Pending | #1 (soft) |
+| 4 | Novice Entry — progressive-disclosure simple default / guided mode so casual "just want to invest" users have a good starting destination; expert depth on demand | feature | onboarding, ux | P2 | — | feature | Pending | #2, #3 (soft) |
+| 5 | Reproducible Reference Layer — one-command data→label→train→backtest→eval flow + walkthrough doc for the developer/learner audience (Docker self-seed already exists) | feature | docs, ml | P2 | — | feature | Pending | — |
 
 ## Column Reference
 - **Kind**: `feature` (planned) · `quick-win` (small planned) · `review-finding` (surfaced by review/audit) · `hotfix-spawn` (systemic issue from hotfix)
@@ -30,11 +33,4 @@ After Optimization Round 2 shipped (archived to `_product-backlog-optimization-r
 - In Progress: spec generated, bootstrap running
 - Shipped: feature shipped (see Ship History in current_state.md)
 - Deferred: explicitly deferred
-- Cancelled: explicitly cancelled
-
-## Notes
-- **Suggested execution order** (foundation-first, stacked PRs): #1 → #2 → #3 → #4 → #5 → #6. #1 is the P0 launch foundation; #2 makes the demo credible; #3 frames it honestly; #4 unblocks fast full-universe data; #5 is the real-AI payoff; #6 adds the Docker self-install path. #6 is independent and may slot anytime after #1.
-- **EXTENDS, not modifies** (per spec-intake §8b — shipped specs are never edited): #1/#2/#5/#6 → `onboarding-quickstart`; #3 → `frontend-honest-data-states` + `ui-model-state-disclosure`; #4/#5 → `listed-otc-data-completeness`.
-- **Distribution constraint**: NO hosting. Product is self-install. Real data reaches users via on-machine sync only (never redistributed by the maintainer).
-- **Honesty constraint**: AI probability stays N/A until a model is trained on adequate data; no weak/degenerate model is bundled (`.pkl` gitignored; `MODEL_SIGNING_KEY` empty → an unsigned bundled model is rejected by design).
-- **#4 feasibility (verified 2026-06-20)**: history is currently fetched per-stock via `yf.Ticker(...).history()` in `core/data.py:558` with a 0.5–1.5s sleep/stock (the ~10–15 min wall). TWSE `STOCK_DAY_ALL` (`core/universe_source.py:30`) is already used for the universe list; per-date all-stocks history backfill needs a date-parameterized endpoint (e.g., TWSE MI_INDEX) — to be designed in #4's spec. Net: far fewer HTTP calls than per-stock, authoritative source.
+- Cancelled: dropped

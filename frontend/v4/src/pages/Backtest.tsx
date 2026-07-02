@@ -7,6 +7,8 @@ import { useCachedApi } from '../hooks/useCachedApi'
 import BacktestEquityChart from '../components/charts/BacktestEquityChart'
 import BacktestTable from '../components/dashboard/BacktestTable'
 import type { BacktestPick } from '../components/dashboard/BacktestTable'
+import StrategyLab from '../components/strategy/StrategyLab'
+import type { StrategyParams } from '../hooks/useStrategies'
 
 interface ModelVersion {
     version: string
@@ -70,6 +72,19 @@ const Backtest: React.FC = () => {
         const picksCount = data?.top_picks?.length || 10
         return (winRate * picksCount).toFixed(0)
     }, [data?.summary?.win_rate, data?.top_picks?.length])
+
+    const currentParams: StrategyParams = useMemo(
+        () => ({
+            target_gain: targetGain,
+            stop_loss: stopLoss,
+            holding_days: holdingDays,
+            commission_rate: commissionRate,
+            tax_rate: taxRate,
+            slippage_rate: slippageRate,
+            days_ago: days,
+        }),
+        [targetGain, stopLoss, holdingDays, commissionRate, taxRate, slippageRate, days],
+    )
 
     const showLoadingOverlay = loading && isPlaceholder
 
@@ -220,6 +235,8 @@ const Backtest: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <StrategyLab currentParams={currentParams} />
 
             {!data ? (
                 <div className="rounded-xl border border-dark-border bg-dark-card p-8 text-center text-dark-muted">
