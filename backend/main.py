@@ -19,6 +19,7 @@ from backend.routes.stock import router as stock_router
 from backend.routes.strategies import router as strategies_router
 from backend.routes.sync import run_sync_task, router as sync_router
 from backend.routes.system import router as system_router
+from backend.routes.transparency import router as transparency_router
 from backend.repositories.strategy_repo import StrategyRepository
 from core.data import get_all_tw_stocks, init_db
 from core.logger import setup_logger
@@ -129,6 +130,7 @@ app.include_router(market_router)
 app.include_router(stock_router)
 app.include_router(system_router)
 app.include_router(strategies_router)
+app.include_router(transparency_router)
 
 
 # SPA deep-link fallback (registered LAST so it never shadows API routes or the

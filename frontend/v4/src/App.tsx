@@ -7,6 +7,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Backtest = lazy(() => import('./pages/Backtest'))
 const MarketRisk = lazy(() => import('./pages/MarketRisk'))
 const Indicators = lazy(() => import('./pages/Indicators'))
+const Transparency = lazy(() => import('./pages/Transparency'))
 
 function PageFallback() {
     return <div className="p-6 text-dark-muted">Loading page...</div>
@@ -23,6 +24,7 @@ function App() {
                         <Route path="/backtest" element={<Backtest />} />
                         <Route path="/risk" element={<MarketRisk />} />
                         <Route path="/indicators" element={<Indicators />} />
+                        <Route path="/transparency" element={<Transparency />} />
                     </Routes>
                 </Suspense>
                 </ErrorBoundary>
