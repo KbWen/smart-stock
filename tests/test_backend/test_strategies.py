@@ -36,6 +36,11 @@ def app_client(monkeypatch, tmp_path):
     shared_limiter.reset()
 
     with TestClient(main.app) as client:
+        # Mutating strategy endpoints require the X-Requested-With CSRF-parity
+        # header (backlog #6); send it by default so CRUD tests exercise behavior,
+        # not the header gate. test_strategy_mutations_require_xrw_header overrides
+        # it per-request to assert the 403.
+        client.headers.update({"X-Requested-With": "XMLHttpRequest"})
         yield client
     shared_limiter.reset()
 
@@ -244,6 +249,18 @@ def test_compare_multi_id_happy_path(app_client, monkeypatch):
     for r in data["results"]:
         assert r["summary"] == fake_summary
         assert "top_picks" not in r
+
+
+def test_strategy_mutations_require_xrw_header(app_client):
+    """CSRF parity (backlog #6): POST/PUT/DELETE /api/strategies reject requests
+    missing X-Requested-With, matching /api/smart_scan. Overrides the fixture's
+    default header per-request to assert the 403 gate."""
+    bad = {"X-Requested-With": "not-xhr"}
+    assert app_client.post("/api/strategies", json={"name": "X", "params": _params()}, headers=bad).status_code == 403
+    assert app_client.put("/api/strategies/1", json={"name": "Y"}, headers=bad).status_code == 403
+    assert app_client.delete("/api/strategies/1", headers=bad).status_code == 403
+    # GET (read-only) is unaffected by the CSRF gate.
+    assert app_client.get("/api/strategies", headers=bad).status_code == 200
 
 
 def test_compare_runs_serialized_not_concurrent(app_client, monkeypatch):
