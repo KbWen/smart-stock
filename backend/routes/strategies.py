@@ -170,7 +170,8 @@ def _parse_compare_ids(raw_ids: str) -> list[int]:
 
     ids: list[int] = []
     for token in tokens:
-        if not token.lstrip("-").isdigit():
+        # isdigit() rejects negatives and non-numerics (ids are positive PKs).
+        if not token.isdigit():
             raise HTTPException(status_code=422, detail=f"Invalid strategy id: {token!r}")
         ids.append(int(token))
 
@@ -210,32 +211,32 @@ def compare_strategies(request: Request, ids: str = Query(..., min_length=1)):
         strategies.append(record)
 
     results: list[dict[str, Any]] = []
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_COMPARE_IDS)
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_COMPARE_IDS) as executor:
-            futures = {
-                executor.submit(_run_one, s["params"]): s for s in strategies
-            }
-            future_to_strategy = futures
-            pending = dict(futures)
-            for future, strategy in future_to_strategy.items():
-                try:
-                    outcome = future.result(timeout=_COMPARE_TIMEOUT_SECONDS)
-                    summary = outcome.get("summary") if isinstance(outcome, dict) else None
-                    results.append({
-                        "id": strategy["id"],
-                        "name": strategy["name"],
-                        "summary": summary,
-                    })
-                except Exception as e:
-                    logger.error("Compare backtest failed for strategy %s: %s", strategy["id"], e)
-                    results.append({
-                        "id": strategy["id"],
-                        "name": strategy["name"],
-                        "error": "backtest failed for this strategy",
-                    })
+        futures = {executor.submit(_run_one, s["params"]): s for s in strategies}
+        for future, strategy in futures.items():
+            try:
+                outcome = future.result(timeout=_COMPARE_TIMEOUT_SECONDS)
+                summary = outcome.get("summary") if isinstance(outcome, dict) else None
+                results.append({
+                    "id": strategy["id"],
+                    "name": strategy["name"],
+                    "summary": summary,
+                })
+            except Exception as e:
+                logger.error("Compare backtest failed for strategy %s: %s", strategy["id"], e)
+                results.append({
+                    "id": strategy["id"],
+                    "name": strategy["name"],
+                    "error": "backtest failed for this strategy",
+                })
     except Exception as e:
         logger.error("Compare strategies error: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error")
+    finally:
+        # Drop not-yet-started tasks rather than block on them at exit (a per-id
+        # timeout can't kill a hung worker thread, but pending tasks are cancelled).
+        executor.shutdown(wait=False, cancel_futures=True)
 
     # Preserve requested order (as dict submission order can be non-deterministic
     # across worker completion, but here we iterate futures dict which retains

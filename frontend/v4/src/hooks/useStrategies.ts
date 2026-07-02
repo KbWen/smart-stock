@@ -63,12 +63,19 @@ export function isCompareError(r: CompareResult): r is CompareResultError {
     return typeof (r as CompareResultError).error === 'string'
 }
 
+export interface StrategyPatch {
+    name?: string
+    params?: StrategyParams
+    notes?: string
+}
+
 interface UseStrategiesResult {
     strategies: Strategy[]
     loading: boolean
     error: string | null
     reload: () => Promise<void>
     createStrategy: (name: string, params: StrategyParams, notes?: string) => Promise<void>
+    updateStrategy: (id: number, patch: StrategyPatch) => Promise<void>
     deleteStrategy: (id: number) => Promise<void>
 }
 
@@ -107,6 +114,14 @@ export function useStrategies(): UseStrategiesResult {
         [reload],
     )
 
+    const updateStrategy = useCallback(
+        async (id: number, patch: StrategyPatch): Promise<void> => {
+            await mutateJson<Strategy>(`/api/strategies/${id}`, 'PUT', patch)
+            await reload()
+        },
+        [reload],
+    )
+
     const deleteStrategy = useCallback(
         async (id: number): Promise<void> => {
             await mutateJson<{ ok: boolean }>(`/api/strategies/${id}`, 'DELETE')
@@ -115,7 +130,7 @@ export function useStrategies(): UseStrategiesResult {
         [reload],
     )
 
-    return { strategies, loading, error, reload, createStrategy, deleteStrategy }
+    return { strategies, loading, error, reload, createStrategy, updateStrategy, deleteStrategy }
 }
 
 /**

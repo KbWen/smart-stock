@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Star, Trash2 } from 'lucide-react'
+import { Check, Pencil, Star, Trash2, X } from 'lucide-react'
 import { SUGGESTED_DEFAULT_NAME, compareStrategies, useStrategies } from '../../hooks/useStrategies'
 import type { CompareResponse, StrategyParams } from '../../hooks/useStrategies'
 import StrategyCompare from './StrategyCompare'
@@ -16,7 +16,7 @@ function summarize(params: StrategyParams): string {
 }
 
 const StrategyLab: React.FC<StrategyLabProps> = ({ currentParams }) => {
-    const { strategies, loading, error, createStrategy, deleteStrategy } = useStrategies()
+    const { strategies, loading, error, createStrategy, updateStrategy, deleteStrategy } = useStrategies()
 
     const [name, setName] = useState<string>('')
     const [saving, setSaving] = useState<boolean>(false)
@@ -25,6 +25,9 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ currentParams }) => {
     const [comparing, setComparing] = useState<boolean>(false)
     const [compareData, setCompareData] = useState<CompareResponse | null>(null)
     const [compareError, setCompareError] = useState<string | null>(null)
+    const [editingId, setEditingId] = useState<number | null>(null)
+    const [editName, setEditName] = useState<string>('')
+    const [rowError, setRowError] = useState<string | null>(null)
 
     const nameHint = useMemo(() => {
         const lowered = name.toLowerCase()
@@ -58,6 +61,26 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ currentParams }) => {
             setSaveError(e instanceof Error ? e.message : '儲存失敗')
         } finally {
             setSaving(false)
+        }
+    }
+
+    const startEdit = (id: number, current: string): void => {
+        setEditingId(id)
+        setEditName(current)
+        setRowError(null)
+    }
+
+    const handleRename = async (id: number): Promise<void> => {
+        const trimmed = editName.trim()
+        if (!trimmed) {
+            setRowError('名稱不可為空')
+            return
+        }
+        try {
+            await updateStrategy(id, { name: trimmed })
+            setEditingId(null)
+        } catch (e) {
+            setRowError(e instanceof Error ? e.message : '改名失敗')
         }
     }
 
@@ -136,30 +159,70 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ currentParams }) => {
                                     aria-label={`選取 ${s.name} 進行比較`}
                                     className="h-4 w-4 accent-sniper-green disabled:opacity-40"
                                 />
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="truncate text-sm font-semibold text-white">{s.name}</span>
-                                        {isSuggested && (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-sniper-gold/20 px-2 py-0.5 text-[10px] font-semibold text-sniper-gold">
-                                                <Star size={10} /> 建議起點
-                                            </span>
-                                        )}
+                                {editingId === s.id ? (
+                                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            aria-label={`${s.name} 新名稱`}
+                                            className="min-w-0 flex-1 rounded-md border border-dark-border bg-dark-bg/60 p-1.5 text-sm text-white outline-none focus:border-sniper-green"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleRename(s.id)}
+                                            aria-label="確認改名"
+                                            className="text-sniper-green hover:opacity-80"
+                                        >
+                                            <Check size={16} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingId(null)}
+                                            aria-label="取消改名"
+                                            className="text-dark-muted hover:text-white"
+                                        >
+                                            <X size={16} />
+                                        </button>
                                     </div>
-                                    <div className="mt-0.5 truncate text-[11px] text-dark-muted">{summarize(s.params)}</div>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => void deleteStrategy(s.id)}
-                                    aria-label={`刪除 ${s.name}`}
-                                    className="text-dark-muted transition-colors hover:text-red-400"
-                                >
-                                    <Trash2 size={15} />
-                                </button>
+                                ) : (
+                                    <>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="truncate text-sm font-semibold text-white">{s.name}</span>
+                                                {isSuggested && (
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-sniper-gold/20 px-2 py-0.5 text-[10px] font-semibold text-sniper-gold">
+                                                        <Star size={10} /> 建議起點
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="mt-0.5 truncate text-[11px] text-dark-muted">{summarize(s.params)}</div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => startEdit(s.id, s.name)}
+                                            aria-label={`重新命名 ${s.name}`}
+                                            className="text-dark-muted transition-colors hover:text-white"
+                                        >
+                                            <Pencil size={14} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void deleteStrategy(s.id)}
+                                            aria-label={`刪除 ${s.name}`}
+                                            className="text-dark-muted transition-colors hover:text-red-400"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         )
                     })}
                 </div>
             )}
+
+            {rowError && <p className="text-xs text-red-400">{rowError}</p>}
 
             {/* Compare action */}
             <div className="flex items-center gap-3">

@@ -123,8 +123,22 @@ export async function mutateJson<T>(
     if (!response.ok) {
         let detail = `Request failed: ${endpoint}`
         try {
-            const errBody = (await response.json()) as { detail?: unknown }
-            if (typeof errBody?.detail === 'string') detail = errBody.detail
+            // Backend error shapes: HTTPException -> {message}; body-validation
+            // 422 -> {detail: [{msg}]}. Handle both so the user sees a real message.
+            const errBody = (await response.json()) as {
+                message?: unknown
+                detail?: unknown
+            }
+            if (typeof errBody?.message === 'string') {
+                detail = errBody.message
+            } else if (typeof errBody?.detail === 'string') {
+                detail = errBody.detail
+            } else if (Array.isArray(errBody?.detail)) {
+                const msgs = (errBody.detail as Array<{ msg?: unknown }>)
+                    .map((e) => (typeof e?.msg === 'string' ? e.msg : null))
+                    .filter((m): m is string => m !== null)
+                if (msgs.length > 0) detail = msgs.join('; ')
+            }
         } catch {
             /* non-JSON error body — keep the generic message */
         }
