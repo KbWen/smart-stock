@@ -3,7 +3,7 @@ status: living
 title: Product Backlog — Honest Research Workbench
 source: 2026-07-02 user-directed post-v1 product direction
 created: 2026-07-02
-last_updated: 2026-07-02 (epic opened; #1 Strategy Lab selected as starting feature)
+last_updated: 2026-07-02 (#1 Strategy Lab Shipped; #6 CSRF-parity added as review-finding)
 ---
 
 # Product Backlog
@@ -18,7 +18,7 @@ After the "Directly-Usable v1" self-install epic completed (all 6 shipped 2026-0
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Strategy Lab — named/saveable/side-by-side backtest workbench built on existing `/api/backtest` + TW cost sliders; compare net-of-cost equity/Sharpe/drawdown across saved strategies (flagship; needs no model improvement) | feature | backtest | P1 | docs/specs/strategy-lab.md | feature | In Progress | — |
+| 1 | Strategy Lab — named/saveable/side-by-side backtest workbench built on existing `/api/backtest` + TW cost sliders; compare net-of-cost equity/Sharpe/drawdown across saved strategies (flagship; needs no model improvement) | feature | backtest | P1 | docs/specs/strategy-lab.md | feature | Shipped | — |
 | 2 | Transparency Panel — first-class "what does the system actually know" view: data coverage (history depth/universe completeness), model_health, last-trained, sample size, OOS metrics | feature | transparency | P1 | — | feature | Pending | — |
 | 3 | Explainable Screening — deepen ScoreBreakdown on 選股雷達: which signals fired + that combo's backtested hit-rate + model_health/sample-size-qualified AI number | feature | screening | P1 | — | feature | Pending | #1 (soft) |
 | 4 | Novice Entry — progressive-disclosure simple default / guided mode so casual "just want to invest" users have a good starting destination; expert depth on demand | feature | onboarding, ux | P2 | — | feature | Pending | #2, #3 (soft) |
