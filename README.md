@@ -1,6 +1,17 @@
-# Smart Stock 🚀 (智慧選股) - Open Source Version
+# Smart Stock 🎯 (智慧選股) — Honest Research Workbench
 
-這是一個專為台灣股市 (TWSE) 設計的技術分析儀表板與 AI 預測引擎。
+一個**誠實**的台股（TWSE / TPEX）研究工作台：技術分析、可回測的策略、AI 訊號——**不誇大、不隱藏**。它不是投顧、不報明牌；價值在於**透明**：系統知道什麼、模型有多可靠，全部攤開讓你看。可離線一鍵啟動、可自架、可完整重現整條 pipeline。
+
+### ✨ 你可以做什麼
+| 頁面 | 說明 |
+| :--- | :--- |
+| 🎯 **儀表板** | 技術面較強的候選 + 每檔的可解釋訊號（白話解讀；AI 值以 `model_health` 誠實修飾） |
+| 🧪 **策略實驗室** | 把回測參數存成具名策略、並排比較扣成本後的表現（**無「贏家」暗示**） |
+| 🔍 **選股雷達** | 用技術條件篩選，並看每檔「為什麼」入選 |
+| 🛡️ **系統透明度** | 資料涵蓋、`model_health`、樣本外 (OOS) 指標——系統到底知道多少 |
+| 🧭 **新手指南** | 懂或不懂都有好起點（漸進式揭露；明確聲明非投顧） |
+
+> **誠實優先**：repo 不附訓練好的模型，demo 的「AI 機率」會誠實顯示 **N/A**；小資料下模型是退化的，`model_health` 會在 UI 標示。差異化是**透明**，不是預測準度。想跑真實 AI：`python scripts/setup_real_ai.py`（opt-in）。開發者想完整重現整條 pipeline：`python scripts/reproduce_pipeline.py`（見 [docs/REPRODUCE.md](docs/REPRODUCE.md)）。
 
 ## ⚡ 快速開始 (Quickstart — 離線 Demo)
 
@@ -240,7 +251,7 @@ cd frontend/v4 && npm run dev   # → http://localhost:5173
 
 ## 🧠 AI Brain & 協作規範 (AI Brain & Collaboration)
 
-本專案採用 **AI Brain Template v3.4.1 (Antigravity Superpowers Edition)** 進行架構治理，確保 AI 與人類開發者在高度一致的「工程憲法」下協作。
+本專案採用 **agentic-os v1.8.7** 治理框架，確保 AI 與人類開發者在高度一致的「工程憲法」（gates／evidence／spec-first）下協作。
 
 ### 核心工作流
 
