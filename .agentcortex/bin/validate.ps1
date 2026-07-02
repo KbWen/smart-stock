@@ -1,4 +1,5 @@
 ﻿param(
+    [Alias('no-python')]
     [switch]$NoPython
 )
 
@@ -241,6 +242,7 @@ $archiveIndexJsonl = Join-NormalPath $root '.agentcortex/context/archive/INDEX.j
 $lessonChainCheck = Join-NormalPath $root '.agentcortex/tools/check_lesson_chain.py'
 $ssotCurrentState = Join-NormalPath $root '.agentcortex/context/current_state.md'
 $commandSyncCheck = Join-NormalPath $root '.agentcortex/tools/check_command_sync.py'
+$skillProvenanceCheck = Join-NormalPath $root '.agentcortex/tools/check_skill_provenance.py'
 $triggerRegistry = Join-NormalPath $root '.agentcortex/metadata/trigger-registry.yaml'
 $triggerCompactIndex = Join-NormalPath $root '.agentcortex/metadata/trigger-compact-index.json'
 $lifecycleScenarios = Join-NormalPath $root '.agentcortex/metadata/lifecycle-scenarios.json'
@@ -418,11 +420,75 @@ Invoke-PythonCheck -Label 'guarded-write lint (governance paths)' -MissingPython
 # Lifecycle frontmatter check mirror of validate.sh integration.
 Invoke-PythonCheck -Label 'lifecycle frontmatter (governance docs)' -MissingPythonLevel 'FAIL' -ScriptPath $lifecycleFrontmatterCheck -Arguments @('--root', $root)
 
+# Skill provenance + compatibility floor (backlog #80/#81) -- mirror of validate.sh.
+# Source-repo only; absent downstream (not in deploy runtime_tools) -> graceful SKIP.
+Invoke-PythonCheck -Label 'skill provenance + compatibility floor' -MissingPythonLevel 'FAIL' -ScriptPath $skillProvenanceCheck -Arguments @('--root', $root)
+
 # Verify the hash chain on the archive INDEX.jsonl.
 if (Test-Path -Path $archiveIndexJsonl -PathType Leaf) {
     Invoke-PythonCheck -Label 'audit chain integrity (INDEX.jsonl)' -MissingPythonLevel 'FAIL' -ScriptPath $auditChainCheck -Arguments @('--path', $archiveIndexJsonl, '--quiet')
 } else {
     Add-Result -Level 'SKIP' -Message 'audit chain integrity -- archive INDEX.jsonl not present'
+}
+
+# D4: INDEX.jsonl referenced-file existence. Mirror of validate.sh. The hash
+# chain + git witness prove entries are append-only and unedited, but neither
+# verifies each entry's `log` artifact still exists on disk — a DANGLING
+# reference (entry present, file gone) is an integrity gap the chain cannot see.
+# WARN, not FAIL: a genuine historical dangling ref cannot be cleanly removed
+# (append-only chain + git witness forbid entry deletion), so this SURFACES the
+# gap for review rather than blocking. Capability-by-presence; needs Python.
+if ((Test-Path -Path $archiveIndexJsonl -PathType Leaf) -and $script:PythonCommand) {
+    # Pass the path as an argv (sys.argv[1]), NOT interpolated into the Python
+    # source — a repo path containing an apostrophe (e.g. C:\Users\O'Brien\...)
+    # would otherwise produce an unterminated string literal, crash the child,
+    # and (via the empty-output default below) silently mask a dangling ref to
+    # PASS on Windows. Mirror of validate.sh, which already uses argv.
+    $indexRefsOut = (& $script:PythonCommand.Source -c @"
+import json, os, sys
+idx = sys.argv[1]
+archive = os.path.dirname(os.path.abspath(idx))
+missing = []
+seen = 0
+try:
+    with open(idx, encoding='utf-8') as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except Exception:
+                continue
+            log = entry.get('log')
+            if not log:
+                continue
+            seen += 1
+            cands = [os.path.join(archive, log), os.path.join(archive, 'work', log)]
+            if not any(os.path.exists(c) for c in cands):
+                missing.append(log)
+except OSError:
+    print('error')
+    raise SystemExit(0)
+print(('missing:' + ','.join(missing)) if missing else ('ok:%d' % seen))
+"@ $archiveIndexJsonl 2>$null | Out-String).Trim()
+    if ($indexRefsOut -like 'missing:*') {
+        $dangling = $indexRefsOut.Substring('missing:'.Length)
+        $danglingCount = @($dangling -split ',' | Where-Object { $_ -ne '' }).Count
+        Write-Output "  INDEX.jsonl references $danglingCount file(s) not present on disk: $dangling"
+        $indexRefsLevel = 'WARN'
+        $indexRefsMsg = "INDEX.jsonl referenced logs missing on disk: $danglingCount (dangling audit reference)"
+    } elseif ($indexRefsOut -like 'ok:*') {
+        $indexRefsLevel = 'PASS'
+        $indexRefsMsg = "INDEX.jsonl referenced logs all present on disk ($($indexRefsOut.Substring('ok:'.Length)) checked)"
+    } else {
+        # Empty/unrecognized output = the child could not run (not a clean 'ok').
+        # WARN rather than silently defaulting to PASS, so a check that failed to
+        # execute cannot mask a dangling reference.
+        $indexRefsLevel = 'WARN'
+        $indexRefsMsg = 'INDEX.jsonl referenced-file check did not run (python error or empty output) -- verify manually'
+    }
+    Add-Result -Level $indexRefsLevel -Message $indexRefsMsg
 }
 
 # C1: git append-only WITNESS for INDEX.jsonl (ADR-003 amendment; spec
@@ -671,6 +737,27 @@ else {
 Test-ContainsLiteral -Path (Join-NormalPath $workflowsDir 'bootstrap.md') -Pattern 'Recommended Skills' -SuccessMessage 'bootstrap includes Recommended Skills contract' -FailureMessage 'bootstrap missing Recommended Skills contract'
 # ADR-004: bootstrap MUST ship the override-layer load step (structural enforcement only; per-agent compliance is honor-system, not falsely test-enforced).
 Test-ContainsLiteral -Path (Join-NormalPath $workflowsDir 'bootstrap.md') -Pattern 'Load Override Layer' -SuccessMessage 'bootstrap ships override-layer load step (ADR-004 §1a)' -FailureMessage 'bootstrap missing override-layer load step (ADR-004 §1a)'
+# ADR-007: bootstrap MUST ship the downstream-capabilities load step (§1b).
+Test-ContainsLiteral -Path (Join-NormalPath $workflowsDir 'bootstrap.md') -Pattern 'Load Downstream Capabilities' -SuccessMessage 'bootstrap ships downstream-capabilities load step (ADR-007 §1b)' -FailureMessage 'bootstrap missing downstream-capabilities load step (ADR-007 §1b)'
+# ADR-009: bootstrap MUST ship the kb-consult scope-detected row (§3.6 / §1b knowledge_sources). Structural only; consult quality is honor-system.
+Test-ContainsLiteral -Path (Join-NormalPath $workflowsDir 'bootstrap.md') -Pattern 'kb-consult' -SuccessMessage 'bootstrap ships KB-consult scope-detected row (ADR-009)' -FailureMessage 'bootstrap missing KB-consult scope-detected row (ADR-009)'
+# ADR-007: a present downstream-capabilities.yaml MUST be schema gate-safe (rejected, not clamped).
+$capValidator = Join-NormalPath $root '.agentcortex/tools/validate_downstream_capabilities.py'
+$capFile = Join-NormalPath $root '.agentcortex/context/private/downstream-capabilities.yaml'
+if (Test-Path $capValidator) {
+    # python-present + gate-unsafe -> FAIL (CI always has python); no-python -> WARN
+    # (advisory; bootstrap §1b agent-discipline is the runtime guarantee there).
+    Invoke-PythonCheck -Label 'downstream-capabilities gate-safety' -MissingPythonLevel 'WARN' -ScriptPath $capValidator -Arguments @($capFile)
+} else {
+    Add-Result -Level 'SKIP' -Message 'downstream-capabilities gate-safety -- validator not deployed (safe to ignore)'
+}
+# ADR-008: the committed safety nucleus MUST match the AGENTS.md fenced span (CR-normalized).
+$safetyNucleusGen = Join-NormalPath $root '.agentcortex/tools/generate_safety_nucleus.py'
+if (Test-Path $safetyNucleusGen) {
+    Invoke-PythonCheck -Label 'safety nucleus freshness' -MissingPythonLevel 'WARN' -ScriptPath $safetyNucleusGen -Arguments @('--check')
+} else {
+    Add-Result -Level 'SKIP' -Message 'safety nucleus freshness -- generator not deployed (safe to ignore)'
+}
 $phaseSkillFiles = @(
     (Join-NormalPath $workflowsDir 'plan.md'),
     (Join-NormalPath $workflowsDir 'implement.md'),
@@ -793,6 +880,24 @@ else {
 
 $routingActionErrors = 0
 $routingActionWarnings = 0
+$routingActionStaleWarnings = 0
+$routingActionsPendingWarnDays = 14
+if (Test-Path -Path $agentConfigYaml -PathType Leaf) {
+    $inDocumentLifecycle = $false
+    foreach ($line in Get-Content -Path $agentConfigYaml -Encoding utf8) {
+        if ($line -match '^document_lifecycle:\s*$') {
+            $inDocumentLifecycle = $true
+            continue
+        }
+        if ($inDocumentLifecycle -and $line -match '^\S') {
+            $inDocumentLifecycle = $false
+        }
+        if ($inDocumentLifecycle -and $line -match '^\s+routing_actions_pending_warn_days:\s*(\d+)\s*$') {
+            $routingActionsPendingWarnDays = [int]$Matches[1]
+            break
+        }
+    }
+}
 $reviewDir = Join-NormalPath $root 'docs/reviews'
 if (Test-Path -Path $reviewDir -PathType Container) {
     foreach ($review in Get-ChildItem -Path $reviewDir -Filter *.md -File -ErrorAction SilentlyContinue) {
@@ -826,6 +931,20 @@ if (Test-Path -Path $reviewDir -PathType Container) {
                     $routingActionErrors++
                 }
             }
+
+            if ($reviewContent -match '(?m)^[ \t]*status:\s*pending\s*$' -and $review.BaseName -match '^(?<date>\d{4}-\d{2}-\d{2})') {
+                $reviewDate = [datetime]::ParseExact(
+                    $Matches['date'],
+                    'yyyy-MM-dd',
+                    [Globalization.CultureInfo]::InvariantCulture,
+                    [Globalization.DateTimeStyles]::AssumeUniversal
+                ).Date
+                $ageDays = [int](([datetime]::UtcNow.Date - $reviewDate).TotalDays)
+                if ($ageDays -ge $routingActionsPendingWarnDays) {
+                    Write-Output "  stale pending routing_actions: $($review.FullName) ($ageDays`d old, threshold $routingActionsPendingWarnDays`d)"
+                    $routingActionStaleWarnings++
+                }
+            }
         }
     }
 }
@@ -837,6 +956,9 @@ else {
 }
 if ($routingActionWarnings -gt 0) {
     Add-Result -Level 'WARN' -Message "routing_actions target docs need follow-up: $routingActionWarnings"
+}
+if ($routingActionStaleWarnings -gt 0) {
+    Add-Result -Level 'WARN' -Message "stale pending routing_actions need canonical-doc follow-up: $routingActionStaleWarnings"
 }
 
 Test-ContainsLiteral -Path $canonicalDeploySh -Pattern 'LEGACY_IGNORE_START="# AI Brain OS - Agent System & Local Context"' -SuccessMessage 'deploy script supports legacy ignore marker migration' -FailureMessage 'deploy script missing legacy ignore marker support'
@@ -860,6 +982,7 @@ else {
         '.agentcortex/context/work/*.md',
         '.agentcortex/context/private/',
         '.agentcortex/context/.guard_receipt.json',
+        '.agentcortex/context/.guard_receipts/',
         '.agentcortex/context/.guard_locks/',
         '.agent/private/',
         '.agentcortex-src/',
@@ -1030,6 +1153,8 @@ if (Test-Path -Path $worklogDir -PathType Container) {
     $handoffResumeIncomplete = 0
     $hotfixShipNoEvidence = 0
     $adrCoverageUndocumented = 0
+    $currentBranchGateFail = 0
+    $currentBranchGateFailList = New-Object System.Collections.Generic.List[string]
     # Legal phase transitions for gate evidence validation (classification-aware)
     # quick-win / unknown: implement can go directly to ship (fast path)
     $legalDefault = @{
@@ -1061,9 +1186,33 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         'test'      = @('ship','implement')
         'ship'      = @()
     }
+    # AC-6: resolve current-branch worklog key once (slash→dash normalization).
+    $curKey = ''
+    try {
+        $gitAvailable = (Get-Command git -ErrorAction SilentlyContinue) -ne $null
+        if ($gitAvailable) {
+            # Use symbolic-ref --short first: works on empty repos (no commits yet).
+            # Fall back to rev-parse --abbrev-ref for detached-HEAD scenarios.
+            $curBranch = & git -C $root symbolic-ref --short HEAD 2>$null
+            if ($LASTEXITCODE -ne 0 -or -not $curBranch) {
+                $curBranch = & git -C $root rev-parse --abbrev-ref HEAD 2>$null
+            }
+            if ($LASTEXITCODE -eq 0 -and $curBranch -and $curBranch -ne 'HEAD') {
+                $curKey = $curBranch.Trim() -replace '/', '-'
+            }
+        }
+    } catch {}
     foreach ($wl in $worklogs) {
         $content = Get-Content -Path $wl.FullName -Raw -Encoding utf8 -ErrorAction SilentlyContinue
         if (-not $content) { continue }
+        # AC-6: flag whether this worklog belongs to the current branch.
+        $isCurrentBranch = $false
+        if ($curKey) {
+            $wlBasename = [System.IO.Path]::GetFileName($wl.FullName)
+            if ($wlBasename -eq "${curKey}.md" -or $wlBasename -like "*-${curKey}.md") {
+                $isCurrentBranch = $true
+            }
+        }
         # Select legal-transition dict based on classification (accept list and table form)
         $wlClassForGates = ''
         $wlClassForGatesMatch = [regex]::Match($content, '(?m)^-\s+(?:\*\*)?[Cc]lassification(?:\*\*)?\s*:\s+`?([a-zA-Z][\w-]*)`?')
@@ -1076,7 +1225,10 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                             elseif ($wlClassForGates -in @('quick-win','tiny-fix')) { $legalDefault }
                             else { $legalStrict }  # H1 fail-closed: unknown → strictest transitions
         $createdDate = ''
-        $createdDateMatch = [regex]::Match($content, '(?m)^- \*\*Created Date\*\*:\s*(.+)$')
+        # Accept list (bold-optional, backtick-optional) OR table form — the
+        # template emits plain/backtick, not bold; a bold-only parser disabled the
+        # legacy exemption for every real log. Mirror of validate.sh.
+        $createdDateMatch = [regex]::Match($content, '(?m)^(?:-\s*\*{0,2}Created Date\*{0,2}:|\|\s*\*{0,2}Created Date\*{0,2}\s*\|)\s*`?(\d{4}-\d{2}-\d{2})')
         if ($createdDateMatch.Success) {
             $createdDate = $createdDateMatch.Groups[1].Value.Trim()
         }
@@ -1085,15 +1237,21 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         if ($content -notmatch '(?m)(^- (`Current Phase`|Current Phase):|^\| (`Current Phase`|Current Phase) +\|)') { $phaseFieldMissing++ }
         if ($content -notmatch '(?m)(^- (`Checkpoint SHA`|Checkpoint SHA):|^\| (`Checkpoint SHA`|Checkpoint SHA) +\|)') { $checkpointMissing++ }
         if ($content -notmatch '(?m)^## Gate Evidence') {
-            if ($isLegacyGateEvidenceLog) {
+            if ($isLegacyGateEvidenceLog -and -not $isCurrentBranch) {
                 $legacyGateEvidenceMissing++
             } else {
+                # D5: a log on the CURRENT branch claiming legacy status but
+                # missing gate evidence cannot legitimately be pre-Runtime-v4 —
+                # deny the legacy WARN downgrade and treat as a FAIL-tier miss.
                 $gateEvidenceMissing++
             }
         } elseif ($content -notmatch '(?mi)^(`?- )?gate:.*verdict:') {
-            if ($isLegacyGateEvidenceLog) {
+            if ($isLegacyGateEvidenceLog -and -not $isCurrentBranch) {
                 $legacyGateEvidenceMissing++
             } else {
+                # D5: a log on the CURRENT branch claiming legacy status but
+                # missing gate evidence cannot legitimately be pre-Runtime-v4 —
+                # deny the legacy WARN downgrade and treat as a FAIL-tier miss.
                 $gateEvidenceMissing++
             }
         } else {
@@ -1171,7 +1329,7 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                     # H3: record ship presence BEFORE verdict filter
                     if ($gPhase -eq 'ship') { $hasShipReceipt = $true }
                     # supporting workflows are out-of-band
-                    if ($gPhase -in @('retro','research','brainstorm','decide','audit')) { continue }
+                    if ($gPhase -in @('retro','research','brainstorm','decide','audit','govern-audit')) { continue }
                     if ($line -match '(?i)\|[^|]*Verdict:\s*PASS(\s*\||$)') {
                         # PASS: clear pending re-review flag if this is review
                         if ($gPhase -eq 'review') { $reviewNotReady = $false }
@@ -1274,7 +1432,15 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         if (($wlClass -eq 'feature' -or $wlClass -eq 'architecture-change') `
             -and ($content -match '(?i)Gate:\s*implement') `
             -and ($content -notmatch '(?im)^#+\s+Test Gate Results')) {
-            $testGateResultsMissing++
+            # AC-6: current-branch at handoff/ship → escalate to FAIL; historical → WARN.
+            # Use gate-receipt presence only here ($wlPhaseForResume is set later in this loop iteration).
+            $atHandoffOrShip = ($content -match '(?i)Gate:\s*(handoff|ship)\s*\|[^|\r\n]*Verdict:\s*PASS')
+            if ($isCurrentBranch -and $atHandoffOrShip) {
+                $currentBranchGateFail++
+                $currentBranchGateFailList.Add("  [Test Gate Results absent] $($wl.Name)")
+            } else {
+                $testGateResultsMissing++
+            }
         }
         # MEDIUM-1 (review PASS with UNPROVEN rows)
         if ($content -match '(?i)Gate:\s*review\s*\|[^|\r\n]*Verdict:\s*PASS') {
@@ -1307,16 +1473,45 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                 $reclassifyHeaderNotReset++
             }
         }
-        # Finding 5 (MEDIUM): Handoff Resume Block completeness — warn when ## Resume
-        # section exists but is missing required sub-sections (handoff.md §1a).
-        if ($content -match '(?m)^## Resume') {
-            $resumeM = [regex]::Match($content, '(?ms)^## Resume\r?\n(.*?)(?=^## |\z)')
-            $resumeBody = if ($resumeM.Success) { $resumeM.Groups[1].Value } else { '' }
-            $missingSubsections = 0
-            foreach ($subsec in @('Read Map', 'Skip List', 'Context Snapshot')) {
-                if ($resumeBody -notmatch "(?im)^###\s+$subsec") { $missingSubsections++ }
+        # Finding 5 (MEDIUM): Handoff Resume Block completeness — required only
+        # once feature/architecture-change work reaches handoff/ship. The Work Log
+        # template's pre-handoff `Resume: none` placeholder is valid, and quick-win
+        # / hotfix paths are exempt from /handoff.
+        $wlPhaseForResume = ''
+        $phaseM = [regex]::Match($content, '(?m)^-\s+\*?\*?Current Phase\*?\*?:\s*`?([A-Za-z][\w-]*)')
+        if (-not $phaseM.Success) {
+            $phaseM = [regex]::Match($content, '(?m)^\|\s*\*?\*?Current Phase\*?\*?\s*\|\s*`?([A-Za-z][\w-]*)')
+        }
+        if ($phaseM.Success) { $wlPhaseForResume = $phaseM.Groups[1].Value.ToLower() }
+        $resumeRequired = (($wlClass -eq 'feature' -or $wlClass -eq 'architecture-change') -and
+            (($wlPhaseForResume -in @('handoff', 'ship')) -or
+             ($content -match '(?i)Gate:\s*(handoff|ship)\s*\|[^|\r\n]*Verdict:\s*PASS')))
+        if ($resumeRequired) {
+            if ($content -notmatch '(?m)^## Resume') {
+                # AC-6: Resume section entirely absent when required.
+                if ($isCurrentBranch) {
+                    $currentBranchGateFail++
+                    $currentBranchGateFailList.Add("  [Resume block absent] $($wl.Name)")
+                } else {
+                    $handoffResumeIncomplete++
+                }
+            } else {
+                $resumeM = [regex]::Match($content, '(?ms)^## Resume\r?\n(.*?)(?=^## |\z)')
+                $resumeBody = if ($resumeM.Success) { $resumeM.Groups[1].Value } else { '' }
+                $missingSubsections = 0
+                foreach ($subsec in @('Read Map', 'Skip List', 'Context Snapshot')) {
+                    if ($resumeBody -notmatch "(?im)^###\s+$subsec") { $missingSubsections++ }
+                }
+                if ($missingSubsections -gt 0) {
+                    # AC-6: incomplete Resume on current-branch → FAIL; historical → WARN.
+                    if ($isCurrentBranch) {
+                        $currentBranchGateFail++
+                        $currentBranchGateFailList.Add("  [Resume block incomplete ($missingSubsections subsection(s) missing)] $($wl.Name)")
+                    } else {
+                        $handoffResumeIncomplete++
+                    }
+                }
             }
-            if ($missingSubsections -gt 0) { $handoffResumeIncomplete++ }
         }
         # Finding 13 (MEDIUM): hotfix fast-path evidence check — hotfix is exempt from
         # /handoff but MUST provide evidence per handoff.md §Trigger Conditions.
@@ -1403,6 +1598,11 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         Add-Result -Level 'WARN' -Message "work logs with ## Resume section missing required sub-sections (handoff.md §1a — Read Map, Skip List, Context Snapshot required): $handoffResumeIncomplete"
     } elseif ($worklogs.Count -gt 0) {
         Add-Result -Level 'PASS' -Message 'handoff Resume Blocks have required sub-sections where present'
+    }
+    # AC-6: current-branch work log missing required gate evidence at handoff/ship.
+    if ($currentBranchGateFail -gt 0) {
+        Add-Result -Level 'FAIL' -Message "current-branch work log missing required gate evidence at handoff/ship (AC-6 — Resume block and/or Test Gate Results absent): $currentBranchGateFail"
+        foreach ($entry in $currentBranchGateFailList) { Write-Output $entry }
     }
     if ($hotfixShipNoEvidence -gt 0) {
         Add-Result -Level 'WARN' -Message "hotfix work logs shipped without ## Evidence (hotfix fast-path still requires diff + behavior verification per handoff.md §Trigger Conditions): $hotfixShipNoEvidence"
@@ -1788,7 +1988,9 @@ if (Test-Path -Path $currentStatePath -PathType Leaf) {
                 ForEach-Object {
                     $relPath = $_.FullName.Replace($root + [System.IO.Path]::DirectorySeparatorChar, '').Replace('\', '/')
                     $fileContent = Get-Content -Path $_.FullName -Raw -ErrorAction SilentlyContinue
-                    if ($fileContent -and $fileContent -match '(?m)^status:\s*draft') { return }
+                    # Skip pre-ship intermediate states: draft, frozen, cancelled
+                    # (not yet required in Spec Index; /ship indexes on ship)
+                    if ($fileContent -and $fileContent -match '(?m)^status:\s*(draft|frozen|cancelled)') { return }
                     $relPath
                 })
         }
@@ -1798,7 +2000,7 @@ if (Test-Path -Path $currentStatePath -PathType Leaf) {
     $specPhantom = @($indexedSpecPaths | Where-Object { $_ -and -not (Test-Path -Path (Join-NormalPath $root $_) -PathType Leaf) })
     if ($specMissing.Count -gt 0 -or $specPhantom.Count -gt 0) {
         $specMsg = @()
-        if ($specMissing.Count -gt 0) { $specMsg += "$($specMissing.Count) non-draft spec(s) not in index" }
+        if ($specMissing.Count -gt 0) { $specMsg += "$($specMissing.Count) shipped/living spec(s) not in index" }
         if ($specPhantom.Count -gt 0) { $specMsg += "$($specPhantom.Count) indexed spec(s) not on disk" }
         Add-Result -Level 'FAIL' -Message "SSoT Spec Index completeness: $($specMsg -join '; ')"
         foreach ($m in $specMissing) { Write-Output "  not indexed: $m" }
@@ -1806,7 +2008,7 @@ if (Test-Path -Path $currentStatePath -PathType Leaf) {
         Write-Output "  fix: update Spec Index in .agentcortex/context/current_state.md via /ship"
     }
     else {
-        Add-Result -Level 'PASS' -Message 'SSoT Spec Index completeness: all non-draft specs are indexed'
+        Add-Result -Level 'PASS' -Message 'SSoT Spec Index completeness: all shipped/living specs are indexed'
     }
 
     # Active Backlog consistency

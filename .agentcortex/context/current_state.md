@@ -1,6 +1,7 @@
 # Project Current State (vNext)
 
 - **Project Intent**: Taiwan stock analysis platform with AI-powered buy signal prediction using ensemble ML (Gradient Boosting + Random Forest + MLP), technical indicators, and V4 sniper scoring system.
+- **Project Name**: smart-stock
 - **Core Guardrails**:
   - Correctness first: No claim of completion without evidence.
   - Small & reversible: Prioritize small, reversible changes; avoid unauthorized refactoring.
@@ -11,6 +12,9 @@
   - Task Isolation: `.agentcortex/context/work/<worklog-key>.md`
   - Active Work Log Path: derive <worklog-key> from the raw branch name using filesystem-safe normalization before any gate checks.
   - Workflows & Policies: `.agent/workflows/*.md`, `.agent/rules/*.md`
+- **Last Updated**: 2026-06-20 (Directly-Usable v1 epic complete)
+- **Last Verified**: 2026-07-02 (brain updated to Agentic OS v1.8.7)
+- **Update Sequence**: 0 (counter introduced at v1.8.7; maintained by /ship going forward)
 - **ADR Index**:
   - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
 - **Active Backlog**: `docs/specs/_product-backlog.md` (Directly-Usable v1 — **ALL 6 Shipped 2026-06-20, epic complete**: #1 one-command launch, #2 credible demo, #3 honest first-run UX, #4 accelerated bulk sync, #5 opt-in real-AI, #6 Docker self-seed. Self-install distribution, full-universe via accelerated live sync, no public hosting. Prior Optimization Round 2 backlog archived to `docs/specs/_product-backlog-optimization-round2-2026-06-13.md`)
@@ -68,7 +72,8 @@
   - `.agent/rules/engineering_guardrails.md`
   - `.agent/rules/state_machine.md`
   - `.agentcortex/docs/CODEX_PLATFORM_GUIDE.md`
-  - `.agentcortex/docs/guides/token-governance.md`
+  - `.agentcortex/docs/guides/token-governance.md` *(manual-only)*
+  - `.agentcortex/docs/guides/context-budget.md` *(manual-only)*
 
 > [!NOTE]
 > This file is the Single Source of Truth for global project context only.

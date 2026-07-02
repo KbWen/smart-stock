@@ -78,6 +78,7 @@ docs/PROJECT_EXAMPLES.md
 .agentcortex/context/work/*.lock.json
 !.agentcortex/context/work/.gitkeep.md
 .agentcortex/context/.guard_receipt.json
+.agentcortex/context/.guard_receipts/
 .agentcortex/context/.guard_locks/
 .agentcortex/context/private/
 .agent/private/

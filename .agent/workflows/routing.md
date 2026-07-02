@@ -66,6 +66,7 @@ It does NOT contain governance rules — those remain in `AGENTS.md`.
 | "研究一下", "investigate", "explore", "look into this" | `/research` | hotfix classification; uncertainty about root cause in /implement |
 | "腦力激盪", "brainstorm", "explore options", "what are our choices" | `/brainstorm` | feature/arch-change with no frozen spec (bootstrap §3.7) |
 | "audit this repo", "評估現狀", "map existing code" | `/audit` | first session in a new module, no ADR exists |
+| "governance audit", "premortem", "治理自我稽核", "audit the governance", "稽核大腦" | `/govern-audit` | — |
 
 ### Completion & Handoff
 
@@ -144,6 +145,10 @@ The framework owns exactly these **14** skill names (do not reuse them for downs
 - **Preservation on deploy**: `custom-*` skills are net-new to the framework source, so `deploy.sh` never touches them; even a same-named framework skill edit is sidecar-protected, not silently overwritten (Ref: ADR-005, `deploy.sh get_tier` → scaffold for `.agent/skills/*`,`.agents/skills/*`).
 - **Additive-fork cleanliness**: because `custom-*` files are disjoint from the framework's file set, `git pull upstream` stays conflict-free for forks that only *add* skills (never edit framework skills in place).
 
+### 3b. Subagent Sentinel Emission (Ref: ADR-007)
+
+The `⚡ ACX` runtime sentinel is **primary-emitted**. A harness-dispatched subagent's output returns **internally to the primary**, not as a user-facing chat turn — so subagents neither emit nor need the sentinel, and a subagent output missing `⚡ ACX` is NOT a violation. The primary (the agent inside the governed phase) is the sole sentinel emitter, exactly as it is the sole Work Log writer and gate owner under `subagent_policy: read-only` (Ref: bootstrap §1b, ADR-007).
+
 ---
 
 ## 4. Ambiguity Rules
@@ -158,7 +163,9 @@ The framework owns exactly these **14** skill names (do not reuse them for downs
 
 5. **Skill manual activation block**: Even when a user explicitly requests a skill, the bootstrap rule table's `Skip when` column governs. If the rule table says skip for the current classification, manual activation is blocked.
 
-6. **Pinned skill vs skip-when precedence**: Pinned skills from user preferences (`.agentcortex/context/private/user-preferences.yaml`) follow the same skip-when rules as manually activated skills UNLESS the pin entry includes `force: true`. Force-pinned skills override skip-when but still respect `phase_scope` boundaries — a skill cannot activate in a phase it was never designed for. This is the ONLY mechanism that can override skip-when; manual activation (rule 5) cannot. See bootstrap §3.6a.
+6. **audit vs govern-audit**: `/audit` maps a legacy/project CODEBASE (onboarding); `/govern-audit` audits the GOVERNANCE SYSTEM itself (gates, validators, wiring). "評估現狀" about the project → `/audit`; about the framework/brain → `/govern-audit`.
+
+7. **Pinned skill vs skip-when precedence**: Pinned skills from user preferences (`.agentcortex/context/private/user-preferences.yaml`) follow the same skip-when rules as manually activated skills UNLESS the pin entry includes `force: true`. Force-pinned skills override skip-when but still respect `phase_scope` boundaries — a skill cannot activate in a phase it was never designed for. This is the ONLY mechanism that can override skip-when; manual activation (rule 5) cannot. See bootstrap §3.6a.
 
 ---
 
@@ -187,6 +194,7 @@ All commands are dispatched per `AGENTS.md §Agentic OS Runtime v1` and execute 
 | `/research` | `.agent/workflows/research.md` | investigation |
 | `/brainstorm` | `.agent/workflows/brainstorm.md` | exploration |
 | `/audit` | `.agent/workflows/audit.md` | repo assessment |
+| `/govern-audit` | `.agent/workflows/govern-audit.md` | governance self-audit |
 | `/decide` | `.agent/workflows/decide.md` | decision logging |
 | `/retro` | `.agent/workflows/retro.md` | retrospective |
 | `/sync-docs` | `.agent/workflows/sync-docs.md` | documentation sync |
