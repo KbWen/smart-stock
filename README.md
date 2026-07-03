@@ -15,6 +15,19 @@
 
 > ⚠️ 這是研究／學習用的小工具，**不是投顧、也不是明牌機**。賺賠自負，別把身家壓上去。
 
+## 📸 長這樣
+
+> 都是 demo 模式的真實畫面：92 檔範例資料、沒訓練的示範模型——所以 AI 很老實地標自己「辨識力不足」，不裝懂。
+
+**儀表板**：候選清單＋每檔的可解釋訊號，AI 機率旁邊直接標「這模型現在不太行」。
+![儀表板](docs/screenshots/dashboard.png)
+
+**系統透明度**：資料涵蓋多少、模型到底可不可靠，一次攤開給你看。
+![系統透明度](docs/screenshots/transparency.png)
+
+**策略實驗室**：把回測參數存成具名策略、擺一起比（Balanced 幫新手標了「建議起點」）。
+![策略實驗室](docs/screenshots/strategy-lab.png)
+
 ## ⚡ 快速開始 (Quickstart — 離線 Demo)
 
 想立刻看到「有資料的儀表板」？內建一份離線 demo 資料集（`data/demo/demo_prices.csv`，含台積電等數檔），**不需等待 yfinance 下載**：
