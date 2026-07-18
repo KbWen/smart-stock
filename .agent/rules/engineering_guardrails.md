@@ -119,7 +119,7 @@ Before emitting any verdict (phase pass/fail, classification, completion claim),
 
 **Scope Exemption (Directory-Based)**: This rule applies **only** to production code directories (e.g., `src/`, `app/`, `lib/`, `packages/`). Files in `tools/`, `scripts/`, `scratch/`, `tests/`, `__tests__/`, `*.test.*`, `*.spec.*`, and `.agentcortex/` are **automatically exempt**.
 
-**Design Source of Truth (DSoT)**: The canonical visual specification for UI work. Default tool: **Stitch**. Alternative tools (Figma, Pencil, etc.) are equally valid — the requirement is a linkable, inspectable, exportable design artifact.
+**Design Source of Truth (DSoT)**: The canonical visual specification for UI work. Default tool: **Stitch**. Alternative tools (Figma, Pencil, etc.) are equally valid — and with no design tool, a committed Markdown/ASCII wireframe file (e.g. `docs/design/<screen>.md`, describing layout + component structure + states) is an equally valid artifact. The requirement is a linkable, inspectable artifact (a URL **or a file path**), not a specific tool.
 
 **Pipeline**:
 1. **Design**: Create or update the visual specification in the DSoT tool. MUST produce a linkable artifact (URL or file path).
@@ -132,7 +132,7 @@ Before emitting any verdict (phase pass/fail, classification, completion claim),
 - `/implement` → Design Approval Check: UI rendering code blocked until DSoT design is confirmed. No design = no UI code.
 - `/review` → Design Compliance Check: 1:1 fidelity audit against DSoT. Structural deviation = **HIGH** severity.
 
-**No DSoT = No UI Implementation**: If a UI task lacks a design artifact, it MUST NOT proceed past `/plan`. Agent MUST stop: "⚠️ This task modifies UI but has no design link. Create the design in [DSoT tool] first."
+**No design artifact = No UI Implementation**: If a UI task lacks *any* design artifact, it MUST NOT proceed past `/plan`. Agent MUST stop: "⚠️ This task modifies UI but has no design link. Provide one first — a DSoT-tool URL **or** a committed Markdown/ASCII wireframe file (`docs/design/<screen>.md`)."
 
 ## 5. Testing & Verification
 
@@ -233,16 +233,16 @@ To prevent Work Log bloat and premature context compaction, agents MUST NOT past
 
 ### 8.2 External Tool Delegation Protocol
 
-External CLI tools (e.g., `ask-openrouter`, `codex`) are **OPTIONAL accelerators**. Projects MAY operate without any of them.
+External CLI tools (e.g., `ask-openrouter`, `codex`, `claude`) are **OPTIONAL accelerators**; projects MAY operate without any.
 
-**Pre/Post-Flight (Mandatory for all external tool invocations)**:
+**Pre/Post-Flight (mandatory, canonical order)**:
 
 - **Pre-Flight** (in order — fail fast):
-  1. **Cost-Tier Confirmation** (memory-only): low-cost → auto-execute; high-cost (quality/max profile) → confirm with user first.
-  2. Update Work Log with `Executor: <tool-name>` (only if cost-tier passes).
-  3. **Availability Check (Silent)**: run health check (e.g., `python -m ask_openrouter --help`, `codex --version`). If unavailable: **silently fall back** to AI-native execution. DO NOT warn user. DO NOT suggest installation. Cache per session.
-- **Post-Flight**: Read tool output, verify scope alignment, update Work Log, apply Gate Check per §10.2.
-- External tool output is treated as **Junior Tool output** — AI MUST review before accepting.
+  1. **Cost-Tier** (memory-only): low-cost → auto-execute; high-cost → confirm with user first.
+  2. Record `Requested Executor: <tool>` in the Work Log **before** probing availability, then **Baseline Capture** the worktree (`git status --porcelain` + `git diff`) so scope reverts can tell executor edits from files already **dirty at baseline**.
+  3. **Availability (silent)**: health-check the tool; if unavailable, silently fall back for *implicit* acceleration (no install prompt; cache per session), but an *explicit* executor request MUST **disclose** the fallback (final handoff at latest). Record `Actual Executor: <tool | native>` (+ reason when it differs from Requested).
+- **Post-Flight**: read output, verify scope, update Work Log, Gate Check per §10.2. On **abnormal exit** (timeout / nonzero / kill): STOP retries, wait for termination, re-derive state from the baseline diff, record partial state, reconcile explicitly before re-invoking. Never whole-file-revert (`git checkout -- <path>`) a path **dirty at baseline** — reverse only executor hunks or escalate.
+- External tool output = **Junior Tool output** — AI MUST review before accepting.
 
 ## 9. Intent Safety Rules
 
