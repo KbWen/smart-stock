@@ -34,6 +34,12 @@ interface ApiCandidate {
 const INDICATORS_SCORE_THRESHOLD = 80
 const INDICATORS_AI_THRESHOLD = 60
 
+const FILTER_LABELS: Record<'ALL' | 'HIGH SCORE' | 'HIGH AI', string> = {
+    ALL: '全部',
+    'HIGH SCORE': '高評分',
+    'HIGH AI': '高AI機率',
+}
+
 const Indicators: React.FC = () => {
     const [filter, setFilter] = useState<'ALL' | 'HIGH SCORE' | 'HIGH AI'>('ALL')
 
@@ -77,7 +83,7 @@ const Indicators: React.FC = () => {
         [stocks, filter],
     )
 
-    if (loading && isPlaceholder) return <div className="p-6 text-dark-muted">Loading Technical Scanner...</div>
+    if (loading && isPlaceholder) return <div className="p-6 text-dark-muted">載入技術面掃描中…</div>
 
     if (error && (!rawData || rawData.length === 0)) return <div className="p-6 text-center text-red-400">技術掃描資料載入失敗，請確認後端運作後重試。</div>
 
@@ -86,7 +92,7 @@ const Indicators: React.FC = () => {
             <ModelHealthBanner health={marketData?.model_health} />
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-white">
-                    Technical Scanner
+                    技術面掃描
                     <span className="text-sm text-dark-muted font-normal ml-2">
                         ({filteredStocks.length} 檔)
                     </span>
@@ -99,7 +105,7 @@ const Indicators: React.FC = () => {
                             className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${filter === f ? 'bg-sniper-green text-dark-bg' : 'text-dark-muted hover:text-white'
                                 }`}
                         >
-                            {f}
+                            {FILTER_LABELS[f]}
                         </button>
                     ))}
                 </div>
@@ -110,12 +116,12 @@ const Indicators: React.FC = () => {
                     <table className="w-full text-left text-sm">
                         <thead className="bg-dark-border/30 text-dark-muted uppercase text-xs">
                             <tr>
-                                <th className="p-4">Ticker</th>
-                                <th className="p-4 text-right">Price</th>
-                                <th className="p-4 text-right">Change</th>
+                                <th className="p-4">股票代號</th>
+                                <th className="p-4 text-right">價格</th>
+                                <th className="p-4 text-right">漲跌幅</th>
                                 <th className="p-4 text-right">
                                     <div className="flex items-center justify-end gap-1">
-                                        Rise Score
+                                        上升分數
                                         <Tooltip content="技術評分 (0-100)。">
                                             <Info size={12} className="opacity-50" />
                                         </Tooltip>
@@ -123,7 +129,7 @@ const Indicators: React.FC = () => {
                                 </th>
                                 <th className="p-4 text-right">
                                     <div className="flex items-center justify-end gap-1">
-                                        AI Prob
+                                        AI 機率
                                         <Tooltip content="AI 預測達成 15% 漲幅的機率。">
                                             <Info size={12} className="opacity-50" />
                                         </Tooltip>
@@ -137,7 +143,7 @@ const Indicators: React.FC = () => {
                                         </Tooltip>
                                     </div>
                                 </th>
-                                <th className="p-4">Signals</th>
+                                <th className="p-4">訊號</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-dark-border">

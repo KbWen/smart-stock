@@ -25,7 +25,7 @@ const MarketRisk: React.FC = () => {
     }, [data])
 
     if (loading && !data) {
-        return <div className="p-6 text-dark-muted">Scanning Market Risk...</div>
+        return <div className="p-6 text-dark-muted">市場風險掃描中…</div>
     }
 
     if (error && !data) {
@@ -46,7 +46,7 @@ const MarketRisk: React.FC = () => {
         <div className="space-y-6">
             <h2 className="mb-4 flex items-center gap-2 text-2xl font-bold text-white">
                 <Activity className="text-sniper-green" />
-                Market Radar
+                市場雷達 (Market Radar)
             </h2>
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -78,12 +78,12 @@ const MarketRisk: React.FC = () => {
                     <div className="grid grid-cols-2 gap-6">
                         <div className="rounded-lg border border-dark-border bg-dark-bg/30 p-4">
                             <Thermometer className="mb-2 text-sniper-green" size={20} />
-                            <div className="text-sm text-dark-muted">Market Temp</div>
+                            <div className="text-sm text-dark-muted">市場溫度</div>
                             <div className="text-2xl font-bold text-white">{data.market_temp.toFixed(1)}</div>
                         </div>
                         <div className="rounded-lg border border-dark-border bg-dark-bg/30 p-4">
                             <ShieldAlert className={`mb-2 ${riskColorClass}`} size={20} />
-                            <div className="text-sm text-dark-muted">Risk Level</div>
+                            <div className="text-sm text-dark-muted">風險等級</div>
                             <div className={`text-2xl font-bold ${riskColorClass}`}>{data.risk_level}</div>
                         </div>
                     </div>
@@ -92,21 +92,21 @@ const MarketRisk: React.FC = () => {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-dark-border bg-dark-card p-4">
-                    <div className="mb-1 flex items-center gap-2 text-dark-muted"><Cpu size={16} /> AI Sentiment</div>
+                    <div className="mb-1 flex items-center gap-2 text-dark-muted"><Cpu size={16} /> AI 情緒指數</div>
                     <p className="text-2xl font-bold text-sniper-gold">{data.ai_sentiment.toFixed(1)}%</p>
                 </div>
                 <div className="rounded-xl border border-dark-border bg-dark-card p-4">
-                    <div className="mb-1 flex items-center gap-2 text-dark-muted"><Database size={16} /> Total Stocks</div>
+                    <div className="mb-1 flex items-center gap-2 text-dark-muted"><Database size={16} /> 掃描數量</div>
                     <p className="text-2xl font-bold text-white">{data.total_stocks}</p>
                 </div>
                 <div className="rounded-xl border border-dark-border bg-dark-card p-4">
-                    <div className="mb-1 text-dark-muted">Model Version</div>
+                    <div className="mb-1 text-dark-muted">模型版本</div>
                     <p className="text-2xl font-bold text-white">{data.model_version}</p>
                 </div>
             </div>
 
             <ErrorBoundary>
-            <Suspense fallback={<div className="rounded-xl border border-dark-border bg-dark-card p-6 text-dark-muted">Loading risk history chart...</div>}>
+            <Suspense fallback={<div className="rounded-xl border border-dark-border bg-dark-card p-6 text-dark-muted">載入風險歷史圖表中…</div>}>
                 {data.history && data.history.length > 0 ? <MarketRiskHistoryChart history={data.history} /> : null}
             </Suspense>
             </ErrorBoundary>

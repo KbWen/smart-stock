@@ -85,10 +85,10 @@ export const useDashboardData = () => {
     }, [market])
 
     const lastUpdated = useMemo(() => {
-        return market?.history?.[market.history.length - 1]?.timestamp || 'Unknown'
+        return market?.history?.[market.history.length - 1]?.timestamp || '未知'
     }, [market])
 
-    const dbUpdatedAt = candidateMeta?.[0]?.updated_at || 'Unknown'
+    const dbUpdatedAt = candidateMeta?.[0]?.updated_at || '未知'
 
     const isDbStale = useMemo(() => {
         const updatedAt = candidateMeta?.[0]?.updated_at

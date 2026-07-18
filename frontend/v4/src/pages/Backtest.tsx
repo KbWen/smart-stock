@@ -2,7 +2,9 @@ import React, { Suspense, useMemo, useState } from 'react'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { Info } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
+import ModelHealthBanner from '../components/ModelHealthBanner'
 import { useCachedApi } from '../hooks/useCachedApi'
+import type { MarketStatus } from '../hooks/useDashboardData'
 
 import BacktestEquityChart from '../components/charts/BacktestEquityChart'
 import BacktestTable from '../components/dashboard/BacktestTable'
@@ -61,6 +63,11 @@ const Backtest: React.FC = () => {
         throttleMs: 1_000,
     })
 
+    const { data: marketData } = useCachedApi<MarketStatus>(
+        '/api/market_status',
+        { ttlMs: 60_000, throttleMs: 600 },
+    )
+
     const endpoint = `/api/backtest?days=${days}&version=${selectedVersion}&commission_rate=${commissionRate}&tax_rate=${taxRate}&slippage_rate=${slippageRate}&target_gain=${targetGain}&stop_loss=${stopLoss}&holding_days=${holdingDays}`
     const { data, loading, isPlaceholder, refetch } = useCachedApi<BacktestResponse>(endpoint, {
         ttlMs: 20_000,
@@ -90,12 +97,13 @@ const Backtest: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            <ModelHealthBanner health={marketData?.model_health} />
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <h2 className="text-2xl font-bold uppercase tracking-widest text-white">AI 回測報告</h2>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3 gap-y-2">
                     <select value={selectedVersion} onChange={(event) => setSelectedVersion(event.target.value)} className="rounded-lg border border-dark-border bg-dark-card p-2 text-sm text-white outline-none focus:border-sniper-green focus:ring-sniper-green">
-                        <option value="latest">Latest Model</option>
+                        <option value="latest">最新模型</option>
                         {versions?.map((model) => (
                             <option key={model.version} value={model.version}>{model.version}</option>
                         ))}
@@ -109,7 +117,7 @@ const Backtest: React.FC = () => {
                     </select>
 
                     <button type="button" onClick={() => void refetch()} disabled={loading} className="rounded-lg bg-sniper-green px-4 py-2 text-sm uppercase tracking-wider text-black transition-colors disabled:opacity-50">
-                        {loading ? 'Running...' : 'Run Backtest'}
+                        {loading ? '執行中…' : '執行回測'}
                     </button>
                 </div>
             </div>

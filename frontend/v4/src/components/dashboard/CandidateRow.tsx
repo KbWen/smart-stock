@@ -34,6 +34,14 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
     return (
         <div
             onClick={() => onSelect(stock.ticker)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.key === ' ') e.preventDefault()
+                    onSelect(stock.ticker)
+                }
+            }}
             className={`grid cursor-pointer grid-cols-5 items-center border-b border-dark-border/40 text-sm transition-all duration-200 ease-out ${
                 isSelected
                     ? 'bg-sniper-green/15 pl-2 border-l-4 border-l-sniper-green shadow-[inset_0_0_12px_rgba(16,185,129,0.15)]'

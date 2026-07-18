@@ -69,7 +69,7 @@ describe('PriceSignalChart', () => {
 
     it('renders empty state when data is empty', () => {
         render(<PriceSignalChart ticker="2330" />)
-        expect(screen.getByText('No history data')).toBeDefined()
+        expect(screen.getByText('目前無歷史資料')).toBeDefined()
     })
 
     it('renders skeleton when loading', () => {

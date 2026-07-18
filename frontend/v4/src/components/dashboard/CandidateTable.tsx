@@ -14,6 +14,13 @@ interface CandidateTableProps {
 type SortKey = 'price' | 'change_percent' | 'rise_score' | 'ai_prob'
 type SortDir = 'asc' | 'desc'
 
+const COLUMN_LABELS: Record<SortKey, string> = {
+    price: '價格',
+    change_percent: '漲跌',
+    rise_score: '評分',
+    ai_prob: 'AI 機率',
+}
+
 const ROW_HEIGHT = 92
 const OVERSCAN_COUNT = 4
 
@@ -79,7 +86,7 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                         onClick={() => handleSort(key)}
                     >
                         <span className="flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold">
-                            {key.replace('_', ' ')} {renderSortIcon(key)}
+                            {COLUMN_LABELS[key]} {renderSortIcon(key)}
                             {(key === 'rise_score' || key === 'ai_prob') && (
                                 <Tooltip content={key === 'rise_score' ? "技術評分" : "AI 預測機率"}>
                                     <Info size={12} className="opacity-50" />
