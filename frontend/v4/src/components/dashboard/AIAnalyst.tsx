@@ -14,7 +14,7 @@ const AIAnalyst: React.FC<AIAnalystProps> = ({ summary, signals }) => {
         <div className="space-y-4">
             <div className="border-t border-dark-border pt-4">
                 <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
-                    <span role="img" aria-label="robot">🤖</span> AI 分析師洞察
+                    技術面摘要
                 </h3>
                 <div className="rounded-lg border-l-2 border-sniper-gold bg-dark-bg/30 p-3 text-sm leading-relaxed text-dark-muted whitespace-pre-line shadow-inner">
                     {summary}

@@ -3,6 +3,7 @@ import type { StockCandidate } from '../../hooks/useDashboardData'
 import { useSparkline } from '../../hooks/useSparkline'
 import SparklineChart from '../charts/SparklineChart'
 import Tooltip from '../Tooltip'
+import { SIGNAL_LABELS } from '../../lib/verdict'
 
 interface CandidateRowProps {
     stock: StockCandidate
@@ -22,9 +23,9 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ stock, isSelected, onSelect
 
     const v4Signals: string[] = []
     if (stock.v4_signals) {
-        if (stock.v4_signals.squeeze) v4Signals.push('Squeeze')
-        if (stock.v4_signals.golden_cross) v4Signals.push('Golden Cross')
-        if (stock.v4_signals.volume_spike) v4Signals.push('Volume Spike')
+        if (stock.v4_signals.squeeze) v4Signals.push(SIGNAL_LABELS.squeeze.label)
+        if (stock.v4_signals.golden_cross) v4Signals.push(SIGNAL_LABELS.golden_cross.label)
+        if (stock.v4_signals.volume_spike) v4Signals.push(SIGNAL_LABELS.volume_spike.label)
     }
     // Combine and unique
     const allSignals = Array.from(new Set([...(stock.signals ?? []), ...v4Signals]))

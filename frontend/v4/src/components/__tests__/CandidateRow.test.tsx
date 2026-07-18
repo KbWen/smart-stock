@@ -44,7 +44,7 @@ describe('CandidateRow', () => {
 
         expect(screen.getByText('2330.TW')).toBeInTheDocument()
         expect(screen.getByText('TSMC')).toBeInTheDocument()
-        expect(screen.getByText(/Squeeze/i)).toBeInTheDocument()
+        expect(screen.getByText('低波壓縮')).toBeInTheDocument()
     })
 
     it('renders enriched golden cross signal from v4 meta', () => {
@@ -66,14 +66,14 @@ describe('CandidateRow', () => {
             />,
         )
 
-        expect(screen.getByText(/Golden Cross/i)).toBeInTheDocument()
+        expect(screen.getByText('KD 黃金交叉')).toBeInTheDocument()
     })
 
     it('deduplicates legacy and enriched signals while keeping hidden count', () => {
         render(
             <CandidateRow
                 stock={createStock({
-                    signals: ['Squeeze'],
+                    signals: ['低波壓縮'],
                     v4_signals: {
                         squeeze: true,
                         golden_cross: true,
@@ -89,7 +89,7 @@ describe('CandidateRow', () => {
             />,
         )
 
-        expect(screen.getByText(/Squeeze/i)).toBeInTheDocument()
+        expect(screen.getByText('低波壓縮')).toBeInTheDocument()
         expect(screen.getByText('+1')).toBeInTheDocument()
     })
 
