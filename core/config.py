@@ -25,9 +25,12 @@ ATR_BUY_MULT = float(os.getenv("ATR_BUY_MULT", 1.8))         # Buy target (Class
 ATR_STOP_MULT = float(os.getenv("ATR_STOP_MULT", 1.5))       # Stop loss
 
 # AI Backtest / Strategy
-# IMPORTANT: These are the single source of truth for all strategy parameters.
-# Training (trainer.py) and Backtest (backtest.py) MUST reference these values.
-# DO NOT hardcode magic numbers elsewhere.
+# NOTE on the barrier SSoT (was overstated here): TARGET_GAIN / BUY_TARGET / STOP_LOSS
+# (above) are the FIXED-mode training-label barriers, used only when LABEL_MODE='fixed'.
+# In the default 'atr' mode the trainer derives label barriers from ATR_*_MULT instead.
+# The backtest EXIT (target_gain / stop_loss / holding_days) is USER-TUNABLE per request
+# (Strategy Lab) and is NOT bound to these constants. The only backtest value sourced
+# from here is BACKTEST_AI_THRESHOLD (the candidate filter). Do not hardcode it elsewhere.
 BACKTEST_AI_THRESHOLD = float(os.getenv("BACKTEST_AI_THRESHOLD", 0.35))
 MIN_TRAIN_ROWS = int(os.getenv("MIN_TRAIN_ROWS", 260))
 MIN_PREDICT_ROWS = int(os.getenv("MIN_PREDICT_ROWS", 120))

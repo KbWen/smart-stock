@@ -2,13 +2,14 @@ import re
 from core import config
 
 # ===== SNIPER STRATEGY PARAMETERS =====
-# IMPORTANT: All strategy parameters flow from core/config.py.
-# Training (trainer.py) and Backtest (backtest.py) MUST use these constants.
-# DO NOT hardcode equivalent magic numbers in other files.
+# All strategy constants flow from core/config.py. TARGET_GAIN / STOP_LOSS / BUY_TARGET
+# are the FIXED-mode (LABEL_MODE='fixed') training-label barriers; in the default 'atr'
+# mode the trainer uses ATR_*_MULT below instead. The backtest EXIT is user-tunable and
+# does NOT read these (see backend/backtest.py). Do not hardcode equivalent numbers elsewhere.
 PRED_DAYS = config.PRED_DAYS       # Look-ahead window (max 20 trading days)
-TARGET_GAIN = config.TARGET_GAIN   # +15% profit target
-STOP_LOSS = config.STOP_LOSS       # -5% stop loss
-BUY_TARGET = config.BUY_TARGET     # +10% buy target (Class 1)
+TARGET_GAIN = config.TARGET_GAIN   # +15% StrongBuy target (fixed-mode label only)
+STOP_LOSS = config.STOP_LOSS       # -5% stop loss (fixed-mode label only)
+BUY_TARGET = config.BUY_TARGET     # +10% Buy target (fixed-mode label, Class 1)
 
 # Label mode + ATR-scaled barrier multipliers (single source of truth = config.py).
 # trainer.py reads these dynamically (module attributes) so the labeling mode is

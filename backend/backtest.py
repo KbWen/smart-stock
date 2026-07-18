@@ -11,17 +11,22 @@ from core.data import get_all_tw_stocks, load_from_db as _load_from_db
 from core.ai import predict_prob
 
 from core import config
-from core.ai.common import PRED_DAYS, TARGET_GAIN, STOP_LOSS, BACKTEST_AI_THRESHOLD
+from core.ai.common import BACKTEST_AI_THRESHOLD
+from core.logger import setup_logger
+
+logger = setup_logger("backend.backtest")
 
 MODEL_PATH = config.MODEL_PATH
 if not os.path.exists(MODEL_PATH):
-    print(f"[WARNING] AI model not found at {MODEL_PATH}")
+    logger.warning("AI model not found at %s", MODEL_PATH)
 
 from typing import Optional
 
-# IMPORTANT: Strategy parameters are centralized in core/config.py → core/ai/common.py.
-# DO NOT hardcode target/stop/threshold values here. Any change should go through config.
-BACKTEST_HORIZON_DAYS = PRED_DAYS  # Must match training look-ahead window
+# The backtest EXIT parameters (target_gain / stop_loss / holding_days) are USER-TUNABLE
+# request args with the defaults below — they define an exit STRATEGY, not the ML training
+# labels. Training-label barriers live in core/config.py (ATR_*_MULT in the default 'atr'
+# mode; TARGET_GAIN / STOP_LOSS / BUY_TARGET in 'fixed' mode). The only config-sourced
+# constant used here is BACKTEST_AI_THRESHOLD (the candidate filter).
 
 def _passes_liquidity_filter(df: pd.DataFrame, min_avg_volume: int) -> bool:
     if min_avg_volume <= 0:
@@ -63,7 +68,7 @@ def run_time_machine(
         # Fallback to DB list (but without future sorting bias)
         from core.data import get_db_connection
         conn = get_db_connection()
-        tickers = [row[0] for row in conn.execute("SELECT ticker FROM stock_scores").fetchall()]
+        tickers = [row[0] for row in conn.execute("SELECT ticker FROM stock_scores ORDER BY ticker").fetchall()]
         all_stocks = [{"code": t} for t in tickers]
         conn.close()
 
@@ -180,7 +185,8 @@ def run_time_machine(
             roi = (last_observed_close - entry_price) / entry_price if entry_price > 0 else 0.0
             
             # --- SNIPER HIT/MISS ANALYSIS ---
-            # Check if price hit +15% (target) before -5% (stop) within the 20-day backtest window
+            # Did price hit +target_gain before -stop_loss within the holding window?
+            # (target_gain / stop_loss / holding_days are user-tunable — see run_time_machine args.)
             sniper_result = 'PENDING'
             max_drawdown_pct = 0.0
             max_gain_pct = 0.0
@@ -236,7 +242,7 @@ def run_time_machine(
                 "exit_date": exit_date_actual
             }
         except Exception as e:
-            # print(f"❌ Error processing {ticker}: {e}")
+            logger.warning("Backtest skipped %s: %s", ticker, e)
             return None
 
     results = []
