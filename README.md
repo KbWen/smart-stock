@@ -1,5 +1,7 @@
 # Smart Stock 🎯 (智慧選股) — 一個誠實的台股小工具
 
+**English**: [README.en.md](README.en.md)
+
 自己做來玩、順手放上來分享的台股（TWSE / TPEX）研究小工具。只堅持一件事：**誠實**。不報明牌、不唬爛，AI 不會的時候就老實說「我不知道」，不會硬掰一個數字騙你。可以離線一鍵開來玩，也能自己架，甚至把整條 pipeline 從頭跑一遍看門道。
 
 ### ✨ 裡面有什麼
@@ -239,9 +241,9 @@ cd frontend/v4 && npm run dev   # → http://localhost:5173
 | **Backtest Lab** | 「時光機」功能。採用**大樣本搜尋 (300 檔)** 與**歷史機率排序**，真實模擬 AI 歷史選股表現 (精準對齊市場交易日)。 |
 | **True Sniper Exit** | 回測引擎內建「真實狙擊手出場」邏輯：一旦股價在持有期間內觸及你設定的停利／停損（策略實驗室可調，預設 +15% / −5%），當天立即提早結算並鎖定報酬，真實反映紀律交易的勝率，而非強制抱到期滿。 |
 | **指標快取系統** | 將預計算的技術指標存儲於 `stock_indicators` 表，大幅提升掃描與回測速度。 |
-| **AI 虛擬分析師** | 自動生成技術面解釋報告，解析 AI 預測背後的邏輯。並加入全站 Global Tooltips 解釋各種金融專有名詞。 |
+| **技術面摘要** | 自動用白話解讀技術指標（KD/RSI/量能等），非模型輸出。並加入全站 Global Tooltips 解釋各種金融專有名詞。 |
 | **Price Signal Chart** | 每張 SniperCard 內嵌 90 天收盤價折線圖，並以彩色訊號點標注 AI 偵測到的 Squeeze（⚡黃）、Golden Cross（✦藍）、Volume Spike（▲紫），讓朋友秒懂 AI 在追蹤什麼。 |
-| **AI Probability 動畫** | Score Breakdown 的 AI 勝率數字從 0 動態計數至實際值（ease-out cubic 動畫，~1 秒），強化 AI 計算感。 |
+| **AI Probability 動畫** | Score Breakdown 的 AI 勝率數字以 ease-out 動畫從 0 計數至實際值，~1 秒。 |
 | **一鍵腳本** | `daily_run.bat` 讓每日資料更新與訓練變得極其簡單。 |
 
 ## 🧪 資料品質與回測可信度檢核 (Data Quality & Backtest Reliability)
