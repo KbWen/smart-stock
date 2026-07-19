@@ -58,29 +58,42 @@ const setupMock = (detailOverrides = {}, hookOverrides = {}) => {
 describe('useStockAnalysis — recommendationBadge', () => {
     beforeEach(() => mockUseCachedApi.mockReset())
 
-    it('returns STRONG BUY when ai_probability >= 70', () => {
+    it('returns AI 機率偏高 when ai_probability >= 70', () => {
         setupMock({ ai_probability: 75 })
         const { result } = renderHook(() => useStockAnalysis('2330.TW'))
-        expect(result.current.recommendationBadge!.text).toBe('STRONG BUY')
+        expect(result.current.recommendationBadge!.text).toBe('AI 機率偏高')
         expect(result.current.recommendationBadge!.color).toContain('sniper-green')
     })
 
-    it('returns HOLD when ai_probability is 50–69', () => {
+    it('returns AI 機率中等 when ai_probability is 50–69', () => {
         setupMock({ ai_probability: 60 })
         const { result } = renderHook(() => useStockAnalysis('2330.TW'))
-        expect(result.current.recommendationBadge!.text).toBe('HOLD')
+        expect(result.current.recommendationBadge!.text).toBe('AI 機率中等')
         expect(result.current.recommendationBadge!.color).toContain('yellow')
     })
 
-    it('returns HIGH RISK when ai_probability < 50', () => {
+    it('returns AI 機率偏低 when ai_probability < 50', () => {
         setupMock({ ai_probability: 30 })
         const { result } = renderHook(() => useStockAnalysis('2330.TW'))
-        expect(result.current.recommendationBadge!.text).toBe('HIGH RISK')
+        expect(result.current.recommendationBadge!.text).toBe('AI 機率偏低')
         expect(result.current.recommendationBadge!.color).toContain('red')
     })
 
-    it('returns 資料不足 (not HIGH RISK) when ai_probability is unavailable (null)', () => {
+    it('returns 資料不足 (not AI 機率偏低) when ai_probability is unavailable (null)', () => {
         setupMock({ ai_probability: null })
+        const { result } = renderHook(() => useStockAnalysis('2330.TW'))
+        expect(result.current.recommendationBadge!.text).toBe('資料不足')
+    })
+
+    it('shows the grade WITH a caption when model_health is degraded (never hide a true number)', () => {
+        setupMock({ ai_probability: 75, model_health: { status: 'degraded' } })
+        const { result } = renderHook(() => useStockAnalysis('2330.TW'))
+        expect(result.current.recommendationBadge!.text).toBe('AI 機率偏高')
+        expect(result.current.recommendationBadge!.caption).toBeTruthy()
+    })
+
+    it('suppresses the grade (資料不足) when model_health is unavailable, even with a probability', () => {
+        setupMock({ ai_probability: 75, model_health: { status: 'unavailable' } })
         const { result } = renderHook(() => useStockAnalysis('2330.TW'))
         expect(result.current.recommendationBadge!.text).toBe('資料不足')
     })

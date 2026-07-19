@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import Tooltip from '../Tooltip'
+import { SIGNAL_LABELS } from '../../lib/verdict'
 
 export interface ScoreSignals {
     squeeze: boolean
@@ -27,11 +28,8 @@ interface ScoreBreakdownProps {
 }
 
 // Plain-language explanations — the point of epic #3 (novices won't hover).
-const SIGNAL_META: Record<keyof ScoreSignals, { label: string; plain: string }> = {
-    golden_cross: { label: 'KD 黃金交叉', plain: '短線 KD 指標向上交叉，偏多訊號。' },
-    volume_spike: { label: '爆量', plain: '成交量明顯放大（>1.5×），資金開始關注。' },
-    squeeze: { label: '低波壓縮', plain: '波動收斂，常醞釀較大行情（方向未定）。' },
-}
+// SSoT: src/lib/verdict.ts (shared with CandidateRow's signal chips).
+const SIGNAL_META = SIGNAL_LABELS
 
 const SUBSCORE_CAPTION: Record<'trend' | 'momentum' | 'volatility', string> = {
     trend: '均線多頭排列與斜率的強度',

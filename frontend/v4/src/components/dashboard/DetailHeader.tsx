@@ -7,6 +7,7 @@ interface DetailHeaderProps {
     recommendation: {
         text: string
         color: string
+        caption?: string
     } | null
     updatedAt?: string
 }
@@ -29,6 +30,9 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({
                 <div className={`mt-1 rounded-full border px-3 py-1 text-xs font-bold ${recommendation?.color || ''}`}>
                     {recommendation?.text || '未知'}
                 </div>
+                {recommendation?.caption && (
+                    <div className="mt-1 text-[10px] text-dark-muted">{recommendation.caption}</div>
+                )}
                 <div className="mt-2 text-xs text-dark-muted whitespace-nowrap">DB 更新: {updatedAt || '未知'}</div>
             </div>
         </div>

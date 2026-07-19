@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react'
 import { useCachedApi } from './useCachedApi'
 import { invalidateApiCache } from '../lib/apiClient'
+import { deriveGrade } from '../lib/verdict'
 
 export interface StockDetail {
     ticker: string
@@ -43,16 +44,7 @@ export const useStockAnalysis = (ticker: string | null) => {
 
     const recommendationBadge = useMemo(() => {
         if (!data) return null
-        if (data.ai_probability == null) {
-            return { text: '資料不足', color: 'bg-dark-border text-dark-muted border-dark-border' }
-        }
-        if (data.ai_probability >= 70) {
-            return { text: 'STRONG BUY', color: 'bg-sniper-green/10 text-sniper-green border-sniper-green/20' }
-        }
-        if (data.ai_probability >= 50) {
-            return { text: 'HOLD', color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' }
-        }
-        return { text: 'HIGH RISK', color: 'bg-red-500/10 text-red-500 border-red-500/20' }
+        return deriveGrade(data.ai_probability, data.model_health?.status)
     }, [data])
 
     const isDbStale = useMemo(() => {
