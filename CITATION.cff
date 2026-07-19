@@ -3,15 +3,21 @@ message: "If you use this software, please cite it as below."
 authors:
   - family-names: Wen
     given-names: Kb
-title: "AgentCortex: The Professional Agentic OS for Google Antigravity & Codex"
-version: 3.5.3
-date-released: 2026-03-01
-url: "https://github.com/KbWen/AgentCortex"
-abstract: "A high-performance, token-optimized framework for autonomous AI agents. Features structured workflows, safety guardrails, and professional engineering skills."
+title: "Smart Stock (智慧選股): An honest, self-hostable Taiwan-stock research workbench"
+version: 1.0.0
+date-released: 2026-07-02
+url: "https://github.com/KbWen/smart-stock"
+repository-code: "https://github.com/KbWen/smart-stock"
+abstract: "A self-hostable research workbench for the Taiwan stock market (TWSE / TPEX). Its differentiator is honesty and transparency, not prediction accuracy: it computes technical scores and an optional ensemble-ML buy-signal probability, but discloses model health and shows N/A rather than fabricating a number when the model is untrained or has insufficient discriminative power. Includes a saveable/comparable backtest Strategy Lab, an explainable per-signal score breakdown, a transparency panel, and a reproducible end-to-end data-to-evaluation pipeline. Runs offline with a bundled demo dataset."
 keywords:
-  - ai-agent
-  - agentic-workflows
-  - token-optimization
-  - google-antigravity
-  - codex-platform
-  - llm-ops
+  - taiwan-stock
+  - twse
+  - tpex
+  - stock-screener
+  - backtesting
+  - machine-learning
+  - technical-analysis
+  - transparency
+  - fastapi
+  - react
+  - self-hosted

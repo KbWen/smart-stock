@@ -7,7 +7,6 @@ yfinance
 twstock
 scikit-learn
 joblib
-matplotlib
 requests
 pytest
 httpx
