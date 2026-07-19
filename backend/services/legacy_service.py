@@ -92,8 +92,9 @@ class LegacyStockDetailService:
             "updated_at": db_updated_at,
             "score": score,
             "ai_probability": ai_prob,
-            "ai_target_price": round(last_price * 1.15, 2) if last_price else 0,
-            "ai_stop_price": round(last_price * 0.95, 2) if last_price else 0,
+            # Static ±15%/−5% rule-of-thumb band — NOT model-derived (renamed from ai_*).
+            "heuristic_target_price": round(last_price * 1.15, 2) if last_price else 0,
+            "heuristic_stop_price": round(last_price * 0.95, 2) if last_price else 0,
             "history": history,
         }
 
@@ -195,8 +196,9 @@ class SmartScanService:
                             "last_sync": c.get("last_sync"),
                             "score": c,
                             "price": c.get("last_price", 0),
-                            "ai_target_price": round(c.get("last_price", 0) * 1.15, 2),
-                            "ai_stop_price": round(c.get("last_price", 0) * 0.95, 2),
+                            # Static ±15%/−5% rule-of-thumb band — NOT model-derived (renamed from ai_*).
+                            "heuristic_target_price": round(c.get("last_price", 0) * 1.15, 2),
+                            "heuristic_stop_price": round(c.get("last_price", 0) * 0.95, 2),
                             "matches": criteria,
                         })
             except Exception:

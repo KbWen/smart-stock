@@ -30,8 +30,10 @@ class TopPicksService:
                     "ai_probability": ai_prob,
                     "model_version": p.get("model_version", "legacy"),
                     "last_sync": p.get("last_sync"),
-                    "ai_target_price": round(last_price * 1.15, 2) if last_price else 0,
-                    "ai_stop_price": round(last_price * 0.95, 2) if last_price else 0,
+                    # Static ±15%/−5% rule-of-thumb band — NOT model-derived (renamed from
+                    # the misleading ai_* prefix; these never involved the AI model).
+                    "heuristic_target_price": round(last_price * 1.15, 2) if last_price else 0,
+                    "heuristic_stop_price": round(last_price * 0.95, 2) if last_price else 0,
                     "score": {
                         "total_score": p["total_score"],
                         "trend_score": p["trend_score"],

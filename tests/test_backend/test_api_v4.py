@@ -140,8 +140,8 @@ def test_api_stock_detail_uses_close_as_last_price(monkeypatch):
     response = client.get("/api/stock/2330")
     assert response.status_code == 200
     body = response.json()
-    assert body["ai_target_price"] == 116.15
-    assert body["ai_stop_price"] == 95.95
+    assert body["heuristic_target_price"] == 116.15
+    assert body["heuristic_stop_price"] == 95.95
 
 
 def test_api_stock_detail_score_contains_price_fields(monkeypatch):
