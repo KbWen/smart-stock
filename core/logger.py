@@ -11,6 +11,11 @@ if not os.path.exists(LOGS_DIR):
 
 LOG_FILE = os.path.join(LOGS_DIR, "app.log")
 
+# Optional alert sink. Alerts are sent ONLY when this is configured — when it is
+# unset (the default), alerting is a silent no-op. We do not claim to alert when
+# there is no sink (honesty-first).
+ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "")
+
 def setup_logger(name=__name__):
     """Sets up a logger with rotating file handler and console output."""
     logger = logging.getLogger(name)
@@ -41,18 +46,22 @@ default_logger = setup_logger("sniper")
 
 def send_alert(message, level="ERROR"):
     """
-    Placeholder for sending alerts (Slack, Discord, Email).
-    Triggered by ERROR or CRITICAL logs.
+    Send an alert to the configured webhook (Slack/Discord/etc.) for ERROR or
+    CRITICAL logs. No-op (and NOT logged) when ALERT_WEBHOOK_URL is unset — we
+    do not imply an alert fired when no sink is configured. Best-effort:
+    delivery failures are swallowed so alerting never breaks the logging path.
     """
+    if not ALERT_WEBHOOK_URL:
+        return
+
     alert_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_msg = f"🔔 [{level}] {alert_time}: {message}"
-    
-    # Log the alert sending attempt
-    default_logger.info(f"Triggering Alert: {formatted_msg}")
-    
-    # TODO: Implement actual Hook calls here
-    # Example: requests.post(WEBHOOK_URL, json={"text": formatted_msg})
-    pass
+    try:
+        import requests
+        requests.post(ALERT_WEBHOOK_URL, json={"text": formatted_msg}, timeout=3)
+    except Exception:
+        # Never let alert delivery crash the caller's logging call.
+        pass
 
 class AlertHandler(logging.Handler):
     """Custom handler to trigger alerts on high-level logs."""
