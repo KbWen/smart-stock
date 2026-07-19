@@ -17,6 +17,9 @@
 - **Update Sequence**: 0 (counter introduced at v1.8.7; maintained by /ship going forward)
 - **ADR Index**:
   - docs/adr/ADR-001-vnext-self-managed-architecture.md: vNext self-managed architecture · applies_to: .agentcortex/
+  - docs/adr/ADR-002-build-system-modernization.md: [Proposed] pyproject + dep split + lockfile (from 2026-07-19 audit) · applies_to: requirements.txt, pyproject.toml, backend/, core/
+  - docs/adr/ADR-003-data-module-decomposition.md: [Proposed] core/data.py god-module split (defer unless triggered) · applies_to: core/data.py
+  - docs/adr/ADR-004-model-rotation-sort-key.md: [Proposed] rotation net-vs-gross profit factor · applies_to: core/ai/common.py, core/ai/trainer.py, backend/manage_models.py
 - **Active Backlog**: `docs/specs/_product-backlog.md` (**Honest Research Workbench** epic, opened 2026-07-02: #1 Strategy Lab ✅ **Shipped**, #2 Transparency Panel ✅ **Shipped**, #3 Explainable Screening ✅ **Shipped**, #4 Novice Entry ✅ **Shipped**, #5 Reproducible Reference Layer ✅ **Shipped**, #6 CSRF-parity [review-finding] ✅ **Shipped** — **ALL SHIPPED, epic complete 2026-07-02**. Differentiator = transparency, not prediction accuracy; progressive disclosure for novice+expert. Prior Directly-Usable v1 backlog [all 6 shipped] archived to `docs/specs/_product-backlog-directly-usable-v1-2026-06-20.md`)
   - When a multi-feature product spec is decomposed, the backlog path is recorded here (e.g., `docs/specs/_product-backlog.md`). Bootstrap reads this to detect ongoing product work.
 - **Spec Index**:
