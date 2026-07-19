@@ -108,6 +108,7 @@ It does NOT contain governance rules — those remain in `AGENTS.md`.
 | "ask openrouter", "用其他模型" | `/ask-openrouter` | requires CLI |
 | "run with codex", "用 codex" | `/codex-cli` | requires CLI |
 | "run with claude", "用 claude", "用 claude-cli", "implement 交給 claude", "實作交給 claude", "測試交給 claude", "讓 claude 寫", "讓 claude 跑測試" | `/claude-cli` | requires CLI; MUST NOT auto-trigger |
+| "use local model", "ask the local model", "用本地模型", "問本地模型", "交給本地模型", "讓本地模型寫" | `/ask-local` | requires reachable OpenAI-compatible endpoint (Ollama / LM Studio / vLLM); MUST NOT auto-trigger |
 
 ---
 
@@ -131,6 +132,8 @@ It does NOT contain governance rules — those remain in `AGENTS.md`.
 | "完成前檢查", "verify before done", "completion check" | `verification-before-completion` |
 | "用 worktree", "git worktree", "worktree 隔離" | `using-git-worktrees` |
 | "查文件", "check docs", "查官方文檔", "read the docs", "看文件再做" | `doc-lookup` |
+| _(auto; behavioral baseline for all non-trivial coding — plan/implement/review)_ | `karpathy-principles` |
+| _(auto; pre-ship observability for `feature`/`architecture-change` — review/ship)_ | `production-readiness` |
 | "執行計畫" / "execute the plan" / "完成分支" / "merge 準備" / "請求 review" / "接收 review" / "寫計畫" | inlined into `/plan`, `/implement`, `/handoff`, `/ship`, `/review` workflows — no skill load needed |
 
 ### 3a. Framework Skill Namespace & Downstream `custom-*` Reservation (Ref: ADR-005)
@@ -206,7 +209,10 @@ All commands are dispatched per `AGENTS.md §Agentic OS Runtime v1` and execute 
 | `/ask-openrouter` | `.agent/workflows/ask-openrouter.md` | **optional**: OpenRouter model |
 | `/codex-cli` | `.agent/workflows/codex-cli.md` | **optional**: Codex CLI delegation |
 | `/claude-cli` | `.agent/workflows/claude-cli.md` | **optional**: Claude CLI delegation |
+| `/ask-local` | `.agent/workflows/ask-local.md` | **optional**: local-model (OpenAI-compatible endpoint) delegation |
+| `/execute-plan` | `.agent/workflows/execute-plan.md` | **alias**: of `/implement` |
+| `/write-plan` | `.agent/workflows/write-plan.md` | **alias**: of `/plan` |
 | `/new-feature` | — *(removed)* | **deprecated**: use `feature` + `/bootstrap` |
 | `/medium-feature` | — *(removed)* | **deprecated**: use `feature`/`architecture-change` + `/bootstrap` |
 | `/small-fix` | — *(removed)* | **deprecated**: use `quick-win` + `/bootstrap` |
-| `/other-custom` | `.agent/workflows/other-custom.md` | **deprecated**: custom/experimental flow |
+| `/other-custom` | `.agent/workflows/other-custom.md` | **deprecated**: custom/experimental flow (no `.claude/commands/` stub) |

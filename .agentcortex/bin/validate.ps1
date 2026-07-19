@@ -242,6 +242,7 @@ $archiveIndexJsonl = Join-NormalPath $root '.agentcortex/context/archive/INDEX.j
 $lessonChainCheck = Join-NormalPath $root '.agentcortex/tools/check_lesson_chain.py'
 $ssotCurrentState = Join-NormalPath $root '.agentcortex/context/current_state.md'
 $commandSyncCheck = Join-NormalPath $root '.agentcortex/tools/check_command_sync.py'
+$routingActionsCheck = Join-NormalPath $root '.agentcortex/tools/check_routing_actions.py'
 $skillProvenanceCheck = Join-NormalPath $root '.agentcortex/tools/check_skill_provenance.py'
 $triggerRegistry = Join-NormalPath $root '.agentcortex/metadata/trigger-registry.yaml'
 $triggerCompactIndex = Join-NormalPath $root '.agentcortex/metadata/trigger-compact-index.json'
@@ -334,7 +335,8 @@ $isSourceRepo = (Test-Path -Path $canonicalDeploySh -PathType Leaf) -and
 $optionalModuleFiles = @(
     (Join-NormalPath $workflowsDir 'ask-openrouter.md'),
     (Join-NormalPath $workflowsDir 'codex-cli.md'),
-    (Join-NormalPath $workflowsDir 'claude-cli.md')
+    (Join-NormalPath $workflowsDir 'claude-cli.md'),
+    (Join-NormalPath $workflowsDir 'ask-local.md')
 )
 
 $deprecatedWorkflowFiles = @(
@@ -758,6 +760,17 @@ if (Test-Path $safetyNucleusGen) {
 } else {
     Add-Result -Level 'SKIP' -Message 'safety nucleus freshness -- generator not deployed (safe to ignore)'
 }
+# ADR-006: advisory SSoT section-cap check (Ship History + Spec Index growth) as a
+# Python tool behind Invoke-PythonCheck (new checks = tools, not native lines, so the
+# native ratchet does not move). WARN-tier / never-FAIL: the tool ALWAYS exits 0 and
+# prints any over-cap finding, so an over-cap SSoT surfaces as advisory output rather
+# than a failure; fix = the rotation procedure it names. No-python -> WARN; tool absent
+# -> SKIP (Invoke-PythonCheck handles both).
+Invoke-PythonCheck -Label 'ssot section caps (ship history + spec index)' -MissingPythonLevel 'WARN' -ScriptPath (Join-NormalPath $root '.agentcortex/tools/check_ssot_caps.py') -Arguments @('--root', $root)
+# ADR-006: advisory decision-disposition check (archived Work Log `## Decisions`
+# entries missing a ship-time marker). WARN-tier / never-FAIL (tool ALWAYS exits 0);
+# silent no-op until a fork sets document_lifecycle.decision_disposition_since.
+Invoke-PythonCheck -Label 'decision disposition (archived work logs)' -MissingPythonLevel 'WARN' -ScriptPath (Join-NormalPath $root '.agentcortex/tools/check_decision_disposition.py') -Arguments @('--root', $root)
 $phaseSkillFiles = @(
     (Join-NormalPath $workflowsDir 'plan.md'),
     (Join-NormalPath $workflowsDir 'implement.md'),
@@ -878,6 +891,14 @@ else {
     Add-Result -Level 'PASS' -Message 'domain doc candidates declare the full L1 contract when present'
 }
 
+# routing_actions structural contract (governance self-audit F3) — mirror of
+# validate.sh. Structural parsing lives in check_routing_actions.py (ADR-006) so
+# inline-map / fields-outside-block bypasses are rejected. The native block in
+# the else is the no-python degraded backstop (backlog #113).
+if ($script:PythonCommand -and (Test-Path -Path $routingActionsCheck -PathType Leaf)) {
+    Invoke-PythonCheck -Label 'routing_actions contract (structural)' -MissingPythonLevel 'FAIL' -ScriptPath $routingActionsCheck -Arguments @('--root', $root)
+}
+else {
 $routingActionErrors = 0
 $routingActionWarnings = 0
 $routingActionStaleWarnings = 0
@@ -959,6 +980,7 @@ if ($routingActionWarnings -gt 0) {
 }
 if ($routingActionStaleWarnings -gt 0) {
     Add-Result -Level 'WARN' -Message "stale pending routing_actions need canonical-doc follow-up: $routingActionStaleWarnings"
+}
 }
 
 Test-ContainsLiteral -Path $canonicalDeploySh -Pattern 'LEGACY_IGNORE_START="# AI Brain OS - Agent System & Local Context"' -SuccessMessage 'deploy script supports legacy ignore marker migration' -FailureMessage 'deploy script missing legacy ignore marker support'
@@ -1139,12 +1161,15 @@ if (Test-Path -Path $worklogDir -PathType Container) {
     # Work Log evidence chain check (per AGENTS.md Work Log Contract)
     $phaseFieldMissing = 0
     $checkpointMissing = 0
+    $checkpointViolationList = New-Object System.Collections.Generic.List[string]
     $gateEvidenceMissing = 0
     $legacyGateEvidenceMissing = 0
     $gateProgressionIllegal = 0
     $phaseSummaryMissing = 0
     $sentinelMarkerMissing = 0
     $testGateResultsMissing = 0
+    $securityFindingsMissing = 0
+    $guardrailsReceiptMissing = 0
     $currentPhaseIncoherent = 0
     $shippedNotArchived = 0
     $evidencePlaceholderOnly = 0
@@ -1173,7 +1198,10 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         'implement' = @('review','test')
         'review'    = @('implement','test')
         'test'      = @('handoff','implement')
-        'handoff'   = @('ship','retro')
+        # 'implement' = HANDEDOFF->IMPLEMENTING reverse edge (state_machine.md §Allowed
+        # Transitions: "ship Entry Condition fail; code change required"); the loop must
+        # then re-run review->test->handoff, still enforced by the stale-review check.
+        'handoff'   = @('ship','retro','implement')
         'ship'      = @()
     }
     # hotfix: must review+test but handoff is optional (goes test->ship directly)
@@ -1198,7 +1226,22 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                 $curBranch = & git -C $root rev-parse --abbrev-ref HEAD 2>$null
             }
             if ($LASTEXITCODE -eq 0 -and $curBranch -and $curBranch -ne 'HEAD') {
-                $curKey = $curBranch.Trim() -replace '/', '-'
+                # F10 (2026-07-11 receipt-integrity audit): apply the canonical
+                # Work Log key normalization (bootstrap.md:123-131) in full —
+                # (1) chars outside [a-zA-Z0-9._-] -> '-', (2) collapse '-'
+                # runs, (3) strip leading/trailing '-'/'.', (4) lowercase,
+                # (5) truncate to 100 chars. Previously this only replaced '/'
+                # with '-'; -eq/-like are already case-insensitive in
+                # PowerShell so the case half was accidentally masked here,
+                # but punctuation (e.g. "release/v1.2:rc") still mismatched
+                # the canonical key on both platforms (F10 audit finding).
+                $normalized = $curBranch.Trim() -replace '[^a-zA-Z0-9._-]', '-'
+                $normalized = $normalized -replace '-+', '-'
+                $normalized = $normalized -replace '^[-.]+', ''
+                $normalized = $normalized -replace '[-.]+$', ''
+                $normalized = $normalized.ToLowerInvariant()
+                if ($normalized.Length -gt 100) { $normalized = $normalized.Substring(0, 100) }
+                $curKey = $normalized
             }
         }
     } catch {}
@@ -1208,7 +1251,11 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         # AC-6: flag whether this worklog belongs to the current branch.
         $isCurrentBranch = $false
         if ($curKey) {
-            $wlBasename = [System.IO.Path]::GetFileName($wl.FullName)
+            # F10: lowercase the basename too (curKey is already lowercase) so
+            # the comparison is explicit case-insensitive on both sides —
+            # defense against a non-conforming log filename, and independent
+            # of -eq/-like's implicit case-insensitivity.
+            $wlBasename = [System.IO.Path]::GetFileName($wl.FullName).ToLowerInvariant()
             if ($wlBasename -eq "${curKey}.md" -or $wlBasename -like "*-${curKey}.md") {
                 $isCurrentBranch = $true
             }
@@ -1235,7 +1282,93 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         $isLegacyGateEvidenceLog = $createdDate -and $createdDate -lt $legacyGateEvidenceCutoff
         # Accept list or table form for header fields (see .agentcortex/templates/worklog.md)
         if ($content -notmatch '(?m)(^- (`Current Phase`|Current Phase):|^\| (`Current Phase`|Current Phase) +\|)') { $phaseFieldMissing++ }
-        if ($content -notmatch '(?m)(^- (`Checkpoint SHA`|Checkpoint SHA):|^\| (`Checkpoint SHA`|Checkpoint SHA) +\|)') { $checkpointMissing++ }
+        if ($content -notmatch '(?m)(^- (`Checkpoint SHA`|Checkpoint SHA):|^\| (`Checkpoint SHA`|Checkpoint SHA) +\|)') {
+            $checkpointMissing++
+        } else {
+            # F8 (2026-07-11 receipt-integrity audit): value-shape + (current-
+            # branch-only) resolvability validation. Previously presence-only:
+            # a heading with a non-SHA value (e.g. "not-a-sha") passed silently.
+            # Accepts a hex object id (7-40 chars, optionally followed by
+            # trailing note text) or an observed legitimate placeholder —
+            # "none", "pending-commit" (both seen in real archived logs), or
+            # the unfilled template default "<git-sha or none>" (templates/
+            # worklog.md; two real active logs still carry it). Mutates the
+            # pre-existing $checkpointMissing / $checkpointViolationList
+            # counters (ADR-006 native-extension path — see Work Log Drift
+            # Log — not a new Add-Result call site).
+            $cpVal = $null
+            $cpM = [regex]::Match($content, '(?m)^-\s*`?Checkpoint SHA`?\s*:\s*(.+)$')
+            if ($cpM.Success) {
+                $cpVal = $cpM.Groups[1].Value
+            } else {
+                $cpM2 = [regex]::Match($content, '(?m)^\|\s*`?Checkpoint SHA`?\s*\|\s*([^|]*)\|')
+                if ($cpM2.Success) { $cpVal = $cpM2.Groups[1].Value }
+            }
+            if ($cpVal) {
+                $cpVal = ($cpVal -replace '<!--.*?-->', '') -replace '`', ''
+                $cpVal = $cpVal.Trim()
+            }
+            if ($cpVal) {
+                $cpLc = $cpVal.ToLowerInvariant()
+                if ($cpLc -ne 'none' -and $cpLc -ne 'pending-commit' -and $cpLc -ne '<git-sha or none>') {
+                    $cpVerify = $null
+                    if ($cpLc -match '^[0-9a-f]{7,40}$') {
+                        $cpVerify = $cpVal
+                    } else {
+                        $cpFirstTok = ($cpLc -split '\s+')[0]
+                        if ($cpFirstTok -match '^[0-9a-f]{7,40}$') { $cpVerify = ($cpVal -split '\s+')[0] }
+                    }
+                    if (-not $cpVerify) {
+                        $checkpointMissing++
+                        $checkpointViolationList.Add("  invalid Checkpoint SHA value ('$cpVal') in $($wl.Name)")
+                    } elseif ($isCurrentBranch) {
+                        & git -C $root rev-parse --verify "$cpVerify^{commit}" 2>$null | Out-Null
+                        if ($LASTEXITCODE -ne 0) {
+                            $checkpointMissing++
+                            $checkpointViolationList.Add("  unresolvable Checkpoint SHA ('$cpVerify') in $($wl.Name) (git rev-parse --verify failed)")
+                        }
+                    }
+                }
+            }
+        }
+        # F8: Diff Base SHA gets the same value treatment when present. No
+        # pre-existing presence check for this field — presence is NOT newly
+        # required here, only value-shape/resolvability when the field IS
+        # present.
+        $dbVal = $null
+        $dbM = [regex]::Match($content, '(?m)^-\s*`?Diff Base SHA`?\s*:\s*(.+)$')
+        if ($dbM.Success) {
+            $dbVal = $dbM.Groups[1].Value
+        } else {
+            $dbM2 = [regex]::Match($content, '(?m)^\|\s*`?Diff Base SHA`?\s*\|\s*([^|]*)\|')
+            if ($dbM2.Success) { $dbVal = $dbM2.Groups[1].Value }
+        }
+        if ($dbVal) {
+            $dbVal = ($dbVal -replace '<!--.*?-->', '') -replace '`', ''
+            $dbVal = $dbVal.Trim()
+        }
+        if ($dbVal) {
+            $dbLc = $dbVal.ToLowerInvariant()
+            if ($dbLc -ne 'none' -and $dbLc -ne 'pending-commit' -and $dbLc -ne '<git-sha or none>') {
+                $dbVerify = $null
+                if ($dbLc -match '^[0-9a-f]{7,40}$') {
+                    $dbVerify = $dbVal
+                } else {
+                    $dbFirstTok = ($dbLc -split '\s+')[0]
+                    if ($dbFirstTok -match '^[0-9a-f]{7,40}$') { $dbVerify = ($dbVal -split '\s+')[0] }
+                }
+                if (-not $dbVerify) {
+                    $checkpointMissing++
+                    $checkpointViolationList.Add("  invalid Diff Base SHA value ('$dbVal') in $($wl.Name)")
+                } elseif ($isCurrentBranch) {
+                    & git -C $root rev-parse --verify "$dbVerify^{commit}" 2>$null | Out-Null
+                    if ($LASTEXITCODE -ne 0) {
+                        $checkpointMissing++
+                        $checkpointViolationList.Add("  unresolvable Diff Base SHA ('$dbVerify') in $($wl.Name) (git rev-parse --verify failed)")
+                    }
+                }
+            }
+        }
         if ($content -notmatch '(?m)^## Gate Evidence') {
             if ($isLegacyGateEvidenceLog -and -not $isCurrentBranch) {
                 $legacyGateEvidenceMissing++
@@ -1322,6 +1455,7 @@ if (Test-Path -Path $worklogDir -PathType Container) {
             $gateList = [System.Collections.Generic.List[string]]::new()
             $hasShipReceipt = $false  # H3: track ANY ship receipt regardless of verdict
             $reviewNotReady = $false  # track pending re-review after NOT READY reverse edge
+            $hadNotReady = $false  # sticky: a review NOT READY reverse edge occurred (for remediation hint)
             foreach ($line in $gateLines) {
                 $gm = [regex]::Match($line, '(?i)^(?:`?- )?gate:\s*(\w+)\s*\|')
                 if ($gm.Success) {
@@ -1344,6 +1478,7 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                         if ($gPhase -eq 'review' -and $gateList.Count -gt 0 -and $gateList[$gateList.Count - 1] -eq 'implement') {
                             $gateList.RemoveAt($gateList.Count - 1)
                             $reviewNotReady = $true
+                            $hadNotReady = $true  # remember for the re-review remediation hint below
                         }
                     }
                 }
@@ -1387,7 +1522,14 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                     $curr = $gates[$i]
                     $allowed = $legalTransitions[$prev]
                     if (($null -ne $allowed) -and ($curr -notin $allowed)) {
-                        Write-Output "  illegal gate progression in $($wl.Name): ${prev}->${curr}"
+                        if ($curr -eq 'review' -and $hadNotReady) {
+                            # NOT-READY re-review reached PASS with no fresh implement PASS in
+                            # between (the reverse edge popped the prior implement, so ${prev}->review
+                            # is now the illegal edge). Still a FAIL — but name the exact remedy.
+                            Write-Output "  illegal gate progression in $($wl.Name): ${prev}->review (NOT READY re-review: add a fresh 'Gate: implement | Verdict: PASS' receipt for the fix BEFORE the re-review PASS -- review.md §Reverse Transition)"
+                        } else {
+                            Write-Output "  illegal gate progression in $($wl.Name): ${prev}->${curr}"
+                        }
                         $gateProgressionIllegal++
                         break
                     }
@@ -1440,6 +1582,26 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                 $currentBranchGateFailList.Add("  [Test Gate Results absent] $($wl.Name)")
             } else {
                 $testGateResultsMissing++
+            }
+        }
+        # (#288) Security Findings audit — mirror the sh check. security_guardrails.md
+        # §Work Log requires findings under a `## Security Findings` heading; audit
+        # feature-tier logs that carry a review or ship receipt. WARN-tier.
+        if (($wlClass -eq 'feature' -or $wlClass -eq 'architecture-change' -or $wlClass -eq 'hotfix') `
+            -and ($content -match '(?i)Gate:\s*(review|ship)\s*\|') `
+            -and ($content -notmatch '(?m)^## Security Findings')) {
+            $securityFindingsMissing++
+        }
+        # (#288) Loaded-Sections receipt audit — current-branch, non-tiny-fix logs
+        # must carry a `Guardrails loaded:` receipt (engineering_guardrails.md
+        # bootstrap). Scoped to current branch to avoid WARN-flooding historical
+        # logs (mirrors AC-6 $isCurrentBranch). Full-Mode tiers ONLY
+        # (feature/architecture-change/hotfix): quick-win runs Quick Mode and
+        # tiny-fix runs Lite — the receipt rule does not apply to them.
+        # WARN-tier: presence, not proof.
+        if ($isCurrentBranch -and ($wlClass -eq 'feature' -or $wlClass -eq 'architecture-change' -or $wlClass -eq 'hotfix')) {
+            if ($content -notmatch '(?i)Guardrails loaded:') {
+                $guardrailsReceiptMissing++
             }
         }
         # MEDIUM-1 (review PASS with UNPROVEN rows)
@@ -1537,9 +1699,13 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         Add-Result -Level 'PASS' -Message 'all active work logs have Current Phase field'
     }
     if ($checkpointMissing -gt 0) {
-        Add-Result -Level 'WARN' -Message "work logs missing Checkpoint SHA field: $checkpointMissing"
+        # F8: message now covers the field being absent OR present-with-an-
+        # invalid-or-unresolvable value (previously presence-only for
+        # Checkpoint SHA; Diff Base SHA had no coverage at all).
+        Add-Result -Level 'WARN' -Message "work logs with missing/invalid Checkpoint SHA field or invalid/unresolvable Diff Base SHA / Checkpoint SHA values: $checkpointMissing"
+        foreach ($line in $checkpointViolationList) { Write-Output $line }
     } elseif ($worklogs.Count -gt 0) {
-        Add-Result -Level 'PASS' -Message 'all active work logs have Checkpoint SHA field'
+        Add-Result -Level 'PASS' -Message 'all active work logs have well-formed Checkpoint SHA / Diff Base SHA values'
     }
     if ($gateEvidenceMissing -gt 0) {
         Add-Result -Level 'FAIL' -Message "work logs missing gate evidence receipts: $gateEvidenceMissing"
@@ -1568,6 +1734,18 @@ if (Test-Path -Path $worklogDir -PathType Container) {
         Add-Result -Level 'WARN' -Message "feature/architecture-change work logs missing Test Gate Results section (engineering_guardrails.md §12.2): $testGateResultsMissing"
     } elseif ($worklogs.Count -gt 0) {
         Add-Result -Level 'PASS' -Message 'test gate results evidence present in applicable work logs'
+    }
+    # (#288) Security Findings section presence (security_guardrails.md §Work Log).
+    if ($securityFindingsMissing -gt 0) {
+        Add-Result -Level 'WARN' -Message "feature-tier work logs at review/ship missing ## Security Findings section (security_guardrails.md §Work Log): $securityFindingsMissing"
+    } elseif ($worklogs.Count -gt 0) {
+        Add-Result -Level 'PASS' -Message 'security findings section present in applicable work logs'
+    }
+    # (#288) Loaded-Sections receipt presence in current-branch log (engineering_guardrails.md bootstrap receipt).
+    if ($guardrailsReceiptMissing -gt 0) {
+        Add-Result -Level 'WARN' -Message "current-branch work log missing 'Guardrails loaded:' receipt in ## Session Info (engineering_guardrails.md bootstrap receipt): $guardrailsReceiptMissing"
+    } elseif ($worklogs.Count -gt 0) {
+        Add-Result -Level 'PASS' -Message 'loaded-sections receipt present in current-branch work log'
     }
     if ($currentPhaseIncoherent -gt 0) {
         Add-Result -Level 'WARN' -Message "work logs with ship PASS receipt but Current Phase != ship (header not updated): $currentPhaseIncoherent"
@@ -1617,12 +1795,34 @@ if (Test-Path -Path $worklogDir -PathType Container) {
 
     # Gate receipt schema validation (§4.5 structural check) — parity with validate.sh.
     # Every pipe-format gate receipt in ## Gate Evidence must include Verdict: and
-    # Classification: fields. WARN not FAIL (partial receipts are a process gap).
+    # Classification: fields. WARN not FAIL (archived Work Logs may predate this
+    # check — a SEPARATE archive loop below covers Verdict/Classification presence
+    # only for archive/*.md and is untouched by F7/F9); active logs with partial
+    # receipts are a process gap, not a ship-blocking error.
+    # F7 (2026-07-11 receipt-integrity audit): also require a Timestamp: field
+    # with at least an ISO date. Order-of-appearance remains authoritative for
+    # gate progression (see templates/worklog.md ## Gate Evidence note) —
+    # Timestamp is provenance metadata only; no monotonic/chronological check.
+    # F9: also compare each receipt's Classification value (case-insensitive)
+    # against the Work Log header Classification. Mismatch is WARN, not FAIL —
+    # reclassification epochs are legal (state machine rollback-to-CLASSIFIED)
+    # and epoch parsing is out of scope for this check.
     $gateSchemaViolations = 0
     $gateSchemaViolationList = New-Object System.Collections.Generic.List[string]
     foreach ($wl in $worklogs) {
         $wlContent = Get-Content -Path $wl.FullName -Raw -Encoding utf8 -ErrorAction SilentlyContinue
         if (-not $wlContent) { continue }
+        # F9: header Classification value — same strict "starts with a letter"
+        # extraction the gate-progression parser already uses, so an unfilled/
+        # malformed header (still the literal template placeholder) yields
+        # empty and is skipped rather than compared (nothing meaningful to
+        # compare against).
+        $hdrClass = ''
+        $hdrClassM = [regex]::Match($wlContent, '(?m)^-\s*\*{0,2}Classification\*{0,2}\s*:\s*`?([a-zA-Z][a-zA-Z0-9_-]*)')
+        if (-not $hdrClassM.Success) {
+            $hdrClassM = [regex]::Match($wlContent, '(?m)^\|\s*\*{0,2}Classification\*{0,2}\s*\|\s*`?([a-zA-Z][a-zA-Z0-9_-]*)')
+        }
+        if ($hdrClassM.Success) { $hdrClass = $hdrClassM.Groups[1].Value.ToLowerInvariant() }
         foreach ($receiptLine in ([regex]::Matches($wlContent, '(?im)^-\s+Gate\s*:.*$') | ForEach-Object { $_.Value })) {
             if ($receiptLine -notmatch '(?i)Verdict\s*:') {
                 $gateSchemaViolations++
@@ -1634,13 +1834,33 @@ if (Test-Path -Path $worklogDir -PathType Container) {
                 $gateSchemaViolationList.Add("  malformed gate receipt (missing Classification:) in $($wl.Name)")
                 break
             }
+            # F7: Timestamp field must be present with a parseable ISO date (a
+            # full ISO datetime like 2026-07-10T12:20:00Z is also accepted —
+            # the date-only regex matches its leading YYYY-MM-DD).
+            if ($receiptLine -notmatch '(?i)Timestamp\s*:\s*\d{4}-\d{2}-\d{2}') {
+                $gateSchemaViolations++
+                $gateSchemaViolationList.Add("  malformed gate receipt (missing/unparseable Timestamp:) in $($wl.Name): $receiptLine")
+                break
+            }
+            # F9: receipt Classification must agree with the header Classification.
+            if ($hdrClass) {
+                $receiptClassM = [regex]::Match($receiptLine, '(?i)Classification\s*:\s*([a-zA-Z][a-zA-Z0-9_-]*)')
+                if ($receiptClassM.Success) {
+                    $receiptClass = $receiptClassM.Groups[1].Value.ToLowerInvariant()
+                    if ($receiptClass -ne $hdrClass) {
+                        $gateSchemaViolations++
+                        $gateSchemaViolationList.Add("  receipt Classification ('$receiptClass') differs from header Classification ('$hdrClass') in $($wl.Name): $receiptLine")
+                        break
+                    }
+                }
+            }
         }
     }
     if ($gateSchemaViolations -gt 0) {
-        Add-Result -Level 'WARN' -Message "active work log gate receipts missing required fields (Verdict/Classification): $gateSchemaViolations"
+        Add-Result -Level 'WARN' -Message "active work log gate receipts with schema violations (missing Verdict/Classification/Timestamp, or Classification mismatched with header): $gateSchemaViolations"
         foreach ($line in $gateSchemaViolationList) { Write-Output $line }
     } elseif ($worklogs.Count -gt 0) {
-        Add-Result -Level 'PASS' -Message 'all active work log gate receipts have required fields (gate/verdict/classification)'
+        Add-Result -Level 'PASS' -Message 'all active work log gate receipts have required fields and consistent Classification (gate/verdict/classification/timestamp)'
     }
 
     # Advisory lock staleness check — reads JSON fields per config.yaml §worklog_lock
@@ -1996,7 +2216,10 @@ if (Test-Path -Path $currentStatePath -PathType Leaf) {
         }
     }
     $specMissing = @($diskSpecFiles | Where-Object { $_ -and ($specIndexSection -notmatch [regex]::Escape($_)) })
-    $indexedSpecPaths = @([regex]::Matches($specIndexSection, '(?m)\]\s+([\w./-]+\.md)\s') | ForEach-Object { $_.Groups[1].Value.Trim() })
+    # Format-robust extraction: anchor on the spec dirs, NOT on a preceding "]"
+    # (real entries put the path before the [Shipped] tag, so the old bracket-
+    # anchored pattern silently matched nothing — sh/ps1 parity fix).
+    $indexedSpecPaths = @([regex]::Matches($specIndexSection, '(?:docs/specs|\.agentcortex/specs)/[\w./-]+\.md') | ForEach-Object { $_.Value.Trim() })
     $specPhantom = @($indexedSpecPaths | Where-Object { $_ -and -not (Test-Path -Path (Join-NormalPath $root $_) -PathType Leaf) })
     if ($specMissing.Count -gt 0 -or $specPhantom.Count -gt 0) {
         $specMsg = @()
