@@ -47,7 +47,7 @@ const PriceSignalChart: React.FC<PriceSignalChartProps> = ({ ticker }) => {
     if (!data || data.length === 0 || (error && isPlaceholder)) {
         return (
             <div className="flex h-[220px] items-center justify-center rounded-lg border border-dark-border bg-dark-bg/30 text-xs text-dark-muted">
-                No history data
+                目前無歷史資料
             </div>
         )
     }

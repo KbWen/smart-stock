@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import GlobalLayout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -10,7 +10,7 @@ const Indicators = lazy(() => import('./pages/Indicators'))
 const Transparency = lazy(() => import('./pages/Transparency'))
 
 function PageFallback() {
-    return <div className="p-6 text-dark-muted">Loading page...</div>
+    return <div className="p-6 text-dark-muted">頁面載入中…</div>
 }
 
 function App() {
@@ -25,6 +25,7 @@ function App() {
                         <Route path="/risk" element={<MarketRisk />} />
                         <Route path="/indicators" element={<Indicators />} />
                         <Route path="/transparency" element={<Transparency />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </Suspense>
                 </ErrorBoundary>

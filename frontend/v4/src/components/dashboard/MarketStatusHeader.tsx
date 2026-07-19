@@ -22,7 +22,7 @@ const MarketStatusHeader: React.FC<MarketStatusHeaderProps> = ({
                 unit="%"
                 subtitle={`市場溫度: ${market ? market.market_temp.toFixed(1) : '—'}`}
                 icon={Activity}
-                tooltip="目前全台股站上 20 日均線的個股比例。"
+                tooltip="趨勢分數（均線排列＋斜率綜合）大於 20 的個股占比。"
                 isLoading={isLoading}
             />
 
@@ -32,7 +32,7 @@ const MarketStatusHeader: React.FC<MarketStatusHeaderProps> = ({
                 unit="%"
                 subtitle={`Model ${market?.model_version ?? '—'}`}
                 icon={Zap}
-                tooltip="由 AI 模型綜合技術指標、成交量與市場氛圍算出的多頭信心指數。"
+                tooltip="前 50 檔（依 AI 機率排序）的 AI 買點機率平均值。"
                 isLoading={isLoading}
                 valueColorClass="text-sniper-gold"
             />

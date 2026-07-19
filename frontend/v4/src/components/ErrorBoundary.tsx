@@ -33,14 +33,14 @@ class ErrorBoundary extends React.Component<Props, State> {
             if (this.props.fallback) return this.props.fallback
             return (
                 <div className="rounded-xl border border-red-500/40 bg-red-900/20 p-6 text-red-300">
-                    <p className="mb-2 font-semibold">Something went wrong rendering this component.</p>
+                    <p className="mb-2 font-semibold">此元件渲染時發生錯誤。</p>
                     <p className="mb-4 font-mono text-xs text-red-400/70">{this.state.error?.message}</p>
                     <button
                         type="button"
                         onClick={this.reset}
                         className="rounded bg-red-500/20 px-3 py-1 text-sm text-red-300 hover:bg-red-500/30"
                     >
-                        Retry
+                        重試
                     </button>
                 </div>
             )
