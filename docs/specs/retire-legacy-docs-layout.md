@@ -1,5 +1,5 @@
 ---
-status: draft
+status: shipped
 title: Retire the legacy `docs/` framework-documentation layout
 created: 2026-07-26
 source: 2026-07-26 repo hygiene survey (Tier 3 of 3)
