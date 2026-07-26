@@ -1,3 +1,11 @@
+---
+title: "ADR-001: vNext Self-Managed AI Architecture"
+status: accepted
+date: 2026-03-05
+applies_to:
+  - ".agentcortex/**"
+---
+
 # ADR-001: vNext Self-Managed AI Architecture
 
 ## Context

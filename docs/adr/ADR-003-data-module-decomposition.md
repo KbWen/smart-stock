@@ -1,3 +1,11 @@
+---
+title: "ADR-003: core/data.py Decomposition"
+status: proposed
+date: 2026-07-19
+applies_to:
+  - "core/data.py"
+---
+
 # ADR-003: `core/data.py` Decomposition
 
 - **Status**: Proposed (2026-07-19)

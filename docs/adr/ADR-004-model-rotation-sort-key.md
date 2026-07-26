@@ -1,3 +1,13 @@
+---
+title: "ADR-004: Model-Rotation Sort Key - Net vs Gross Profit Factor"
+status: proposed
+date: 2026-07-19
+applies_to:
+  - "core/ai/common.py"
+  - "core/ai/trainer.py"
+  - "backend/manage_models.py"
+---
+
 # ADR-004: Model-Rotation Sort Key — Net vs Gross Profit Factor
 
 - **Status**: Proposed (2026-07-19)
