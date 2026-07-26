@@ -1,33 +1,43 @@
-# Contributing to AgentCortex
+# Contributing to Smart Stock Selector
 
-Thank you for your interest in **AgentCortex**! This project is designed as an "Agentic-First" ecosystem. Whether you are a human developer or an AI Agent, please follow these guidelines to maintain project integrity and token efficiency.
+Thank you for your interest in contributing to the Smart Stock Selector (Sniper V4.1)! This document outlines the process for contributing code and the standards we expect.
 
-## 🤖 For AI Agents & Subagents
+## Development Workflow
 
-If you are an AI assisting in this repository:
+1. **Fork & Clone**: Fork the repository and clone it locally.
+2. **Branching Strategy**:
+    * `master`: The stable production branch.
+    * `feature/<name>`: For new features (e.g., `feature/add-macd-filter`).
+    * `bugfix/<name>`: For bug fixes (e.g., `bugfix/fix-api-crash`).
+    * `hotfix/<name>`: For urgent production fixes.
+3. **Install Dependencies**:
 
-1. **Read the SSoT**: Always start by reading `docs/context/current_state.md`.
-2. **Follow the Guardrails**: Strictly adhere to `.agent/rules/engineering_guardrails.md`.
-3. **No Evidence, No Completion**: Do not claim a task is finished without providing verifiable test logs or terminal output.
-4. **Token Governance**: Avoid reading large files unless necessary. Use `grep` or `ripgrep` to locate specific code items.
+    ```bash
+    pip install -r requirements.txt
+    cd frontend/v4 && npm install
+    ```
 
-## 👤 For Human Contributors
+4. **Make Changes**: Implement your feature or fix.
+5. **Test**: Run relevant tests (see [`docs/project_meta/TESTING.md`](docs/project_meta/TESTING.md)).
+6. **Commit**: Use descriptive commit messages.
+    * Format: `[Type]: Description`
+    * Types: `Feat`, `Fix`, `Docs`, `Refactor`, `Perf`, `Test`.
+    * Example: `Feat: Add support for MACD histogram in core/analysis.py`
+7. **Push & PR**: Push to your fork and submit a Pull Request to `master`.
 
-1. **Issue First**: Please open an issue using the "Agent-Driven Issue" template before making significant changes.
-2. **Feature Branches**: Use descriptive branch names like `feat/your-feature` or `fix/issue-id`.
-3. **PR Standards**: Every Pull Request should include a clear "Problem/Solution" summary and verification evidence.
-4. **Language**: All internal documentation, rules, and commit messages must be in **English** for maximum cross-model compatibility.
+## Pull Request Process
 
-## 🛠️ Development Workflow
+* **Description**: clearly describe what the PR does. Link to any related issues.
+* **Screenshots**: For UI changes, attach before/after screenshots.
+* **Review**: Wait for a maintains to review your code. Address any feedback.
+* **Merge**: Once approved, your code will be merged.
 
-1. **Initialize**: Use `/bootstrap` to set up your task context.
-2. **Plan**: Use `/plan` to document your approach and get approval.
-3. **Execute**: Implement changes in small, reversible steps.
-4. **Ship**: Use `/ship` to verify and merge your work.
+## Code Standards
 
-## ⚖️ Code of Conduct
+Please refer to [`docs/project_meta/CODE_STYLE.md`](docs/project_meta/CODE_STYLE.md) for detailed coding conventions.
 
-We are committed to providing a friendly, safe, and welcoming environment for all contributors, regardless of whether they are biological or silicon-based.
+## Reporting Issues
 
----
-*Questions? Open an issue or refer to [README.md](README.md).*
+* Check existing issues before creating a new one.
+* Use the Issue Templates provided (Bug Report / Feature Request).
+* Include reproduction steps for bugs.
