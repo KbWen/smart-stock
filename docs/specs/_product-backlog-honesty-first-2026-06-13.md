@@ -1,9 +1,10 @@
 ---
-status: living
-title: Product Backlog — Honesty-First (Data-Consistent-With-Claims)
+status: archived
+title: Product Backlog — Honesty-First (Data-Consistent-With-Claims) [ARCHIVED — epic complete 2026-06-13]
 source: 2026-06-13 multi-agent code audit
 created: 2026-06-13
 last_updated: 2026-06-13 (ALL 6 shipped via PR #20)
+archived: 2026-07-26 (epic complete on 2026-06-13; superseded by the Optimization Round 2 backlog, then by _product-backlog.md)
 ---
 
 # Product Backlog
