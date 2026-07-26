@@ -17,6 +17,8 @@ model_sniper.pkl.*
 models/
 market_history.json
 models_history.json
+stock_list_cache.json
+tw_stocks_analysis_refined.csv
 
 # IDEs
 .vscode/
