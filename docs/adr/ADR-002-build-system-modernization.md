@@ -1,3 +1,15 @@
+---
+title: "ADR-002: Build-System Modernization (pyproject + dependency split + lockfile)"
+status: proposed
+date: 2026-07-19
+applies_to:
+  - "requirements.txt"
+  - "pyproject.toml"
+  - "backend/**"
+  - "core/**"
+  - "quickstart.*"
+---
+
 # ADR-002: Build-System Modernization (pyproject + dependency split + lockfile)
 
 - **Status**: Proposed (2026-07-19)
