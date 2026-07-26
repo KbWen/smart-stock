@@ -1,4 +1,4 @@
-﻿# Work Log: Frontend Dashboard API Integration Optimization
+# Work Log: Frontend Dashboard API Integration Optimization
 
 ## [2026-03-04] Phase 4 Bootstrapped
 

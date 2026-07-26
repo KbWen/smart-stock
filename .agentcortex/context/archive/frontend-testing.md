@@ -6,7 +6,7 @@
 - **Timestamp**: 2026-03-05T12:26:00+08:00
 - **Platform**: VS Code (Antigravity Environment)
 - **Branch**: `feat/frontend-testing`
-- **Plan Reference**: [implementation_plan_testing.md](file:///c:/Users/wen/.gemini/antigravity/brain/a4e2c059-3c87-4179-a4e4-6a3fa7a21683/implementation_plan_testing.md)
+- **Plan Reference**: `implementation_plan_testing.md` (machine-local Antigravity brain path; link stripped during archive hygiene — it never resolved outside the authoring machine)
 - **Status**: `IMPLEMENTING`
 
 ## [2026-03-05] Phase 6 Bootstrapped
