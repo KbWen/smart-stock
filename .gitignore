@@ -45,7 +45,11 @@ stocks.db
 debug_*.py
 inspect_db.py
 
-# Template-provided Documentation
+# Retired framework-docs layout (see docs/specs/retire-legacy-docs-layout.md).
+# An older AgentCortex version deployed framework documentation into docs/;
+# agentic-os deploys it to .agentcortex/docs/ instead, and deploy.sh already
+# de-registers these paths. docs/ is now exclusively project-owned. These entries
+# keep leftover copies on existing clones from being re-committed.
 docs/AGENT_PHILOSOPHY.md
 docs/TESTING_PROTOCOL.md
 docs/CODEX_PLATFORM_GUIDE.md

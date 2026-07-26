@@ -80,6 +80,29 @@ def test_manifest_records_only_the_installers_wrappers():
         )
 
 
+def test_docs_and_framework_docs_namespaces_stay_disjoint():
+    """docs/ is project-owned; .agentcortex/docs/ is framework-owned.
+
+    An older AgentCortex version deployed framework documentation into docs/,
+    leaving 17 same-named files whose content then drifted from the copies the
+    framework actually maintains. Re-introducing that overlap makes it
+    impossible for a reader to tell which copy is authoritative.
+    Ref: docs/specs/retire-legacy-docs-layout.md
+    """
+    tracked = _git("ls-files").splitlines()
+    project = {p[len("docs/"):] for p in tracked if p.startswith("docs/")}
+    framework = {
+        p[len(".agentcortex/docs/"):]
+        for p in tracked
+        if p.startswith(".agentcortex/docs/")
+    }
+    overlap = sorted(project & framework)
+    assert not overlap, (
+        "these paths are tracked under BOTH docs/ and .agentcortex/docs/: "
+        f"{overlap} — framework docs belong only under .agentcortex/docs/"
+    )
+
+
 def test_archived_worklog_filenames_end_in_md():
     archive = os.path.join(_ROOT, ".agentcortex", "context", "archive")
     for entry in os.listdir(archive):
