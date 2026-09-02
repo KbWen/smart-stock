@@ -1,3 +1,4 @@
+import math
 import re
 from core import config
 
@@ -45,14 +46,61 @@ def validate_version_string(version: str) -> bool:
     return bool(VERSION_RE.match(version))
 
 
-def profit_factor_sort_key(h: dict) -> float:
-    """Sort key for model history entries by profit_factor (descending-friendly).
+# The fill model the benchmark backtest currently uses. Entries recorded before 2026-09-02 booked
+# a winning trade at the session HIGH and a loser at the session LOW, which on the same seed and
+# window moved profit factor 0.74 -> 0.80. A profit factor measured under one settlement rule is
+# not comparable to one measured under another, and rotation DELETES files based on that comparison.
+CURRENT_SETTLEMENT = "achievable_fill"
 
-    None profit_factor (backtest failed) ranks below any real score, including 0.0.
-    Use with ``sorted(..., key=profit_factor_sort_key, reverse=True)``.
+
+def is_rankable(h: dict, settlement: str = CURRENT_SETTLEMENT) -> bool:
+    """True when this entry's profit factor may be compared with others'.
+
+    Requires a matching settlement marker AND a finite profit factor. An entry that fails either
+    test is NOT ranked last -- it is protected from automatic deletion. Sorting an unknown to the
+    bottom is a silent decision to delete it, and the two things `profit_factor: None` used to mean
+    (a flawless backtest with no losing trades, and a backtest that raised) are both unknowns, not
+    failures.
     """
-    pf = h.get('backtest_30d', {}).get('profit_factor')
-    return float(pf) if pf is not None else -1.0
+    bt = h.get('backtest_30d') or {}
+    if bt.get('settlement') != settlement:
+        return False
+    pf = bt.get('profit_factor')
+    if pf is None or isinstance(pf, bool):
+        return False
+    try:
+        return math.isfinite(float(pf))
+    except (TypeError, ValueError):
+        return False
+
+
+def profit_factor_sort_key(h: dict) -> float:
+    """Sort key for RANKABLE model history entries, descending-friendly.
+
+    Only meaningful for entries where ``is_rankable(h)`` is True -- callers must filter first.
+    Unrankable entries have no position in this ordering by design; giving them one is what let a
+    flawless backtest and a crashed one both sort below a model that lost money on every trade.
+    """
+    return float((h.get('backtest_30d') or {}).get('profit_factor'))
+
+
+def select_for_deletion(history: list, keep: int, protected_versions=None) -> tuple:
+    """Return ``(to_delete, protected)`` for a rotation/prune pass.
+
+    The single rule this module exists to enforce: **an irreversible action requires a comparable
+    measurement.** Only rankable entries compete for the ``keep`` slots; everything else is
+    protected, even when its profit factor is the lowest present. The store growing past ``keep``
+    is the correct outcome of refusing a bad comparison.
+    """
+    protected_versions = set(protected_versions or ())
+    rankable = [h for h in history if is_rankable(h)]
+    unrankable = [h for h in history if not is_rankable(h)]
+    keepers = {id(h) for h in sorted(rankable, key=profit_factor_sort_key, reverse=True)[:keep]}
+    to_delete = [
+        h for h in rankable
+        if id(h) not in keepers and h.get('version') not in protected_versions
+    ]
+    return to_delete, unrankable
 
 # ===== FEATURE ENGINEERING =====
 FEATURE_COLS = [

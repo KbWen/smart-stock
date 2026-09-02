@@ -15,7 +15,7 @@ import json
 import glob
 from datetime import datetime
 from core import config as _cfg
-from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, profit_factor_sort_key
+from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, select_for_deletion, CURRENT_SETTLEMENT
 from core.ai import common as _c  # read LABEL_MODE / ATR_* dynamically (togglable)
 from core.logger import setup_logger
 
@@ -591,22 +591,45 @@ def train_and_save(all_dfs):
     shutil.copy2(versioned_path, _apkl_tmp)
     os.replace(_apkl_tmp, MODEL_PATH)
 
-    print("\n[Benchmark] Running post-training benchmark backtest (30 days)...")
+    # The window must start AFTER the last label the final fit saw, or the benchmark scores the
+    # model on the price path it was just trained on. Labels look forward PRED_DAYS trading days
+    # and the simulated hold runs BENCHMARK_HOLDING_DAYS, so days_ago must clear their sum --
+    # otherwise the retained "best" model is whichever memorised the last month most closely.
+    BENCHMARK_HOLDING_DAYS = 20
+    benchmark_days_ago = PRED_DAYS + BENCHMARK_HOLDING_DAYS
+    print(f"\n[Benchmark] Running post-training benchmark backtest ({benchmark_days_ago} days back)...")
     try:
         import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         from backend.backtest import run_time_machine
-        bt_result = run_time_machine(days_ago=30, limit=20)
+        bt_result = run_time_machine(days_ago=benchmark_days_ago, limit=20,
+                                     holding_days=BENCHMARK_HOLDING_DAYS)
         bt_summary = bt_result.get('summary', {})
+        pf = bt_summary.get('profit_factor', None)
         backtest_score = {
-            'profit_factor': bt_summary.get('profit_factor', None),
+            'profit_factor': pf,
+            # `None` used to mean both "no losing trades" (a flawless run) and "the backtest
+            # raised", and the sort key treated both as worse than losing money on every trade.
+            # Name the state instead of collapsing two opposite facts into one absent number.
+            'status': 'ok' if pf is not None else 'no_losing_trades',
+            'settlement': CURRENT_SETTLEMENT,
+            'days_ago': benchmark_days_ago,
+            'holding_days': BENCHMARK_HOLDING_DAYS,
             'win_rate': round(bt_summary.get('win_rate', 0), 3),
             'sniper_hit_rate': round(bt_summary.get('sniper_hit_rate', 0), 3),
             'avg_return': round(bt_summary.get('avg_return', 0), 4),
         }
     except Exception as e:
         print(f"[WARNING] Backtest scoring failed: {e}")
-        backtest_score = {'profit_factor': None, 'win_rate': 0, 'sniper_hit_rate': 0, 'avg_return': 0}
+        backtest_score = {
+            'profit_factor': None,
+            'status': 'failed',
+            'error': str(e)[:200],
+            'settlement': CURRENT_SETTLEMENT,
+            'days_ago': benchmark_days_ago,
+            'holding_days': BENCHMARK_HOLDING_DAYS,
+            'win_rate': 0, 'sniper_hit_rate': 0, 'avg_return': 0,
+        }
 
     # History Log
     history_path = os.path.join(base_dir, "models_history.json")
@@ -677,9 +700,23 @@ def train_and_save(all_dfs):
             pass
         raise
     
-    # Rotation: keep MAX_SAVED_MODELS best-performing models by profit_factor (AC1, AC2, AC4)
-    keep_timestamps = {h['timestamp'] for h in sorted(history, key=profit_factor_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
-    keep_timestamps.add(timestamp)  # AC4: always protect freshly-trained model
+    # Rotation. This selects files for IRREVERSIBLE deletion, so it only ever compares entries
+    # measured the same way: a profit factor recorded under the pre-2026-09-02 settlement rule
+    # is not comparable to one recorded after it, and ranking them together could delete a
+    # genuinely better old model for having been measured with a different ruler.
+    to_delete, protected = select_for_deletion(
+        history, keep=MAX_SAVED_MODELS, protected_versions={version_tag}
+    )
+    delete_timestamps = {h['timestamp'] for h in to_delete if h.get('timestamp')}
+    keep_timestamps = {h['timestamp'] for h in history if h.get('timestamp')} - delete_timestamps
+    keep_timestamps.add(timestamp)  # always protect the freshly-trained model
+    if protected:
+        print(
+            f"[Rotation] Kept {len(protected)} model(s) that could not be compared "
+            "(different or missing settlement marker, or no usable profit factor). The store "
+            f"may exceed MAX_SAVED_MODELS={MAX_SAVED_MODELS} as a result -- that is deliberate. "
+            "Remove one explicitly with: python backend/manage_models.py delete <version>"
+        )
 
     try:
         active_realpath = os.path.realpath(MODEL_PATH)

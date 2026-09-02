@@ -2,7 +2,7 @@
 import sys, os, json, shutil, argparse, glob
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from core.ai.common import MODEL_PATH, MAX_SAVED_MODELS, profit_factor_sort_key, validate_version_string
+from core.ai.common import MODEL_PATH, MAX_SAVED_MODELS, select_for_deletion, validate_version_string
 
 _validate_version = validate_version_string  # local alias for CLI readability
 _SIDECAR_EXTS = ('.sha256', '.sig')  # integrity sidecar extensions written by trainer
@@ -54,8 +54,11 @@ def cmd_list():
     # base rate is an edge, against a 35% base rate it is worse than guessing. `-` means the entry
     # predates the baseline being recorded (2026-09-02), which also means its metrics were
     # produced under the old row-based embargo and are not out-of-sample.
-    print(f"{'Version':<25} {'Samples':>8} {'Acc':>6} {'P(SB)':>6} {'Lift':>6} {'R(SB)':>6} {'PF(bt)':>6} {'WR(bt)':>7} {'Active':>7}")
-    print(f"{'='*104}")
+    # `Settle` shows how PF(bt) was measured. "(pre-...)" means the entry predates 2026-09-02,
+    # when a winning trade was booked at the session high -- its profit factor is NOT comparable
+    # with the others', and rotation refuses to delete it for that reason.
+    print(f"{'Version':<25} {'Samples':>8} {'Acc':>6} {'P(SB)':>6} {'Lift':>6} {'R(SB)':>6} {'PF(bt)':>6} {'Settle':>18} {'WR(bt)':>7} {'Active':>7}")
+    print(f"{'='*124}")
     for entry in reversed(history):
         v = entry.get('version', '?')
         samples = entry.get('samples', 0)
@@ -67,6 +70,7 @@ def cmd_list():
         lift = oos.get('lift_strong')
         lift = '-' if lift is None else lift
         pf = bt.get('profit_factor', '-')
+        settle = bt.get('settlement') or '(pre-2026-09-02)'
         wr = bt.get('win_rate', '-')
         active = " *" if v == active_version else ""
         # Format numeric values
@@ -76,7 +80,7 @@ def cmd_list():
         lift_s = f"{lift:.2f}x" if isinstance(lift, (int, float)) else str(lift)
         pf_s = f"{pf:.2f}" if isinstance(pf, (int, float)) else str(pf)
         wr_s = f"{wr:.1%}" if isinstance(wr, (int, float)) else str(wr)
-        print(f"{v:<25} {samples:>8} {acc_s:>6} {p2_s:>6} {lift_s:>6} {r2_s:>6} {pf_s:>6} {wr_s:>7} {active:>7}")
+        print(f"{v:<25} {samples:>8} {acc_s:>6} {p2_s:>6} {lift_s:>6} {r2_s:>6} {pf_s:>6} {settle:>18} {wr_s:>7} {active:>7}")
     print(f"{'='*95}")
     print(f"Active model: {active_version}\n")
 
@@ -138,19 +142,33 @@ def cmd_delete(version):
         print(f"[CLEANED] Removed {version} from models_history.json")
 
 def cmd_prune(keep=MAX_SAVED_MODELS):
-    """Keep top N models by profit factor, delete the rest."""
+    """Keep the top N COMPARABLE models by profit factor, delete the rest.
+
+    Same irreversible deletion as the trainer's rotation, from a different entry point, so it
+    uses the same rule: an entry is eligible for deletion only if its profit factor can be
+    compared with the others' -- matching settlement marker, finite value. Anything else is
+    protected, even when its profit factor is the lowest present.
+    """
     history = load_history()
     if len(history) <= keep:
         print(f"Only {len(history)} models exist, nothing to prune (keep={keep}).")
         return
-    # Sort by profit factor (descending), keep top N.
-    # AC2: None profit_factor (backtest failed) ranks below any real score, including 0.0.
-    scored = sorted(history, key=profit_factor_sort_key, reverse=True)
-    to_keep = set(h['version'] for h in scored[:keep])
-    to_delete = [h for h in history if h['version'] not in to_keep]
+    to_delete, protected = select_for_deletion(history, keep=keep)
+    if protected:
+        print(f"[PROTECTED] {len(protected)} model(s) cannot be compared and will NOT be deleted:")
+        for h in protected:
+            bt = h.get('backtest_30d') or {}
+            why = ("no settlement marker (recorded before 2026-09-02)"
+                   if not bt.get('settlement') else
+                   f"profit_factor unusable (status={bt.get('status', 'unknown')})")
+            print(f"           {h.get('version', '?')}: {why}")
+        print("           Remove one explicitly with: python backend/manage_models.py delete <version>")
+    if not to_delete:
+        print(f"Nothing comparable to prune (keep={keep}).")
+        return
     for h in to_delete:
         cmd_delete(h['version'])
-    print(f"\n[SUCCESS] Pruned {len(to_delete)} models, kept top {keep}.")
+    print(f"\n[SUCCESS] Pruned {len(to_delete)} comparable models, kept top {keep}.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model Lifecycle Manager")

@@ -2,18 +2,22 @@
 Tests for ML model rotation and prune strategy (docs/specs/ml-model-rotation.md).
 
 AC1: Rotation deletes lowest profit_factor model, not oldest by timestamp.
-AC2: None profit_factor ranks below any real score (including 0.0).
+AC2 (SUPERSEDED 2026-09-02 by docs/specs/model-rotation-ranking-honesty.md): a None
+profit_factor is UNKNOWN, not worst -- it is protected from deletion, not ranked last.
 AC3: MAX_SAVED_MODELS constant is defined in core.ai.common and imported by trainer + manage_models.
 AC4: Rotation never deletes the currently-active model file.
 """
 import os
 import json
 import glob as globlib
+
+import pandas as pd
 import pytest
 import tempfile
 import shutil
 from unittest.mock import patch
 from core.ai.common import profit_factor_sort_key, MAX_SAVED_MODELS
+from core.ai.common import CURRENT_SETTLEMENT
 
 
 # ---------------------------------------------------------------------------
@@ -92,13 +96,21 @@ def test_missing_backtest_key_treats_as_none():
 # AC1 + AC4: Rotation logic (isolated via tempdir)
 # ---------------------------------------------------------------------------
 
-def _make_history(entries):
-    """Build a minimal history list from (timestamp, profit_factor) tuples."""
+def _make_history(entries, settlement=CURRENT_SETTLEMENT):
+    """Build a minimal history list from (timestamp, profit_factor) tuples.
+
+    Entries carry the current settlement marker by default, because without it they are not
+    comparable and rotation refuses to delete them -- see docs/specs/model-rotation-ranking-honesty.md.
+    Pass ``settlement=None`` to build pre-2026-09-02 entries and exercise that protection.
+    """
     return [
         {
             'timestamp': ts,
             'version': f'v4.{ts}',
-            'backtest_30d': {'profit_factor': pf},
+            'backtest_30d': (
+                {'profit_factor': pf, 'settlement': settlement} if settlement
+                else {'profit_factor': pf}
+            ),
         }
         for ts, pf in entries
     ]
@@ -123,8 +135,16 @@ def _run_rotation(tmpdir, history, current_ts, name_part='sniper_model', ext='.p
 
     active_realpath = os.path.realpath(model_path) if model_path and os.path.exists(model_path) else None
 
-    # --- Rotation logic (mirrors trainer.py) ---
-    keep_timestamps = {h['timestamp'] for h in sorted(history, key=profit_factor_sort_key, reverse=True)[:MAX_SAVED_MODELS]}
+    # --- Rotation logic ---
+    # Calls the REAL selection function rather than reproducing it, so this harness cannot drift
+    # from trainer.py the way it did through the settlement change.
+    from core.ai.common import select_for_deletion
+
+    to_delete, _protected = select_for_deletion(
+        history, keep=MAX_SAVED_MODELS, protected_versions={f'v4.{current_ts}'}
+    )
+    delete_timestamps = {h['timestamp'] for h in to_delete if h.get('timestamp')}
+    keep_timestamps = {h['timestamp'] for h in history if h.get('timestamp')} - delete_timestamps
     keep_timestamps.add(current_ts)
 
     for fpath in globlib.glob(os.path.join(tmpdir, f"{name_part}_*{ext}")):
@@ -154,7 +174,8 @@ def test_rotation_keeps_highest_profit_factor(tmp_path):
         ('ts6', 0.1),   # worst — should be deleted when ts7 added
     ])
     current_ts = 'ts7'
-    history.append({'timestamp': current_ts, 'version': f'v4.{current_ts}', 'backtest_30d': {'profit_factor': 4.0}})
+    history.append({'timestamp': current_ts, 'version': f'v4.{current_ts}',
+                'backtest_30d': {'profit_factor': 4.0, 'settlement': CURRENT_SETTLEMENT}})
 
     remaining = _run_rotation(tmpdir, history, current_ts)
 
@@ -188,26 +209,64 @@ def test_rotation_protects_active_model(tmp_path):
     assert 'sniper_model_ts1.pkl' in remaining, "AC4: active model must never be deleted"
 
 
-def test_rotation_none_pf_models_deleted_first(tmp_path):
-    """AC1+AC2: Models with None profit_factor are the first candidates for deletion."""
+def test_rotation_protects_none_pf_models_instead_of_culling_them(tmp_path):
+    """A `None` profit factor is UNKNOWN, not worst, so rotation must protect it.
+
+    This test previously asserted the opposite -- that None-PF models are "culled first" -- which
+    encoded the defect: `backend/backtest.py` returns None when there are **no losing trades** (a
+    flawless run) and the trainer wrote None when the backtest **raised**, and the old `-1.0` sort
+    key ranked both below a model that lost money on every trade. Whichever it was, it was deleted
+    first, irreversibly. See docs/specs/model-rotation-ranking-honesty.md.
+    """
     tmpdir = str(tmp_path)
     history = _make_history([
         ('ts1', 2.0),
         ('ts2', 1.5),
         ('ts3', 1.0),
         ('ts4', 0.5),
-        ('ts5', None),  # failed backtest — should be culled first
-        ('ts6', None),  # also None
+        ('ts5', None),  # flawless run OR a crashed one -- indistinguishable, so unrankable
+        ('ts6', None),
     ])
     current_ts = 'ts7'
-    history.append({'timestamp': current_ts, 'version': f'v4.{current_ts}', 'backtest_30d': {'profit_factor': 3.0}})
+    history.append({'timestamp': current_ts, 'version': f'v4.{current_ts}',
+                'backtest_30d': {'profit_factor': 3.0, 'settlement': CURRENT_SETTLEMENT}})
 
     remaining = _run_rotation(tmpdir, history, current_ts)
 
     for ts in ['ts5', 'ts6']:
-        assert f'sniper_model_{ts}.pkl' not in remaining, f"None-PF model {ts} must be deleted first"
-    assert 'sniper_model_ts7.pkl' in remaining
-    assert 'sniper_model_ts1.pkl' in remaining
+        assert f'sniper_model_{ts}.pkl' in remaining, (
+            f"None-PF model {ts} is unrankable and must be PROTECTED, not deleted"
+        )
+    assert 'sniper_model_ts7.pkl' in remaining   # freshly trained, always protected
+    assert 'sniper_model_ts1.pkl' in remaining   # best comparable score
+    # Only 5 entries are comparable here (ts1-ts4 + ts7), which is exactly MAX_SAVED_MODELS, so
+    # nothing is culled. The store holds 7 files rather than 5 -- that is the disclosed cost of
+    # refusing to rank the two unknowns, not a leak.
+    assert len(remaining) == 7
+
+
+def test_rotation_never_deletes_an_entry_measured_with_a_different_ruler(tmp_path):
+    """The irreversible-deletion rule. A pre-2026-09-02 entry booked winning trades at the session
+    high, so its profit factor is not comparable with a post-fix one -- on the same seed and window
+    that difference moved PF 0.74 -> 0.80. Ranking them together could delete a genuinely better
+    old model, and the .pkl does not come back."""
+    tmpdir = str(tmp_path)
+    # The pre-fix entry has the LOWEST profit factor present, so a naive ranking deletes it first.
+    history = _make_history([('old1', 0.1)], settlement=None)
+    history += _make_history([('ts1', 3.0), ('ts2', 2.0), ('ts3', 1.5), ('ts4', 1.2), ('ts5', 1.1)])
+    current_ts = 'ts6'
+    history.append({'timestamp': current_ts, 'version': f'v4.{current_ts}',
+                    'backtest_30d': {'profit_factor': 2.5, 'settlement': CURRENT_SETTLEMENT}})
+
+    remaining = _run_rotation(tmpdir, history, current_ts)
+
+    assert 'sniper_model_old1.pkl' in remaining, (
+        "an entry measured under a different settlement rule must never be auto-deleted"
+    )
+    assert 'sniper_model_ts6.pkl' in remaining
+    # The store is now allowed to exceed MAX_SAVED_MODELS. That is the correct outcome of
+    # refusing a bad comparison, not a bug to be tuned away.
+    assert len(remaining) > 5
 
 
 # ---------------------------------------------------------------------------
@@ -284,3 +343,112 @@ def test_cmd_delete_removes_sidecars(tmp_path, monkeypatch):
     assert not os.path.exists(target_pkl), ".pkl must be removed"
     assert not os.path.exists(target_sha), ".sha256 sidecar must be removed on delete"
     assert not os.path.exists(target_sig), ".sig sidecar must be removed on delete"
+
+
+# ---------------------------------------------------------------------------
+# Comparability rule (docs/specs/model-rotation-ranking-honesty.md)
+# ---------------------------------------------------------------------------
+
+def test_is_rankable_requires_a_matching_marker_and_a_finite_number():
+    from core.ai.common import CURRENT_SETTLEMENT, is_rankable
+
+    ok = {'backtest_30d': {'profit_factor': 1.5, 'settlement': CURRENT_SETTLEMENT}}
+    assert is_rankable(ok)
+
+    # Pre-2026-09-02: no marker at all.
+    assert not is_rankable({'backtest_30d': {'profit_factor': 1.5}})
+    # A future/other fill model.
+    assert not is_rankable({'backtest_30d': {'profit_factor': 1.5, 'settlement': 'session_extremes'}})
+    # Undefined or unusable numbers. json.loads accepts bare NaN/Infinity, so both are reachable
+    # from a hand-edited history file.
+    for pf in (None, float('nan'), float('inf'), 'abc', True):
+        assert not is_rankable({'backtest_30d': {'profit_factor': pf, 'settlement': CURRENT_SETTLEMENT}}), pf
+    # No backtest block at all.
+    assert not is_rankable({})
+
+
+def test_select_for_deletion_never_returns_an_unrankable_entry():
+    """The rule the whole spec exists for: an irreversible action requires a comparable
+    measurement. The pre-fix entry below has the LOWEST profit factor present, so a naive ranking
+    would delete it first."""
+    from core.ai.common import CURRENT_SETTLEMENT, select_for_deletion
+
+    S = CURRENT_SETTLEMENT
+    history = [
+        {'version': 'pre_fix', 'backtest_30d': {'profit_factor': 0.1}},
+        {'version': 'flawless', 'backtest_30d': {'profit_factor': None, 'settlement': S, 'status': 'no_losing_trades'}},
+        {'version': 'crashed', 'backtest_30d': {'profit_factor': None, 'settlement': S, 'status': 'failed'}},
+        {'version': 'best', 'backtest_30d': {'profit_factor': 2.0, 'settlement': S}},
+        {'version': 'worst_comparable', 'backtest_30d': {'profit_factor': 0.2, 'settlement': S}},
+    ]
+
+    to_delete, protected = select_for_deletion(history, keep=1)
+
+    assert [h['version'] for h in to_delete] == ['worst_comparable']
+    assert {h['version'] for h in protected} == {'pre_fix', 'flawless', 'crashed'}
+    # 'no_losing_trades' and 'failed' are both unrankable, but they remain distinguishable -- the
+    # defect was that `None` alone meant either one.
+    statuses = {h['version']: h['backtest_30d'].get('status') for h in protected if 'status' in h['backtest_30d']}
+    assert statuses == {'flawless': 'no_losing_trades', 'crashed': 'failed'}
+
+
+def test_freshly_trained_model_is_never_selected_even_if_it_ranks_last():
+    from core.ai.common import CURRENT_SETTLEMENT, select_for_deletion
+
+    S = CURRENT_SETTLEMENT
+    history = [
+        {'version': 'v_new', 'backtest_30d': {'profit_factor': 0.01, 'settlement': S}},
+        {'version': 'v_a', 'backtest_30d': {'profit_factor': 3.0, 'settlement': S}},
+        {'version': 'v_b', 'backtest_30d': {'profit_factor': 2.0, 'settlement': S}},
+    ]
+
+    to_delete, _ = select_for_deletion(history, keep=1, protected_versions={'v_new'})
+
+    assert 'v_new' not in {h['version'] for h in to_delete}
+    assert {h['version'] for h in to_delete} == {'v_b'}
+
+
+def test_benchmark_window_clears_the_label_horizon(tmp_path, monkeypatch):
+    """The rotation benchmark must not score the model on the window it was just fit on.
+
+    Labels look forward PRED_DAYS trading days and the simulated hold runs the same length, so
+    days_ago must clear their sum -- the old hardcoded 30 sat inside the horizon, which made the
+    retained "best" model whichever memorised the last month most closely. Captures the real call
+    rather than asserting on source text.
+    """
+    import backend.backtest as bt
+    from core.ai import trainer as t
+    from core.ai.common import FEATURE_COLS, PRED_DAYS
+
+    calls = []
+
+    def fake_run_time_machine(**kwargs):
+        calls.append(kwargs)
+        return {"summary": {"profit_factor": 1.4, "win_rate": 0.5,
+                            "sniper_hit_rate": 0.4, "avg_return": 0.02}}
+
+    monkeypatch.setattr(bt, "run_time_machine", fake_run_time_machine)
+    monkeypatch.setattr(t, "MODEL_PATH", str(tmp_path / "m.pkl"))
+    monkeypatch.setattr(t, "prepare_features", lambda df: (df[FEATURE_COLS], df["target"]))
+
+    dates = pd.bdate_range("2021-01-01", periods=400)
+    panel = pd.DataFrame([
+        {**{c: float(i + k) for c in FEATURE_COLS}, "target": k % 3, "date": d}
+        for i, d in enumerate(dates) for k in range(12)
+    ])
+
+    assert t.train_and_save([panel]) is True
+
+    assert len(calls) == 1
+    days_ago = calls[0]["days_ago"]
+    holding = calls[0]["holding_days"]
+    assert days_ago >= PRED_DAYS + holding, (
+        f"benchmark window {days_ago} does not clear the {PRED_DAYS}-day label horizon "
+        f"plus a {holding}-day hold"
+    )
+
+    entry = json.loads((tmp_path / "models_history.json").read_text())[-1]
+    # The window and the fill model are recorded, not assumed from the field name.
+    assert entry["backtest_30d"]["days_ago"] == days_ago
+    assert entry["backtest_30d"]["settlement"] == CURRENT_SETTLEMENT
+    assert entry["backtest_30d"]["status"] == "ok"
