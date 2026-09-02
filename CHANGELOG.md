@@ -6,6 +6,34 @@ An epic opened from a triage of the 12 GitHub issues left untouched since 2026-0
 three items share one cause: a value that cannot be computed is filled with `0`, and everything
 downstream then treats the unknown as known. In progress.
 
+### Rate limits now work behind a reverse proxy — if you tell the app about it
+
+The limiter identified every request by the address that connected to it. Put nginx, Caddy or a CDN
+in front (the ordinary way to add TLS to a container that speaks plain HTTP) and that address is the
+proxy's — so **every user shared one rate-limit bucket**: your users start collecting `429`s they
+did not earn, because someone else spent the budget. Nothing errored; the limiter kept working and
+counted everyone as one person.
+
+Set **`TRUSTED_PROXY_COUNT`** to the number of proxies you run. The default is `0` — the app is
+reached directly and behaves exactly as before.
+
+The obvious fix would have been worse than the bug. `X-Forwarded-For` is set by the **client**, so
+preferring it whenever present lets anyone send a random address per request and never be limited at
+all — trading "innocent users are blocked" for "rate limiting does nothing", on the endpoints that
+run a backtest. Instead the app walks back exactly the number of hops you declared, from the right
+of the header, where each of your proxies wrote what it actually saw. Anything further left came
+from outside and is ignored. A chain shorter than declared, or an entry that is not an address,
+falls back to the connecting address and logs a warning once.
+
+**Be honest about what this cannot do.** The app checks the chain's *length*; it cannot check who
+wrote it. Declare more proxies than actually append the header — a typo, an nginx left on its
+default `proxy_pass`, or an origin still reachable without going through your CDN — and callers
+choose their own identity. That is now **bounded**: only a few thousand distinct forwarded
+identities get their own counter per window, and past that new ones are limited by connecting
+address, so a flood degrades to the old shared bucket rather than growing the limiter's in-process
+key store without limit. `docs/CONFIGURATION.md` states the two conditions that have to hold, and
+the startup log names the mode in force.
+
 ### Some stocks will stop showing an AI probability
 
 A feature the model needs but the data cannot support used to be filled with `0`. That is not a

@@ -37,12 +37,18 @@ _RATE_BACKTEST   = "20/minute"
 ```python
 # backend/limiter.py
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
+from backend.limiter import client_identity
+
+limiter = Limiter(key_func=client_identity)
 ```
 
-- `key_func=get_remote_address`：以客戶端 IP 為限速金鑰
+- `key_func=client_identity`：以**客戶端位址**為限速金鑰。直連部署時就是連線位址；
+  設定 `TRUSTED_PROXY_COUNT > 0` 時，改從 `X-Forwarded-For` **由右往左**數該跳數取值。
+  預設 `0`，行為與加入此設定前完全相同。
+- **反向代理後面務必設定 `TRUSTED_PROXY_COUNT`**，否則所有使用者共用同一個限速桶，
+  正常使用者會拿到別人用掉的 `429`；但**設得比實際代理數多更危險** —— 那會讓呼叫端
+  自己挑選身分。兩個方向都寫在 `docs/CONFIGURATION.md` §Deployment Behind a Reverse Proxy。
 - 計數器存於 in-memory（單機部署）
 
 ### main.py 掛載

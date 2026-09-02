@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from backend.limiter import limiter
+from backend.limiter import describe_configuration, limiter
 
 from backend.routes.market import router as market_router
 from backend.routes.stock import router as stock_router
@@ -29,6 +29,17 @@ logger = setup_logger("backend")
 app = FastAPI(title="Smart Stock Selector")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.on_event("startup")
+def _log_rate_limit_identity() -> None:
+    """Say which identity rate limits are keyed on.
+
+    A mis-declared TRUSTED_PROXY_COUNT produces no error in either direction -- the app can check
+    the X-Forwarded-For chain's length but never who wrote it. One line at startup turns "did my
+    setting take?" into a grep. See docs/specs/trusted-proxy-client-identity.md.
+    """
+    logger.info("Rate limiting: %s", describe_configuration())
 
 
 @app.on_event("startup")
