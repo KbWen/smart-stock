@@ -73,6 +73,10 @@ docs/PROJECT_EXAMPLES.md
 *.acx-incoming
 *.acx-local
 
+# Per-Operator Tool State (this project's .claude/settings.json declares
+# settings.local.json user-local; keep git agreeing with that declaration)
+.claude/settings.local.json
+
 # Third-party AI Tool Local State
 .openrouter/
 .claude-chat/
