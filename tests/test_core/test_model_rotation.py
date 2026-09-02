@@ -452,3 +452,35 @@ def test_benchmark_window_clears_the_label_horizon(tmp_path, monkeypatch):
     assert entry["backtest_30d"]["days_ago"] == days_ago
     assert entry["backtest_30d"]["settlement"] == CURRENT_SETTLEMENT
     assert entry["backtest_30d"]["status"] == "ok"
+
+
+def test_malformed_history_entries_are_protected_never_raise():
+    """This function stands between a hand-edited models_history.json and an irreversible
+    os.remove. Anything it cannot read is unrankable -- and it must return that verdict rather
+    than raising, because an exception mid-rotation leaves the store in an unknown state."""
+    from core.ai.common import is_rankable, select_for_deletion
+
+    junk = [
+        {'version': 'a', 'backtest_30d': [1, 2]},
+        {'version': 'b', 'backtest_30d': 'oops'},
+        {'version': 'c', 'backtest_30d': 3},
+        {'version': 'd', 'backtest_30d': None},
+        {'version': 'e'},
+        'not-even-a-dict',
+    ]
+    for h in junk:
+        assert is_rankable(h) is False
+
+    to_delete, protected = select_for_deletion(junk, keep=1)
+    assert to_delete == []
+    assert len(protected) == len(junk)
+
+
+def test_negative_keep_raises_rather_than_deleting_everything():
+    """Clamping a negative keep to 0 would delete every comparable model -- failing toward
+    deletion, the opposite of this function's rule. A negative keep is a caller bug."""
+    from core.ai.common import CURRENT_SETTLEMENT, select_for_deletion
+
+    history = [{'version': 'a', 'backtest_30d': {'profit_factor': 1.0, 'settlement': CURRENT_SETTLEMENT}}]
+    with pytest.raises(ValueError, match="keep must be >= 0"):
+        select_for_deletion(history, keep=-1)

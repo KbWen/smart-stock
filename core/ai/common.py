@@ -62,7 +62,14 @@ def is_rankable(h: dict, settlement: str = CURRENT_SETTLEMENT) -> bool:
     (a flawless backtest with no losing trades, and a backtest that raised) are both unknowns, not
     failures.
     """
-    bt = h.get('backtest_30d') or {}
+    if not isinstance(h, dict):
+        return False
+    bt = h.get('backtest_30d')
+    # A hand-edited history can hold anything here. Anything that is not a dict is unreadable,
+    # which means unrankable -- it must NOT raise, because this function stands between a
+    # malformed file and an irreversible os.remove.
+    if not isinstance(bt, dict):
+        return False
     if bt.get('settlement') != settlement:
         return False
     pf = bt.get('profit_factor')
@@ -93,6 +100,13 @@ def select_for_deletion(history: list, keep: int, protected_versions=None) -> tu
     is the correct outcome of refusing a bad comparison.
     """
     protected_versions = set(protected_versions or ())
+    # A negative keep would slice from the end and silently mark good models for deletion.
+    # Clamping it to 0 would be worse -- that deletes EVERY comparable model, i.e. it fails toward
+    # deletion, the exact opposite of this function's rule. A negative keep is a caller bug and
+    # must be heard, not guessed at.
+    keep = int(keep)
+    if keep < 0:
+        raise ValueError(f"keep must be >= 0, got {keep}; refusing to guess before an irreversible delete")
     rankable = [h for h in history if is_rankable(h)]
     unrankable = [h for h in history if not is_rankable(h)]
     keepers = {id(h) for h in sorted(rankable, key=profit_factor_sort_key, reverse=True)[:keep]}
