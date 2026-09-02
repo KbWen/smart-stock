@@ -1,6 +1,8 @@
 import sys
 import types
+
 import pandas as pd
+import pytest
 
 # Prevent heavy module side effects during import.
 fake_data = types.ModuleType('core.data')
@@ -162,8 +164,11 @@ def test_run_time_machine_uses_intraday_stop_before_target(monkeypatch):
     result = backtest.run_time_machine(days_ago=3, limit=1)
     top = result["top_picks"][0]
 
+    # Precedence guard: the bar touches BOTH barriers (+20% high, -10% low) and the stop wins.
     assert top["sniper_result"] == "STOP"
-    assert top["actual_return"] == -0.1
+    # Settlement is the stop price, not the session low — the bar opened at the entry price,
+    # so there is no gap and the stop order filled exactly at -5%.
+    assert top["actual_return"] == pytest.approx(-0.05)
 
 
 def test_run_time_machine_rejects_non_positive_days_ago():
@@ -444,18 +449,20 @@ def test_run_time_machine_custom_strategy_params(monkeypatch):
     monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=1.0))
     monkeypatch.setattr(backtest, "predict_prob", lambda *_args, **_kwargs: {"prob": 0.9})
 
-    # Test Case 1: Custom Target Gain (0.07) hits on Day 3
+    # Test Case 1: Custom Target Gain (0.07) hits on Day 3.
+    # Settles at the custom target, not the +8% session high (the bar opens at 100, no gap).
     res1 = backtest.run_time_machine(days_ago=5, limit=1, target_gain=0.07, stop_loss=0.10, holding_days=5)
     pick1 = res1["top_picks"][0]
     assert pick1["sniper_result"] == "HIT"
-    assert pick1["actual_return"] == 0.08
+    assert pick1["actual_return"] == pytest.approx(0.07)
     assert pick1["holding_days"] == 3
 
-    # Test Case 2: Custom Stop Loss (0.06) hits on Day 4 (with high target_gain=0.20)
+    # Test Case 2: Custom Stop Loss (0.06) hits on Day 4 (with high target_gain=0.20).
+    # Settles at the custom stop, not the -8% session low (the bar opens at 100, no gap).
     res2 = backtest.run_time_machine(days_ago=5, limit=1, target_gain=0.20, stop_loss=0.06, holding_days=5)
     pick2 = res2["top_picks"][0]
     assert pick2["sniper_result"] == "STOP"
-    assert pick2["actual_return"] == -0.08
+    assert pick2["actual_return"] == pytest.approx(-0.06)
     assert pick2["holding_days"] == 4
 
     # Test Case 3: Custom Holding Days (2) exit on Day 2
@@ -499,3 +506,130 @@ def test_profit_factor_is_none_when_no_losses(monkeypatch):
     # The only pick rises in price → no losing trades → profit factor is undefined.
     assert result["summary"]["profit_factor"] is None
     assert result["summary"]["net_profit_factor"] is None
+
+
+# --- Settlement realism (docs/specs/backtest-settlement-realism.md) -------------------------
+#
+# run_time_machine used to book a winning trade at the session HIGH and a losing trade at the
+# session LOW. The error was one-directional, so every headline summary metric was inflated.
+# These tests pin the achievable-fill model: an order resting at a barrier fills AT that
+# barrier, or at the open when the bar gapped straight through it.
+
+
+def _settle(monkeypatch, *, opens, highs, lows, closes, **kwargs):
+    """Run a single-ticker backtest over a hand-built OHLC frame and return its one pick.
+
+    8 bars, days_ago=3 → entry at index 5, outcome window starts at index 6.
+    """
+    dates = pd.date_range("2024-01-01", periods=len(closes), freq="D")
+
+    monkeypatch.setattr(backtest, "get_all_tw_stocks", lambda: [{"code": "2330", "name": "TSMC"}])
+    monkeypatch.setattr(
+        backtest,
+        "_load_from_db",
+        lambda _ticker, **_kwargs: pd.DataFrame(
+            {
+                "date": dates,
+                "open": opens,
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "volume": [1000] * len(dates),
+            }
+        ),
+    )
+
+    from core import indicators_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+
+    from core import rise_score_v2
+    monkeypatch.setattr(
+        rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=1.0)
+    )
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_a, **_k: {"prob": 0.9})
+
+    result = backtest.run_time_machine(days_ago=3, limit=1, **kwargs)
+    return result["top_picks"][0]
+
+
+def test_hit_settles_at_target_not_session_high(monkeypatch):
+    # Bar 6 opens at the entry price and runs to +30%, far past the 15% target. A limit sell
+    # resting at +15% fills at +15% — it does not capture the session high.
+    top = _settle(
+        monkeypatch,
+        opens=[100] * 8,
+        highs=[100, 100, 100, 100, 100, 100, 130, 100],
+        lows=[100] * 8,
+        closes=[100, 100, 100, 100, 100, 100, 125, 100],
+    )
+
+    assert top["sniper_result"] == "HIT"
+    assert top["actual_return"] == pytest.approx(0.15)
+    # The excursion measure still reports the real intraday extreme (spec AC4).
+    assert top["max_gain"] == pytest.approx(0.30)
+
+
+def test_hit_gap_open_above_target_settles_at_open(monkeypatch):
+    # Bar 6 GAPS OPEN at +22%, above the 15% target. A resting limit sell is filled at the
+    # open, which is better than the limit — but still not the +35% session high.
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, 122, 100],
+        highs=[100, 100, 100, 100, 100, 100, 135, 100],
+        lows=[100, 100, 100, 100, 100, 100, 121, 100],
+        closes=[100, 100, 100, 100, 100, 100, 130, 100],
+    )
+
+    assert top["sniper_result"] == "HIT"
+    assert top["actual_return"] == pytest.approx(0.22)
+
+
+def test_stop_settles_at_stop_not_session_low(monkeypatch):
+    # Bar 6 opens at the entry price and sinks to -18%, past the 5% stop. The stop triggers
+    # and fills at -5%; the position never actually paid the session low.
+    top = _settle(
+        monkeypatch,
+        opens=[100] * 8,
+        highs=[100] * 8,
+        lows=[100, 100, 100, 100, 100, 100, 82, 100],
+        closes=[100, 100, 100, 100, 100, 100, 85, 100],
+    )
+
+    assert top["sniper_result"] == "STOP"
+    assert top["actual_return"] == pytest.approx(-0.05)
+    # The excursion measure still reports the real intraday extreme (spec AC4).
+    assert top["max_drawdown"] == pytest.approx(-0.18)
+
+
+def test_stop_gap_open_below_stop_settles_at_open(monkeypatch):
+    # Bar 6 GAPS OPEN at -12%, straight through the 5% stop. The stop becomes a market order
+    # and fills at that worse open — this is the one case where a loss exceeds the stop.
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, 88, 100],
+        highs=[100, 100, 100, 100, 100, 100, 89, 100],
+        lows=[100, 100, 100, 100, 100, 100, 80, 100],
+        closes=[100, 100, 100, 100, 100, 100, 85, 100],
+    )
+
+    assert top["sniper_result"] == "STOP"
+    assert top["actual_return"] == pytest.approx(-0.12)
+
+
+def test_net_of_cost_arithmetic_applies_to_settled_roi(monkeypatch):
+    # The buy/sell cost asymmetry must compound onto the SETTLED roi, not the session high.
+    top = _settle(
+        monkeypatch,
+        opens=[100] * 8,
+        highs=[100, 100, 100, 100, 100, 100, 130, 100],
+        lows=[100] * 8,
+        closes=[100, 100, 100, 100, 100, 100, 125, 100],
+    )
+
+    commission_rate, tax_rate, slippage_rate = 0.001425, 0.003, 0.001
+    buy_cost = commission_rate + slippage_rate
+    sell_cost = commission_rate + tax_rate + slippage_rate
+    expected_net = ((1.0 + 0.15) * (1.0 - sell_cost) / (1.0 + buy_cost)) - 1.0
+
+    assert top["actual_return"] == pytest.approx(0.15)
+    assert top["net_return"] == pytest.approx(expected_net)

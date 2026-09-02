@@ -202,6 +202,15 @@ def run_time_machine(
                 day_high_pct = (row['high'] - entry_price) / entry_price
                 day_low_pct = (row['low'] - entry_price) / entry_price
                 day_close_pct = (row['close'] - entry_price) / entry_price
+                # Settlement (below) needs the OPEN only for the gap case: an order resting at a
+                # barrier fills at the open when the bar opens straight through that barrier.
+                # Frames without a usable 'open' fall back to the barrier price itself.
+                raw_open = row.get('open')
+                day_open_pct = (
+                    (float(raw_open) - entry_price) / entry_price
+                    if raw_open is not None and pd.notna(raw_open)
+                    else None
+                )
 
                 max_gain_pct = max(max_gain_pct, day_high_pct)
                 max_drawdown_pct = min(max_drawdown_pct, day_low_pct)
@@ -209,13 +218,25 @@ def run_time_machine(
                 # Conservative same-day ordering: stop has precedence over target.
                 if day_low_pct <= -stop_loss:  # Hit stop loss
                     sniper_result = 'STOP'
-                    locked_roi = day_low_pct
+                    # A stop fills AT the stop, not at the session low — booking the worst
+                    # intraday print charges a loss the position never actually paid. If the
+                    # bar gapped open below the stop, the stop became a market order and
+                    # filled at that (worse) open.
+                    locked_roi = -stop_loss
+                    if day_open_pct is not None and day_open_pct < locked_roi:
+                        locked_roi = day_open_pct
                     actual_holding_days = i + 1
                     exit_date_actual = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
                     break
                 if day_high_pct >= target_gain:  # Hit target
                     sniper_result = 'HIT'
-                    locked_roi = day_high_pct
+                    # A resting limit sell fills AT the target, not at the session high —
+                    # booking the best intraday print credits a gain no order could have
+                    # captured. If the bar gapped open above the target, the limit filled at
+                    # that (better) open.
+                    locked_roi = target_gain
+                    if day_open_pct is not None and day_open_pct > locked_roi:
+                        locked_roi = day_open_pct
                     actual_holding_days = i + 1
                     exit_date_actual = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
                     break
