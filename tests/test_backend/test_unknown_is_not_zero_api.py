@@ -36,6 +36,32 @@ def price_frame(rows: int) -> pd.DataFrame:
     })
 
 
+class _Classifier:
+    """Stand-in for a fitted estimator, so the test does not depend on a model file.
+
+    `model_sniper.pkl` is gitignored, so in a fresh clone or in CI `predict_prob` returns None
+    because the model cannot be loaded -- which would satisfy `ai_probability is None` even with
+    the defect restored. Installing a model makes the refusal the only explanation.
+    """
+
+    def __init__(self):
+        self.classes_ = np.array([0, 1, 2])
+        self.calls = 0
+
+    def predict_proba(self, X):
+        self.calls += 1
+        return np.array([[0.5, 0.3, 0.2]] * len(X))
+
+
+def install_model(monkeypatch) -> "_Classifier":
+    from core.ai import predictor
+
+    clf = _Classifier()
+    monkeypatch.setattr(predictor, "_cache_get",
+                        lambda _p: {"ensemble": {"gb": clf}, "version": "v4.test"})
+    return clf
+
+
 @pytest.fixture
 def v4_short_history(monkeypatch):
     """Serve /api/v4/stock/2330 from a deliberately short price history."""
@@ -55,14 +81,16 @@ def v4_short_history(monkeypatch):
     monkeypatch.setattr(detail_mod, "get_model_version", lambda: "v4.test")
     monkeypatch.setattr(detail_mod, "get_model_health",
                         lambda: {"status": "ok", "version": "v4.test", "message": ""})
-    return svc
+    return install_model(monkeypatch)
 
 
 class TestV4DetailRefusesOnShortHistory:
     def test_no_number_and_the_reason_is_stated(self, v4_short_history):
+        clf = v4_short_history
         body = client.get("/api/v4/stock/2330").json()
         assert body["ai_probability"] is None
         assert body["ai_unavailable_reason"] == "insufficient_history"
+        assert clf.calls == 0, "the model was scored on an invented feature"
 
     def test_the_technical_scores_still_work(self, v4_short_history):
         """Only the AI number is withheld. A short-history stock is not blanked out."""

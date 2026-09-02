@@ -276,6 +276,10 @@ def run_time_machine(
     # different facts about the cross-section.
     excluded = []           # no usable bar at or near as_of
     excluded_no_data = []   # ticker has no price rows at all
+    excluded_unscorable = []  # the model refused: a feature could not be computed from this
+                              # window. Booking these under the AI threshold instead would call a
+                              # refusal "the model said 3%" -- the substitution this epic exists to
+                              # remove, one layer down. See docs/specs/unknown-is-not-zero-ml-features.md
 
     print(f"[Analysis] Analyzing {len(candidates)} random candidates as of {as_of_date.date()}...")
     
@@ -331,8 +335,14 @@ def run_time_machine(
             
             # AI Probability (with version support)
             ai_result = predict_prob(df_past, version=version)
-            ai_prob = ai_result.get('prob', 0.0) if isinstance(ai_result, dict) else (ai_result or 0.0)
-            
+            if ai_result is None:
+                # No probability exists for this stock in this window. `or 0.0` would have made it
+                # a 0% forecast and dropped it through the strategy filter below, indistinguishable
+                # from a stock the model scored and rejected.
+                excluded_unscorable.append(ticker)
+                return None
+            ai_prob = ai_result.get('prob', 0.0) if isinstance(ai_result, dict) else float(ai_result)
+
             # --- STRATEGY FILTER ---
             # Threshold sourced from config.BACKTEST_AI_THRESHOLD (currently {BACKTEST_AI_THRESHOLD})
             if ai_prob < BACKTEST_AI_THRESHOLD: 
@@ -464,7 +474,19 @@ def run_time_machine(
     df_res = pd.DataFrame(results)
     
     if df_res.empty:
-        return {"error": "No stocks met requirements", "summary": {"avg_return": 0, "win_rate": 0, "sniper_hit_rate": 0}}
+        # Carry the exclusion counts even here -- especially here. "No stocks met requirements"
+        # reads as "the strategy filtered everything out"; if the model actually refused to score
+        # the whole cross-section, that is a different fact and the reader cannot act on the
+        # first one. This branch used to discard all three counts.
+        return {
+            "error": "No stocks met requirements",
+            "summary": {"avg_return": 0, "win_rate": 0, "sniper_hit_rate": 0},
+            "simulated_date": as_of_date.strftime("%Y-%m-%d"),
+            "candidates_considered": len(candidates),
+            "excluded_no_data_at_as_of": len(excluded),
+            "excluded_no_price_rows": len(excluded_no_data),
+            "excluded_unscorable": len(excluded_unscorable),
+        }
         
     df_res = df_res.sort_values(by="ai_prob_at_entry", ascending=False)
     
@@ -547,6 +569,7 @@ def run_time_machine(
         "simulated_date": as_of_date.strftime('%Y-%m-%d'),
         "excluded_no_data_at_as_of": len(excluded),
         "excluded_no_price_rows": len(excluded_no_data),
+        "excluded_unscorable": len(excluded_unscorable),
         # "in_sample": the scoring model was trained on data covering this window, so the numbers
         # measure recall over data it has seen -- not predictive skill. Making the backtest
         # genuinely out-of-sample needs an as-of model per window; this marks the situation.

@@ -137,3 +137,25 @@ def test_recalculate_hands_the_model_an_unfilled_frame(monkeypatch):
     assert frame["dist_sma240"].isna().all(), (
         "the model was handed a display-filled frame; an uncomputable feature arrived as 0"
     )
+
+
+def test_recalc_window_clears_the_feature_requirement():
+    """docs/specs/unknown-is-not-zero-ml-features.md: the window must not starve the model.
+
+    `load_from_db` anchors its window on `datetime.now()` in CALENDAR days, so the number of
+    trading rows it yields shrinks as the database ages. When RECALC_LOOKBACK_DAYS was 420 the
+    shipped 92-ticker DB produced ~225 rows per ticker -- below MIN_FEATURE_ROWS (250) -- and
+    predict_prob correctly refused 91 of 92 tickers, wiping the AI number from the whole product.
+
+    A calendar day is at most 5/7 of a trading day, and TW holidays take more, so 0.66 is a
+    conservative upper bound on the conversion. The window must clear the requirement with real
+    margin, not by two rows.
+    """
+    from core.ai.common import MIN_FEATURE_ROWS
+
+    trading_rows = recalculate.RECALC_LOOKBACK_DAYS * 0.66
+    assert trading_rows >= MIN_FEATURE_ROWS * 1.5, (
+        f"RECALC_LOOKBACK_DAYS={recalculate.RECALC_LOOKBACK_DAYS} yields about "
+        f"{trading_rows:.0f} trading rows against a {MIN_FEATURE_ROWS}-row feature requirement; "
+        f"the recalculation would refuse most of the universe"
+    )

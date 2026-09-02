@@ -179,8 +179,11 @@ Run time-machine simulation over past N days.
 `win_rate`, `net_win_rate`, `sniper_hit_rate`, `sniper_hits`, `sniper_stops`,
 `profit_factor` and `net_profit_factor` (**`null` when there are no losing trades**),
 Top-level alongside `summary`: `simulated_date` (the run's single entry date — every pick is
-anchored to it), `excluded_no_data_at_as_of` and `excluded_no_price_rows` (candidates dropped, so a
-thin cross-section is visible rather than inferred), and `model_temporal_scope`
+anchored to it), `excluded_no_data_at_as_of`, `excluded_no_price_rows` and
+`excluded_unscorable` (candidates dropped, so a thin cross-section is visible rather than inferred;
+`excluded_unscorable` counts stocks the model refused to score because a feature could not be
+computed from that window — booking them under the AI threshold would have called a refusal "the
+model said 0%"), and `model_temporal_scope`
 (`in_sample` | `as_of_model` | `unknown`). **`in_sample` means the model scoring the run was trained
 over the window it scored** — the numbers measure recall over data it has already seen, not
 predictive skill. It fails toward `in_sample` when the model's training date cannot be determined.
@@ -226,6 +229,14 @@ Primary endpoint: returns ranked stock candidates with scores and AI probability
   "cached": true
 }
 ```
+
+`ai_prob` is **nullable** on every candidate. It is `null` when no probability exists for that
+stock — no model, or a feature the model needs that could not be computed from the loaded window
+(shorter than `MIN_FEATURE_ROWS`, 250 rows). It is never a fake `0.0`, which would be
+indistinguishable from a genuinely low probability. Unlike the detail endpoint, the candidate list
+carries **no** `ai_unavailable_reason`: it reads a stored scalar from the `scores` table, which has
+nowhere to record one.
+
 
 ---
 

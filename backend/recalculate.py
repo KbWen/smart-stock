@@ -23,7 +23,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-RECALC_LOOKBACK_DAYS = 420
+# Calendar days, and `load_from_db` anchors the window on `datetime.now()` -- so the number of
+# TRADING ROWS this yields shrinks as the database ages. It must stay well clear of
+# MIN_FEATURE_ROWS (250), or predict_prob() correctly refuses the entire universe: at 420 days the
+# shipped 92-ticker DB produced ~225 rows per ticker and 91 of 92 lost their AI probability.
+# 730 matches `load_from_db`'s own default and the sync path (backend/routes/sync.py), so the same
+# stock can no longer get opposite verdicts on the same day depending on which writer ran last.
+# test_recalculate.py pins the relationship to MIN_FEATURE_ROWS.
+RECALC_LOOKBACK_DAYS = 730
 
 
 def _load_target_tickers(incremental: bool, stale_hours: int, model_version: str) -> list[str]:

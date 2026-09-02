@@ -11,6 +11,7 @@ import logging
 import threading
 from collections import OrderedDict
 from typing import Optional
+from core.logger import setup_logger
 from core.ai.common import (FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE,
                             validate_version_string, MIN_PREDICT_ROWS, uncomputable_features)
 from core import config as _cfg
@@ -26,7 +27,8 @@ _cache_lock = threading.Lock()
 _model_cache: OrderedDict = OrderedDict()
 _MAX_CACHED_MODELS = MAX_PREDICTION_CACHE_SIZE
 
-logger = logging.getLogger(__name__)
+logger = setup_logger("core.ai.predictor")  # app.log, not lastResort -- a refusal an operator
+                                            # cannot find is not attributable (AC4)
 
 
 def _read_sidecar(path: str) -> Optional[str]:
@@ -290,6 +292,17 @@ def get_model_health() -> dict:
     return {"status": "ok", "reason": "ok", "version": version, "message": ""}
 
 
+def _ticker_of(df) -> str:
+    """Best-effort ticker for a log line. A refusal nobody can attribute to a stock is not
+    attributable at all -- and sync.py runs this across the universe under a thread pool."""
+    try:
+        if "ticker" in df.columns and len(df):
+            return str(df["ticker"].iloc[-1])
+    except Exception:
+        pass
+    return "<unknown ticker>"
+
+
 def predict_prob(df, version: Optional[str] = None):
     """
     Predicts buy probability. Supports specific version loading with caching.
@@ -361,8 +374,8 @@ def predict_prob(df, version: Optional[str] = None):
         unusable = uncomputable_features(X_single.iloc[0])
         if unusable:
             logger.warning(
-                "Refusing to predict: %d of %d features could not be computed from %d rows (%s)",
-                len(unusable), len(FEATURE_COLS), len(df), ", ".join(unusable),
+                "Refusing to predict %s: %d of %d features could not be computed from %d rows (%s)",
+                _ticker_of(df), len(unusable), len(FEATURE_COLS), len(df), ", ".join(unusable),
             )
             return None
 
@@ -380,8 +393,8 @@ def predict_prob(df, version: Optional[str] = None):
                     absent = [c for c in clf.feature_names_in_ if c not in X_single.columns]
                     if absent:
                         logger.warning(
-                            "Refusing to predict: model %r expects features this frame does not "
-                            "have (%s)", name, ", ".join(map(str, absent)),
+                            "Refusing to predict %s: model %r expects features this frame does "
+                            "not have (%s)", _ticker_of(df), name, ", ".join(map(str, absent)),
                         )
                         return None
                     X_clf = X_single.reindex(columns=clf.feature_names_in_)
@@ -419,8 +432,8 @@ def predict_prob(df, version: Optional[str] = None):
                 absent = [c for c in clf.feature_names_in_ if c not in X_single.columns]
                 if absent:
                     logger.warning(
-                        "Refusing to predict: legacy model expects features this frame does "
-                        "not have (%s)", ", ".join(map(str, absent)),
+                        "Refusing to predict %s: legacy model expects features this frame does "
+                        "not have (%s)", _ticker_of(df), ", ".join(map(str, absent)),
                     )
                     return None
                 X_clf = X_single.reindex(columns=clf.feature_names_in_)

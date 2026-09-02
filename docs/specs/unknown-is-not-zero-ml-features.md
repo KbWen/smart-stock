@@ -57,10 +57,14 @@ different route (a model trained against a different `FEATURE_COLS`).
 
 ## Scope, measured before deciding anything
 
-- **92-ticker dev panel: no ticker falls in the affected band** (minimum 729 rows). This defect is
-  **latent on the shipped data** and fires on a fresh install, a newly listed stock, or a partial
-  backfill. Nothing in this feature will change a number a developer sees locally, and the spec does
-  not pretend otherwise.
+- **92-ticker dev panel: no ticker falls in the affected band** *by rows stored* (minimum 729).
+  **This measurement was the wrong one, and review caught it.** What matters is the window each
+  caller loads, not what the table holds. `backend/recalculate.py` loaded `RECALC_LOOKBACK_DAYS = 420`
+  **calendar** days ≈ 225 trading rows on this data — below the requirement — so the refusal fired
+  for **91 of 92 tickers**, and the first nightly recalculation would have wiped the AI probability
+  from the whole product. Fixed by raising the window to 730, matching the detail and sync paths.
+  Measured after: **0 of 92**. A row count in a table says nothing about the frame a model is given;
+  every future gate of this kind must be measured **per caller window**.
 - **Same panel: 0 of 92 tickers have any uncomputable feature on their latest row.** So refusing to
   predict when a feature is uncomputable refuses **nobody** on this data — it fires only in the
   situation it exists for.
@@ -120,7 +124,11 @@ this product already renders honestly — and the reason is available rather tha
    `/api/v4/stock/{ticker}` reports `null` — it deliberately does not load price history, so it
    cannot attribute the cause and does not pretend to.
    - `MIN_FEATURE_ROWS` is declared **once**, in `core/ai/common.py`, as the history the current
-     `FEATURE_COLS` actually require (260 today, matching `MIN_TRAIN_ROWS`).
+     `FEATURE_COLS` actually require: **250** = the 240-period SMA plus its 10-row slope
+     (`sma_240.pct_change(10)`). Measured by sweeping 120→275 rows: 250 is the first fully
+     computable count, and at 249 the sole offender is `sma240_slope`. *(This AC first said "260,
+     matching `MIN_TRAIN_ROWS`" — wrong on both halves; `MIN_TRAIN_ROWS` is 260 and keeps 10 rows
+     of margin over the real requirement.)*
    - This constant is for the **message only**. AC2's finite check is the sole gate. Two mechanisms
      that can disagree about whether to predict is how drift starts; only one decides, the other
      explains.
@@ -175,15 +183,31 @@ this product already renders honestly — and the reason is available rather tha
 
 ## API / Data Contract
 
-Stock detail and candidate rows gain one nullable field:
+The **stock detail** payload (`/api/v4/stock/{ticker}` and `/api/stock/{ticker}`) gains one nullable
+field:
 
 ```
-ai_unavailable_reason: "insufficient_history" | "uncomputable_features" | null
+ai_unavailable_reason: "insufficient_history" | null
 ```
 
-`null` whenever `ai_prob` is non-null, and also when the AI number is missing for a reason this
-feature does not diagnose (no model trained, model load failure) — those already surface through
-`model_health` and must not be relabelled as a data problem.
+`null` whenever `ai_probability` is non-null, and also when the AI number is missing for a reason
+this feature does not diagnose (no model trained, model load failure) — those already surface
+through `model_health` and must not be relabelled as a data problem.
+
+`null` as well on the **cached-DB branch** of `/api/v4/stock/{ticker}`, which deliberately does not
+load price history and therefore cannot attribute a cause. That branch serves most requests for six
+hours after a recalculation, so the frontend must not assert a cause when the token is absent: when
+`model_health` is `ok` it says the model is fine and the gap is on this stock's side, rather than
+sending the user to retrain a working model.
+
+The **candidate list** does not carry the field. It reads `ai_prob` as a stored scalar from the
+`scores` table, which has nowhere to put a reason, and supplying one needs either a schema migration
+(excluded by §Constraints) or a per-request row-count query.
+
+The **backtest** response gains `excluded_unscorable` alongside the existing exclusion counts. A
+refusal used to be coerced by `ai_prob = ... or 0.0` into a 0% forecast and dropped through the
+strategy filter — indistinguishable from a stock the model scored and rejected, which is this epic's
+own defect one layer down.
 
 ## Domain Decisions
 

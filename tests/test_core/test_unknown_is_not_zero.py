@@ -126,10 +126,19 @@ class TestTrainingPathIsUnchanged:
         assert len(X) == len(y)
 
     def test_training_drops_the_warmup_rows(self):
-        """The warm-up rows are removed, not filled — the row count must shrink."""
+        """The warm-up rows are removed, not filled — and specifically the ones sma_240 needs.
+
+        `len(X) < rows` alone proves nothing: the PRED_DAYS truncation guarantees it with the
+        dropna deleted. The count has to be measured against the warm-up boundary itself.
+        """
+        from core.ai.common import MIN_FEATURE_ROWS, PRED_DAYS
+
         rows = 400
         X, _ = prepare_features(make_frame(rows), is_training=True)
-        assert len(X) < rows, "no warm-up rows were dropped; the training guard is gone"
+        # Every surviving row must be one where the 250-row warm-up had completed.
+        assert len(X) <= rows - (MIN_FEATURE_ROWS - 1) - PRED_DAYS, (
+            "rows from inside the sma_240 warm-up survived; the training dropna is gone"
+        )
 
 
 class TestModelFeatureMismatch:
@@ -206,3 +215,30 @@ class TestPredictionDoesNotCarryStaleValues:
         clf = loaded_model()
         assert isinstance(predict_prob(make_frame(400)), dict)
         assert clf.calls == 1
+
+
+class TestTheRefusalIsAttributable:
+    """AC4: a refusal nobody can trace to a stock is not attributable.
+
+    `sync.py` runs prediction across the universe under a thread pool, so an unattributed
+    warning is N identical lines an operator cannot act on.
+    """
+
+    def test_the_log_names_the_ticker(self, loaded_model, caplog):
+        loaded_model()
+        df = make_frame(150)
+        df["ticker"] = "2330"
+
+        with caplog.at_level("WARNING", logger="core.ai.predictor"):
+            assert predict_prob(df) is None
+
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("2330" in m for m in messages), f"no ticker in {messages}"
+        assert any("dist_sma240" in m for m in messages), f"no feature names in {messages}"
+
+    def test_a_frame_without_a_ticker_column_still_logs(self, loaded_model, caplog):
+        """Best-effort: the absence of a ticker must not turn a refusal into an exception."""
+        loaded_model()
+        with caplog.at_level("WARNING", logger="core.ai.predictor"):
+            assert predict_prob(make_frame(150)) is None
+        assert any("could not be computed" in r.getMessage() for r in caplog.records)

@@ -24,8 +24,18 @@ says why: 「歷史資料不足」, rather than the old blanket 「尚未訓練 
 you to retrain a model that was working fine. **Technical scores are unaffected** — only the AI
 number is withheld.
 
-On the bundled dev data **nothing changes**: all 92 tickers carry 729+ rows. This fires on a fresh
-install, a newly listed stock, or a partial backfill.
+**A correction to the first version of this note**, which said the bundled dev data was unaffected
+because every ticker carries 729+ rows. That measured rows in the database, not the window the model
+is actually handed. The nightly recalculation loaded **420 calendar days**, which on the shipped
+92-ticker database is ~225 trading rows — below the 250-row requirement — so the refusal fired for
+**91 of 92 tickers** and would have wiped the AI probability from the entire product on the first
+recalculation. `RECALC_LOOKBACK_DAYS` is now 730, matching what the detail and sync paths already
+used, so the same stock can no longer get opposite answers on the same day depending on which writer
+ran last. Measured after the fix: **0 of 92** refuse.
+
+That window is counted in **calendar** days from *today*, so the trading rows it yields shrink as a
+database goes stale. At 730 days the margin is ~170 rows, roughly eight months of neglect. A test
+pins the relationship so nobody lowers it back without seeing the requirement.
 
 Three quieter substitutions were removed alongside it: the prediction path no longer forward-fills
 yesterday's indicator into today's prediction row; a model asking for a column the frame does not
