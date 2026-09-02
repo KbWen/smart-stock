@@ -633,3 +633,82 @@ def test_net_of_cost_arithmetic_applies_to_settled_roi(monkeypatch):
 
     assert top["actual_return"] == pytest.approx(0.15)
     assert top["net_return"] == pytest.approx(expected_net)
+
+
+def test_settlement_never_leaves_the_bar_on_dirty_open(monkeypatch):
+    # A dirty feed can put `open` outside [low, high] — an unadjusted open against
+    # split-adjusted extremes, or a column-order shift in a bulk parser. The high/low are the
+    # bar's extremes by construction, so settlement is clamped back into them; without the
+    # clamp this books a fill 5 points worse than the session's worst print.
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, 80, 100],   # open BELOW the low — impossible bar
+        highs=[100] * 8,
+        lows=[100, 100, 100, 100, 100, 100, 85, 100],
+        closes=[100, 100, 100, 100, 100, 100, 90, 100],
+    )
+
+    assert top["sniper_result"] == "STOP"
+    assert top["actual_return"] == pytest.approx(-0.15)  # the low, not the -0.20 open
+
+    # Mirror case: an open above the high on a target bar.
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, 160, 100],  # open ABOVE the high — impossible bar
+        highs=[100, 100, 100, 100, 100, 100, 130, 100],
+        lows=[100] * 8,
+        closes=[100, 100, 100, 100, 100, 100, 125, 100],
+    )
+
+    assert top["sniper_result"] == "HIT"
+    assert top["actual_return"] == pytest.approx(0.30)  # the high, not the +0.60 open
+
+
+def test_settlement_falls_back_to_the_barrier_when_open_is_missing(monkeypatch):
+    # yfinance returns NaN opens for halted/partial sessions. Settlement must not raise, and
+    # must fall back to the barrier price rather than reaching for a value it does not have.
+    nan = float("nan")
+
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, nan, 100],
+        highs=[100] * 8,
+        lows=[100, 100, 100, 100, 100, 100, 82, 100],
+        closes=[100, 100, 100, 100, 100, 100, 85, 100],
+    )
+    assert top["sniper_result"] == "STOP"
+    assert top["actual_return"] == pytest.approx(-0.05)
+
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, nan, 100],
+        highs=[100, 100, 100, 100, 100, 100, 130, 100],
+        lows=[100] * 8,
+        closes=[100, 100, 100, 100, 100, 100, 125, 100],
+    )
+    assert top["sniper_result"] == "HIT"
+    assert top["actual_return"] == pytest.approx(0.15)
+
+
+def test_settlement_at_a_bar_that_opens_exactly_on_the_barrier(monkeypatch):
+    # The gap comparisons are strict, so an open sitting exactly on the barrier must be a
+    # no-op rather than flipping the fill. Nothing pinned this before.
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, 115, 100],  # exactly +15%, the target
+        highs=[100, 100, 100, 100, 100, 100, 130, 100],
+        lows=[100, 100, 100, 100, 100, 100, 114, 100],
+        closes=[100, 100, 100, 100, 100, 100, 125, 100],
+    )
+    assert top["sniper_result"] == "HIT"
+    assert top["actual_return"] == pytest.approx(0.15)
+
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, 95, 100],   # exactly -5%, the stop
+        highs=[100, 100, 100, 100, 100, 100, 96, 100],
+        lows=[100, 100, 100, 100, 100, 100, 82, 100],
+        closes=[100, 100, 100, 100, 100, 100, 85, 100],
+    )
+    assert top["sniper_result"] == "STOP"
+    assert top["actual_return"] == pytest.approx(-0.05)

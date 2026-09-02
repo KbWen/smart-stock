@@ -208,9 +208,15 @@ def run_time_machine(
                 raw_open = row.get('open')
                 day_open_pct = (
                     (float(raw_open) - entry_price) / entry_price
-                    if raw_open is not None and pd.notna(raw_open)
+                    if raw_open is not None and pd.notna(raw_open) and entry_price > 0
                     else None
                 )
+                if day_open_pct is not None:
+                    # The high/low are the bar's extremes by construction, but the open is a
+                    # separate field a dirty feed can place outside them (an unadjusted open
+                    # against split-adjusted extremes, or a column-order shift in a bulk
+                    # parser). Settlement must never leave the bar it happened in.
+                    day_open_pct = min(max(day_open_pct, day_low_pct), day_high_pct)
 
                 max_gain_pct = max(max_gain_pct, day_high_pct)
                 max_drawdown_pct = min(max_drawdown_pct, day_low_pct)
@@ -223,8 +229,17 @@ def run_time_machine(
                     # bar gapped open below the stop, the stop became a market order and
                     # filled at that (worse) open.
                     locked_roi = -stop_loss
-                    if day_open_pct is not None and day_open_pct < locked_roi:
-                        locked_roi = day_open_pct
+                    if day_open_pct is not None:
+                        if day_open_pct < locked_roi:
+                            locked_roi = day_open_pct
+                    else:
+                        # Without an open we cannot see a gap-down, so the loss is capped at the
+                        # stop — the only direction in which this fallback flatters the result.
+                        # Say so rather than let it pass silently.
+                        logger.warning(
+                            "settlement degraded: %s %s has no usable open; stop capped at -%.4f",
+                            ticker, row['date'], stop_loss,
+                        )
                     actual_holding_days = i + 1
                     exit_date_actual = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
                     break

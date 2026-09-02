@@ -15,9 +15,15 @@ secondary_domains: [transparency]
 Honest Metrics epic **#1** (review-finding, P0). `run_time_machine` books a winning trade at the
 **session high** and a losing trade at the **session low**. Both are wrong, and the error is
 one-directional: every win is credited with the best print of the day it never actually got, while
-every loss is charged the worst print of the day it never actually paid. Every headline number the
-Backtest page and Strategy Lab show — `avg_net_return`, `net_win_rate`, `net_profit_factor`,
-`sharpe_ratio` — inherits that inflation.
+every loss is charged the worst print of the day it never actually paid. The magnitude-based numbers
+the Backtest page and Strategy Lab show — `avg_return`, `avg_net_return`, `profit_factor`,
+`net_profit_factor`, `sharpe_ratio`, `best_return` — inherit that inflation.
+
+**Win rates are not among them.** A settled HIT is always positive and a settled STOP always
+negative, so trade *signs* are invariant under this change and `win_rate` / `net_win_rate` cannot
+move (the only exception is a `target_gain` small enough for costs to flip a win negative, which the
+`ge=0.01` validation at both API surfaces makes unreachable in practice). Saying otherwise would
+claim a correction this fix does not make.
 
 All three independent auditors flagged this, and it was re-verified directly against
 `backend/backtest.py:216-220`.
@@ -115,6 +121,12 @@ sides.
 - **[CONSTRAINT]** Excursion measures (`max_gain_pct`, `max_drawdown_pct`) keep using the intraday
   extremes. They answer a different question — how far the position went against or in favour of the
   holder while open — and must not be "corrected" to settlement prices by future work.
+- **[CONSTRAINT]** Settlement is clamped into `[day_low_pct, day_high_pct]`. The high and low are a
+  bar's extremes by construction, but the open is a separate field a dirty feed can place outside
+  them — an unadjusted open against split-adjusted extremes, or a column-order shift in a bulk
+  parser (`core/bulk_history.py` reads TWSE and TPEX columns in different orders). Before this
+  change settlement was bounded by construction because it *was* the high or the low; introducing
+  the open created an unbounded path that the clamp closes. Added after independent review.
 - **[CONSTRAINT]** Any future change to this loop must keep settlement defensive about missing data:
   an absent or NaN `open` settles exactly at the barrier rather than raising, because the OHLC frame
   is assembled from multiple ingest paths that do not all guarantee an open.

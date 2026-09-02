@@ -1,5 +1,32 @@
 # Changelog
 
+## [Honest Metrics] - 2026-09-02
+
+An epic correcting 說到做不到 gaps found in the **mathematics** layer by a three-auditor quant panel
+(ML methodology / backtest realism / data integrity, commissioned independently). In progress.
+
+### Backtest numbers will change — this is a correction, not a regression
+
+`run_time_machine` used to book a winning trade at the session **high** and a losing trade at the
+session **low**. The error was one-directional: every win was credited the best print of the day no
+order could have captured, every loss charged the worst print the position never actually paid.
+
+Exits now settle where an order could have filled — a target touch at `target_gain`, a stop touch at
+`-stop_loss` — with a gap exception on both sides when the bar opens straight through a barrier. **If
+you kept a screenshot of a backtest, the same query will now return different figures.** The run is
+seeded, so the picks are the same; the settled returns are not. Affected: `avg_return`,
+`avg_net_return`, `profit_factor`, `net_profit_factor`, `sharpe_ratio`, `best_return`. Win rates are
+unaffected — trade signs do not change. Max drawdown is unaffected — it measures excursion, not
+settlement.
+
+On the 92-ticker dev data the headline moved the *flattering* way (`avg_return` −1.23% → −0.72%),
+because that sample was stop-heavy: correcting 11 over-punished losses outweighed correcting 3
+over-credited wins. On a hit-heavy sample the sign flips. No threshold or default was changed.
+
+Note for anyone with a populated `models_history.json`: `backtest_30d.profit_factor` entries written
+before this change are **not comparable** to ones written after, and model rotation ranks on that
+field.
+
 ## [Directly-Usable v1] - 2026-06-20
 
 A 6-feature epic making the project directly usable as a self-install product (no hosting). PRs #28–#33.

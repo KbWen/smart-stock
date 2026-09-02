@@ -22,7 +22,7 @@ The theme is the same 「說到做不到」 identity gap the 2026-07-19 audit fo
 code *as the mitigation* for chronological leakage; `README.md:237` claims data leakage is 「完全杜絕」;
 `docs/DATA_INTEGRITY.md:51` credits random sampling with mitigating survivorship bias, which it
 cannot do. Meanwhile the backtest books winners at the session high and losers at the session low,
-so every headline performance number a user sees is inflated in one direction.
+so every magnitude-based performance number a user sees is inflated in one direction.
 
 **This directly threatens the project's stated differentiator** — transparency over prediction. A
 research workbench whose own integrity doc overstates its guarantees is worse positioned than one
@@ -46,7 +46,7 @@ feature set or label definition.
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in `avg_return` / `net_win_rate` / `profit_factor` / `sharpe_ratio` (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | hotfix | In Progress | — |
+| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in the magnitude-based metrics (`avg_return`, `profit_factor`, `sharpe_ratio`, `best_return`); win rates are structurally unaffected because trade signs do not change (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | hotfix | In Progress | — |
 | 2 | Date-based train/test embargo — measure the embargo in trading days rather than pooled rows, scale the `TimeSeriesSplit` gap by per-date row count, and apply the same correction in `scripts/eval_label_modes.py` (F1, 3/3 auditors) | review-finding | ml | P0 | — | feature | Pending | — |
 | 3 | Backtest temporal guard — refuse or explicitly badge a run whose model `trained_at` post-dates the entry date, and resolve the entry point by calendar date per ticker instead of a row offset (F5, F6) | review-finding | backtest | P1 | — | feature | Pending | #1 |
 | 4 | Model rotation ranking honesty — move the rotation backtest window past the final fit's label horizon, and stop sorting a `None` profit factor below 0.0 (F7) | review-finding | ml | P1 | — | feature | Pending | #2 |
