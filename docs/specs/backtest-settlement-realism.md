@@ -103,6 +103,27 @@ sides.
 - **No API contract change**: response field names and types stay identical, so the frontend and
   `docs/API_CONTRACT.md` are untouched.
 
+## Domain Decisions
+
+- **[DECISION]** A simulated exit settles at the price an **order** could have received, never at a
+  bar's intraday extreme. The bar's high and low answer *whether* a barrier was touched; they do not
+  answer *at what price the position left*. Conflating the two is what produced the inflation.
+- **[DECISION]** The gap case is resolved by the bar's **open** on both sides: a bar that opens
+  straight through a barrier gives a resting order no chance to fill at the barrier itself, so it
+  fills at the open — better than the limit for a target, worse than the stop for a gap-down. This
+  is the only place the open participates in settlement.
+- **[CONSTRAINT]** Excursion measures (`max_gain_pct`, `max_drawdown_pct`) keep using the intraday
+  extremes. They answer a different question — how far the position went against or in favour of the
+  holder while open — and must not be "corrected" to settlement prices by future work.
+- **[CONSTRAINT]** Any future change to this loop must keep settlement defensive about missing data:
+  an absent or NaN `open` settles exactly at the barrier rather than raising, because the OHLC frame
+  is assembled from multiple ingest paths that do not all guarantee an open.
+- **[TRADEOFF]** Same-bar stop-before-target precedence is preserved unchanged, so a bar that gaps
+  open **above** the target while also trading below the stop still books a STOP even though the
+  target demonstrably filled at the open first. Revisiting precedence is a larger decision than this
+  spec's scope; the fix already makes that case strictly less wrong (it settles at `-stop_loss`
+  rather than at the session low). Recorded so a follow-up can pick it up deliberately.
+
 ## File Relationship
 
 EXTENDS `docs/specs/backtest-and-performance-opt.md` (owns `run_time_machine` and its net-of-cost

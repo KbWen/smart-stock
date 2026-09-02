@@ -95,3 +95,6 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - D: "FastAPI route order: specific paths like /history must come before {ticker} wildcard or 'history' is matched as ticker" → master-visual-upgrade-2026-03-27.md
 - D: "Recharts Tooltip formatter must accept `undefined` (Recharts v3 internal type); use `Number(value ?? 0)` to pass tsc -b" → master-visual-upgrade-2026-03-27.md
 - D: "isPlaceholder never set false on error in useCachedApi — skeleton guard must be `loading && isPlaceholder`, not `loading || isPlaceholder`" → master-visual-upgrade-2026-03-27.md
+- D: "Brain sync is always ≥ hotfix — the deployer rewrites installer source-selection logic, and §10.4 Supply-Chain/Provenance Escalation forces that minimum regardless of patch size" → chore-brain-update-v1.8.25-20260902.md
+- D: "A validate PASS delta is not improvement when the validator itself grew: validate.sh gained 273 lines in v1.8.25, so 89→107 PASS is new checks, not newly passing old ones" → chore-brain-update-v1.8.25-20260902.md
+- D: "The incoming current_state.md sidecar is always the blank template — never adopt it; keep-local is the only correct resolution" → chore-brain-update-v1.8.25-20260902.md
