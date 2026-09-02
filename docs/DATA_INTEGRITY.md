@@ -100,10 +100,17 @@ implying a command exists.
   `core/ai/trainer.py` fit on all rows up to today. For `days_ago=30` this measures in-sample recall.
   Tracked as backlog #3.
 - **Survivorship** — see the table above. Unmitigated.
-- **Model rotation ranks profit factors measured under different settlement rules** (backlog #4), and
-  **`oos_metrics` are attributed to the split model rather than the shipped full-data refit**
-  (backlog #5). A `models_history.json` entry **without** an `embargo` key predates 2026-09-02 and its
-  metrics are contaminated by construction.
+- **Model rotation ranks profit factors measured under different settlement rules** (backlog #4).
+- **`oos_metrics` still describe the 80%-split ensemble, not the shipped full-data refit** — but this
+  is now *recorded and disclosed* rather than implied: the entry carries
+  `oos_metrics_scope: "split_model"`, and the transparency panel says so. The measurement itself is
+  unchanged; what changed is that it no longer reads as the shipped model's score.
+- **Precision is now reported as lift over the test-split base rate** (`oos_metrics.lift_strong` /
+  `lift_buy`), because precision alone is unreadable without its denominator, and the distribution
+  that used to sit beside it was the **train** split. `get_model_health` returns `degraded` when the
+  lift is at or below 1.0, when the entry has no `embargo` key, or when it cannot evaluate the entry
+  at all — it fails toward disclosure. A `models_history.json` entry **without** an `embargo` key
+  predates 2026-09-02 and its metrics are contaminated by construction.
 - **Price basis can be mixed within one ticker's series** — the yfinance path writes back-adjusted
   closes, the TWSE/TPEX bulk path writes raw ones, and `stock_history` has no `source` column to tell
   them apart. Deferred; detail in `docs/specs/_raw-intake.md`.

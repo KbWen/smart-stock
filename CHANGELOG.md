@@ -29,6 +29,40 @@ barrier. The old code fabricated a zero there. On the dev data at shipped settin
 the *only* number the release moves, because the honestly-weak model admits one candidate that
 touches no barrier.
 
+### Your model will turn orange on upgrade. Nothing about it changed.
+
+`get_model_health` used to return `ok` for any model whose metrics were merely non-zero. It now
+returns `degraded` — with the banner and the honest message that go with it — in four cases, and
+**every existing install hits at least one of them immediately**, because no history entry written
+before 2026-09-02 carries the `embargo` key proving its metrics were out-of-sample.
+
+This is a **measurement change, not a model change.** The model you have is the model you had. What
+changed is that the app stopped telling you it was fine without checking.
+
+The four causes are reported separately, because they are different facts to act on and the UI used
+to assert only one of them:
+
+- `contaminated_metrics` — the entry predates the date-based embargo, so its numbers were never
+  out-of-sample. **Retrain to clear this.**
+- `below_baseline` — StrongBuy precision is at or below the test-split base rate. A lift of 1.0 is
+  exactly "no better than guessing at the class prevalence", and the boundary is inclusive.
+- `zero_power` — the model produced no buy signal at all.
+- `no_baseline` / `metrics_not_for_this_version` — the entry cannot be evaluated (missing or
+  non-finite lift, or no history entry for the loaded version). These fail toward disclosure rather
+  than toward `ok`.
+
+The transparency panel now shows **both** class distributions with the split each belongs to, and
+reports precision as **lift over the test-split base rate**. The distribution it used to show under
+the OOS heading was the *train* split — not the denominator a reader would reasonably assume.
+`models_history.json` gains `test_class_distribution`, `oos_metrics.lift_strong` / `lift_buy`, and
+`oos_metrics_scope: "split_model"`, which records that the metrics describe the 80/20-split ensemble
+rather than the full-data refit that actually ships. `manage_models list` gains a `Lift` column so
+the CLI and the UI cannot disagree about whether a model has an edge.
+
+**Breaking, for JSON consumers**: `/api/transparency`'s `model.class_distribution` is replaced by
+`train_class_distribution` + `test_class_distribution`. No alias — an absent key is the marker that
+an entry predates the measurement.
+
 ### 風險等級 is now 多頭廣度 — it never measured risk
 
 The dashboard card and the Market page showed 風險等級 with values like "LOW RISK (BULL)", and a

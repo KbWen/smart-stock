@@ -112,3 +112,8 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - D: "Send a machine token through the API and keep the display label at the presentation layer — string matching on user-facing wording (.includes('HIGH')) is a silent-failure mode" → feat-docs-reality-alignment-20260902.md
 - D: "Fixing the target lines is not enough: the same claim survived in README, which is where the next auditor greps first" → feat-docs-reality-alignment-20260902.md
 - D: "Survivorship bias is NOT mitigated by random sampling — sampling from a survivor-only universe is unbiased WITHIN survivors and says nothing about the names that left" → feat-docs-reality-alignment-20260902.md
+- D: "Precision is unreadable without its base rate — report lift over the TEST-split prevalence. 1.0 is not a tunable threshold, it IS the base rate" → feat-oos-metric-lift-20260902.md
+- D: "A health check must fail TOWARD disclosure: NaN and inf slipped through both guards because `nan <= 1.0` is False AND `nan is None` is False" → feat-oos-metric-lift-20260902.md
+- D: "Changing behaviour without touching the display layer is how a chip ends up asserting a fact the panel beneath it contradicts — a status with several causes needs a machine `reason`" → feat-oos-metric-lift-20260902.md
+- D: "Never borrow another entry when the active version is missing from history — a vague status could survive that, a specific numeric claim cannot" → feat-oos-metric-lift-20260902.md
+- D: "A test that cannot fail is worse than no test: it reports coverage that does not exist. Two rounds of theatre in one feature, one caught by me, one by the reviewer" → feat-oos-metric-lift-20260902.md

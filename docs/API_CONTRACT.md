@@ -71,6 +71,31 @@ drawdown or correlation. Display labels live in the frontend (`src/lib/breadth.t
 
 ---
 
+### `GET /api/transparency`
+What the system actually knows: data coverage, and the active model's evaluation.
+
+**Response:** `data` carries history coverage and the date range. `model` carries `status`
+(`ok` | `degraded` | `unavailable`), `reason` (a machine token for *why* — `zero_power`,
+`below_baseline`, `contaminated_metrics`, `no_baseline`, `metrics_not_for_this_version`,
+`not_trained`, `no_metrics`, `ok`), a user-facing zh-TW `message`, `version`, `trained_at`,
+`samples`, `test_samples`, `train_class_distribution`, `test_class_distribution`,
+`oos_metrics_scope`, `embargo`, and `oos_metrics`.
+
+`oos_metrics` includes `lift_strong` / `lift_buy` — precision divided by that class's **test-split**
+base rate. **1.0 means no better than guessing at the class prevalence**; `null` when the class is
+absent from the test split. Read precision through the lift, never on its own.
+
+`oos_metrics_scope: "split_model"` records that the metrics describe the 80/20-split ensemble, while
+the artifact named by `version` is a full-data refit. An **absent** `embargo` key means the entry
+predates 2026-09-02, when the train/test embargo was measured in pooled rows and separated the two
+sides by 0 trading days — those metrics were never out-of-sample.
+
+> Renamed on 2026-09-02: the single `class_distribution` field became
+> `train_class_distribution` + `test_class_distribution`. No compatibility alias; see
+> `docs/specs/oos-metric-attribution-and-lift.md`.
+
+---
+
 ## Stocks
 
 ### `GET /api/stocks`

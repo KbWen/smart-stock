@@ -203,6 +203,28 @@ def prepare_features(df, is_training=True):
         return pd.DataFrame(), pd.Series()
     return df_clean[FEATURE_COLS], df_clean['target']
 
+def class_prevalence(y) -> dict:
+    """Share of each class in a label series — the base rate a precision must be read against."""
+    if y is None or len(y) == 0:
+        return {'hold': 0.0, 'buy': 0.0, 'strong': 0.0}
+    return {
+        'hold': float((y == 0).mean()),
+        'buy': float((y == 1).mean()),
+        'strong': float((y == 2).mean()),
+    }
+
+
+def lift_over_prevalence(precision, prevalence):
+    """precision / base rate. 1.0 means no better than guessing at the class prevalence.
+
+    Returns None — never a sentinel — when the class is absent from the split being scored:
+    there is no base rate to divide by, so there is no honest number to report.
+    """
+    if prevalence is None or prevalence <= 0:
+        return None
+    return round(float(precision) / float(prevalence), 4)
+
+
 class InsufficientPanelHistory(Exception):
     """The panel cannot support a clean date-based embargo.
 
@@ -456,6 +478,21 @@ def train_and_save(all_dfs):
     oos_f1_2 = f1_score(y_test, ensemble_pred, labels=[2], average='macro', zero_division=0)
     oos_precision_1 = precision_score(y_test, ensemble_pred, labels=[1], average='macro', zero_division=0)
     oos_recall_1 = recall_score(y_test, ensemble_pred, labels=[1], average='macro', zero_division=0)
+
+    # Precision is unreadable without its denominator. 0.35 against a 14% base rate is a real edge;
+    # against a 35% base rate it is worse than guessing. The stored class_distribution is the TRAIN
+    # split, so it was never the right denominator -- record the TEST prevalence and report lift.
+    test_prevalence = class_prevalence(y_test)
+    oos_lift_2 = lift_over_prevalence(oos_precision_2, test_prevalence['strong'])
+    oos_lift_1 = lift_over_prevalence(oos_precision_1, test_prevalence['buy'])
+    print(
+        f"Test-split prevalence: Hold {test_prevalence['hold']:.1%}, "
+        f"Buy {test_prevalence['buy']:.1%}, StrongBuy {test_prevalence['strong']:.1%}"
+    )
+    print(
+        f"Lift over base rate: StrongBuy {oos_lift_2}, Buy {oos_lift_1} "
+        "(1.0 = no better than guessing at the base rate)"
+    )
     print("-"*30)
 
     # Retrain final deployable model on all data with same weighting logic
@@ -588,6 +625,16 @@ def train_and_save(all_dfs):
         # contaminated (the old row-based embargo separated train from test by ~0 trading days).
         # Absence of this key is therefore a reliable "pre-fix" marker for anything downstream
         # that needs to badge or exclude those numbers.
+        # The metrics below were measured on the 80%-SPLIT ensemble; the artifact this entry names
+        # is a full-data refit. Refitting on everything is standard practice, but attributing the
+        # holdout score to the shipped model is not -- so the scope is stated rather than implied.
+        # Entries WITHOUT this key predate 2026-09-02.
+        "oos_metrics_scope": "split_model",
+        "test_class_distribution": {
+            "hold": round(test_prevalence['hold'], 3),
+            "buy": round(test_prevalence['buy'], 3),
+            "strong": round(test_prevalence['strong'], 3),
+        },
         "embargo": {
             "days": split_meta['gap_dates'],
             "basis": "trading_days",
@@ -602,6 +649,9 @@ def train_and_save(all_dfs):
             "f1_strong": round(oos_f1_2, 4),
             "precision_buy": round(oos_precision_1, 4),
             "recall_buy": round(oos_recall_1, 4),
+            # precision / test-split prevalence. 1.0 means no better than the base rate.
+            "lift_strong": oos_lift_2,
+            "lift_buy": oos_lift_1,
         },
         "backtest_30d": backtest_score,
         "feature_importance_top5": dict(list(sorted_importance.items())[:5]),

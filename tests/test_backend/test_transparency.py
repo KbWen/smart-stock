@@ -49,7 +49,12 @@ FAKE_ENTRY = {
     "samples": 5000,
     "train_samples": 4000,
     "test_samples": 1000,
+    # Deliberately DIFFERENT from test_class_distribution below, so a test asserting one cannot
+    # accidentally pass by reading the other.
     "class_distribution": {"hold": 0.6, "buy": 0.3, "strong": 0.1},
+    "test_class_distribution": {"hold": 0.5, "buy": 0.25, "strong": 0.25},
+    "oos_metrics_scope": "split_model",
+    "embargo": {"days": 21, "basis": "trading_days", "cut_date": "2026-06-01"},
     "oos_metrics": {
         "accuracy": 0.72,
         "precision_strong": 0.55,
@@ -57,6 +62,8 @@ FAKE_ENTRY = {
         "f1_strong": 0.46,
         "precision_buy": 0.5,
         "recall_buy": 0.45,
+        "lift_strong": 2.2,
+        "lift_buy": 2.0,
     },
 }
 
@@ -95,8 +102,18 @@ def test_transparency_shape_with_model_present(app_client, monkeypatch):
     assert model["trained_at"] == "20260701_1200"
     assert model["samples"] == 5000
     assert model["test_samples"] == 1000
-    assert model["class_distribution"] == FAKE_ENTRY["class_distribution"]
+    # Both distributions are exposed under names that say which split they are. The panel used to
+    # render the TRAIN distribution under an "OOS" heading, where a reader took it as the
+    # denominator for the precision beside it.
+    assert model["train_class_distribution"] == FAKE_ENTRY["class_distribution"]
+    assert model["test_class_distribution"] == FAKE_ENTRY["test_class_distribution"]
+    assert model["train_class_distribution"] != model["test_class_distribution"]
+    assert "class_distribution" not in model  # the ambiguous name is gone from the payload
     assert model["oos_metrics"] == FAKE_ENTRY["oos_metrics"]
+    assert model["oos_metrics"]["lift_strong"] == 2.2
+    # Attribution and contamination markers travel with the metrics.
+    assert model["oos_metrics_scope"] == "split_model"
+    assert model["embargo"] == FAKE_ENTRY["embargo"]
 
 
 def test_transparency_trained_at_falls_back_to_timestamp_real_schema(app_client, monkeypatch):
@@ -155,8 +172,11 @@ def test_transparency_model_absent_is_honest_null(app_client, monkeypatch):
     assert model["trained_at"] is None
     assert model["samples"] is None
     assert model["test_samples"] is None
-    assert model["class_distribution"] is None
+    assert model["train_class_distribution"] is None
+    assert model["test_class_distribution"] is None
     assert model["oos_metrics"] is None
+    assert model["oos_metrics_scope"] is None
+    assert model["embargo"] is None
     # message must be the real honest string, never fabricated / never a raw exception
     assert "str(" not in resp.text
     assert model["message"] == "AI 模型尚未載入或尚未訓練，AI 機率暫時不可用。"
