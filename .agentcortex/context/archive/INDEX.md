@@ -122,3 +122,8 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - D: "A claim a spec cannot deliver gets REMOVED with the derivation, not reworded — no benchmark window is out-of-sample under a full-data refit" → feat-rotation-ranking-honesty-20260902.md
 - D: "A test that duplicates the logic it tests can only confirm the duplicate — three separate sets of tests in this epic defended the bugs they were meant to catch" → feat-rotation-ranking-honesty-20260902.md
 - D: "The entry-to-filename mapping is where protection leaks: minute-resolution timestamps mean two history entries can name the same .pkl" → feat-rotation-ranking-honesty-20260902.md
+- D: "Rows are not time — a row offset used where a date was meant is correct only when every series has the same length. Same mistake as the training embargo, different file" → feat-backtest-temporal-guard-20260902.md
+- D: "A disclosure field that undercounts is worse than silence: counting one exclusion cause out of three made a 16-of-300 cross-section report '0 excluded'" → feat-backtest-temporal-guard-20260902.md
+- D: "A marker read from a key the real data does not have is a hard-wired constant — and the test passed because it mocked a shape the file never has" → feat-backtest-temporal-guard-20260902.md
+- D: "Measure against REAL data, not just fixtures: a head-slice pre-pass passed every unit test and returned zero picks on the real DB, because all 25 sampled candidates were empty" → feat-backtest-temporal-guard-20260902.md
+- D: "An order-dependent test is worse than a failing one — it reports a pass that depends on what else ran" → feat-backtest-temporal-guard-20260902.md

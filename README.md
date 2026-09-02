@@ -254,7 +254,7 @@ cd frontend/v4 && npm run dev   # → http://localhost:5173
 
 * **價格調整基準（已知問題，非防護）**: 逐檔的 yfinance 路徑 (`core/data.py:622,628`) 使用 `auto_adjust=True`，但整批路徑 (`core/bulk_history.py:9-11,190`) 寫入的是 **原始** TWSE/TPEX 收盤價，而 `stock_history` 沒有 `source` 欄位可以分辨 (`core/data.py:120-131`)。同一檔股票的序列因此可能混用兩種基準，接縫處的除權息會變成一筆假的隔夜報酬。台股特有的減資、增資也完全未處理。詳見 [`docs/DATA_INTEGRITY.md`](docs/DATA_INTEGRITY.md)。
 * **資料時間序完整性**: 下載後資料會依 `date` 排序並去除重複日期，只保留最後一筆，避免同日重複資料影響指標。
-* **特徵層無前視**: 回測的技術分數與 AI 機率僅以進場日當下的資料計算 (`backend/backtest.py:158`)，並以固定持有視窗模擬後續結果。**但模型本身沒有時序防護** —— `backend/backtest.py:176` 用的是訓練期涵蓋該回測區間的正式模型，所以 `days_ago=30` 量到的是 in-sample recall；**存活者偏差也未處理**。兩者都列在 [`docs/DATA_INTEGRITY.md`](docs/DATA_INTEGRITY.md)。
+* **特徵層無前視**: 回測的技術分數與 AI 機率僅以進場日當下的資料計算 (`backend/backtest.py`)，並以固定持有視窗模擬後續結果。**但模型本身沒有時序防護** —— `backend/backtest.py:333` 用的是訓練期涵蓋該回測區間的正式模型，所以 `days_ago=30` 量到的是 in-sample recall —— 這件事現在會由回測頁與 Strategy Lab **明講**（`model_temporal_scope`），但並沒有被修好；**存活者偏差也未處理**。兩者都列在 [`docs/DATA_INTEGRITY.md`](docs/DATA_INTEGRITY.md)。
 * **績效摘要一致性**: `best_stock / best_return` 以「實際報酬最高」交易計算，不以 AI 排名第一名替代。
 
 ### 首頁入口讀取策略

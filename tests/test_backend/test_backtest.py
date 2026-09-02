@@ -1,6 +1,7 @@
 import sys
 import types
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -12,6 +13,19 @@ fake_data.load_from_db = lambda *args, **kwargs: pd.DataFrame()
 sys.modules['core.data'] = fake_data
 
 from backend import backtest
+
+
+@pytest.fixture(autouse=True)
+def _no_db_calendar(monkeypatch):
+    """Every test in this module builds synthetic OHLC frames, so the run's `as_of` must come from
+    those frames -- not from the developer's real storage.db.
+
+    Without this the module passes in isolation (its core.data stub has no get_db_connection, so
+    the DB path returns None) but fails in a full-suite run, where another module has imported the
+    real core.data and the DB calendar wins: a 2026 as_of against 2024 fixtures excludes every
+    ticker. An order-dependent test is worse than a failing one.
+    """
+    monkeypatch.setattr(backtest, "resolve_as_of_date_from_db", lambda days_ago: None)
 
 
 def test_run_time_machine_uses_entry_day_features_and_limit(monkeypatch):
@@ -755,3 +769,232 @@ def test_sharpe_is_none_when_dispersion_is_undefined(monkeypatch):
     assert len(result["top_picks"]) == 2
     assert all(p["sniper_result"] == "HIT" for p in result["top_picks"])
     assert result["summary"]["sharpe_ratio"] is None
+
+
+# --- Temporal guard and calendar-aligned entry (docs/specs/backtest-temporal-guard.md) --------
+
+
+def _two_ticker_run(monkeypatch, frames, days_ago=3, **kwargs):
+    """Run a backtest over per-ticker frames that deliberately differ in length."""
+    monkeypatch.setattr(backtest, "get_all_tw_stocks",
+                        lambda: [{"code": t, "name": t} for t in frames])
+    monkeypatch.setattr(backtest, "_load_from_db", lambda t, **_k: frames[t])
+
+    from core import indicators_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+    from core import rise_score_v2
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2",
+                        lambda in_df: in_df.assign(total_score_v2=1.0))
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_a, **_k: {"prob": 0.9})
+    return backtest.run_time_machine(days_ago=days_ago, limit=5, **kwargs)
+
+
+def _frame(dates, price=100.0):
+    return pd.DataFrame({
+        "date": dates,
+        "open": [price] * len(dates),
+        "high": [price] * len(dates),
+        "low": [price] * len(dates),
+        "close": [price] * len(dates),
+        "volume": [1000] * len(dates),
+    })
+
+
+def test_every_pick_enters_on_the_same_calendar_date(monkeypatch):
+    """`len(df) - days_ago` is a ROW offset, and row counts differ per ticker, so a ticker with
+    missing bars entered on a different DAY. Rows are not time."""
+    full = pd.bdate_range("2024-01-01", periods=10)
+    # The gap must sit AFTER the entry window, or the row offset and the calendar agree by
+    # accident and the test proves nothing. An earlier draft deleted [4,5,6] -- both schemes then
+    # produced 2024-01-10 and the test was vacuous. Deleting [8] makes the old scheme land on
+    # 2024-01-09 for SHORT and 2024-01-10 for FULL: two tickers, two days, one "cross-section".
+    short = full.delete([8])
+    days_ago = 3
+    assert (
+        pd.to_datetime(_frame(full).iloc[10 - days_ago]['date'])
+        != pd.to_datetime(_frame(short).iloc[9 - days_ago]['date'])
+    ), "fixture must actually exercise the defect"
+
+    result = _two_ticker_run(monkeypatch, {"FULL": _frame(full), "SHORT": _frame(short)},
+                             days_ago=days_ago)
+
+    picks = result["top_picks"]
+    assert len(picks) == 2
+    as_of = pd.to_datetime(result["simulated_date"])
+    # Both tickers traded on as_of, so both must enter exactly there -- not merely "somewhere at
+    # or before it". The weaker form would pass under the row offset too.
+    for p in picks:
+        assert pd.to_datetime(p["entry_date"]) == as_of, (
+            f"{p['ticker']} entered {p['entry_date']}, run as_of is {as_of}"
+        )
+    # And the run reports its own as_of, not whichever pick happened to sort first.
+    assert result["simulated_date"] == str(as_of.date())
+
+
+def test_a_ticker_with_no_data_at_as_of_is_excluded_and_counted(monkeypatch):
+    """Excluding a ticker is honest; entering it on some other day is not. The count is reported
+    so a thin cross-section is visible rather than inferred."""
+    full = pd.bdate_range("2024-01-01", periods=12)
+    stale = pd.bdate_range("2023-06-01", periods=12)   # stopped trading long before as_of
+    result = _two_ticker_run(monkeypatch, {"FULL": _frame(full), "STALE": _frame(stale)})
+
+    assert [p["ticker"] for p in result["top_picks"]] == ["FULL"]
+    assert result["excluded_no_data_at_as_of"] == 1
+
+
+def test_model_temporal_scope_fails_toward_in_sample(monkeypatch):
+    """An unmarked in-sample number is the failure this epic exists to remove, so anything
+    indeterminate reports the pessimistic reading."""
+    full = pd.bdate_range("2024-01-01", periods=10)
+    frames = {"FULL": _frame(full)}
+
+    import core.ai.predictor as predictor
+    monkeypatch.setattr(predictor, "get_model_version", lambda: "v4.x")
+
+    # REAL models_history.json entries carry `timestamp` in %Y%m%d_%H%M form and have NO
+    # `trained_at` key at all -- that lives inside the pickled metadata. Reading only trained_at
+    # hard-wired this field to "in_sample" forever, and pd.to_datetime RAISES on the compact form,
+    # so a naive key swap would have stayed just as inert. These fixtures use the real shape.
+    monkeypatch.setattr(predictor, "list_available_models",
+                        lambda: [{"version": "v4.x", "timestamp": "20240601_2031"}])
+    assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "in_sample"
+
+    monkeypatch.setattr(predictor, "list_available_models",
+                        lambda: [{"version": "v4.x", "timestamp": "20230101_0900"}])
+    assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "as_of_model"
+
+    # An explicit trained_at still works, in either form.
+    monkeypatch.setattr(predictor, "list_available_models",
+                        lambda: [{"version": "v4.x", "trained_at": "2023-01-01T00:00:00"}])
+    assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "as_of_model"
+
+    # Neither key -> pessimistic, not optimistic.
+    monkeypatch.setattr(predictor, "list_available_models", lambda: [{"version": "v4.x"}])
+    assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "in_sample"
+
+
+def test_gap_open_above_target_on_a_stop_bar_settles_hit_at_the_open(monkeypatch):
+    """A bar that gaps open through the target is NOT ambiguous: the resting limit sell was
+    marketable on the session's first print, so it filled before any tick could reach the stop.
+    Deferred from #1 on measured grounds; closed here."""
+    top = _settle(
+        monkeypatch,
+        opens=[100, 100, 100, 100, 100, 100, 122, 100],   # gaps open at +22%, above the target
+        highs=[100, 100, 100, 100, 100, 100, 135, 100],
+        lows=[100, 100, 100, 100, 100, 100, 80, 100],     # and also breaches the stop intrabar
+        closes=[100, 100, 100, 100, 100, 100, 90, 100],
+    )
+
+    assert top["sniper_result"] == "HIT"
+    assert top["actual_return"] == pytest.approx(0.22)
+
+
+def test_intrabar_both_barriers_still_resolves_to_the_stop(monkeypatch):
+    """Regression guard: precedence is unchanged for genuine intrabar ambiguity, where the order
+    of the two touches really is unknowable."""
+    top = _settle(
+        monkeypatch,
+        opens=[100] * 8,                                   # opens BETWEEN the barriers
+        highs=[100, 100, 100, 100, 100, 100, 130, 100],
+        lows=[100, 100, 100, 100, 100, 100, 80, 100],
+        closes=[100, 100, 100, 100, 100, 100, 90, 100],
+    )
+
+    assert top["sniper_result"] == "STOP"
+    assert top["actual_return"] == pytest.approx(-0.05)
+
+
+def test_resolve_entry_index_picks_the_last_bar_at_or_before_as_of():
+    """Directly pins the contract the end-to-end run depends on."""
+    dates = pd.bdate_range("2024-01-01", periods=10)
+    df = _frame(dates)
+    as_of = dates[6]
+
+    assert backtest.resolve_entry_index(df, as_of) == 6
+    # A ticker that did not trade on as_of enters on its last earlier bar...
+    gapped = _frame(dates.delete(6))
+    assert backtest.resolve_entry_index(gapped, as_of) == 5
+    # ...but only within tolerance. Beyond it, the ticker was not trading in this window.
+    stale = _frame(pd.bdate_range("2023-06-01", periods=10))
+    assert backtest.resolve_entry_index(stale, as_of) is None
+    # And a bar with no outcome window cannot be an entry.
+    assert backtest.resolve_entry_index(_frame(dates), dates[-1]) is None
+    assert backtest.resolve_entry_index(_frame(dates), pd.Timestamp("2020-01-01")) is None
+
+
+def test_calendar_entry_is_bounded_by_as_of_where_the_row_offset_was_not():
+    """The defect in one assertion.
+
+    A row offset says nothing about WHEN a ticker enters: with different row counts, `len(df) -
+    days_ago` lands on a different date per ticker, and for a stale ticker it can be months away
+    from the rest of the run. Calendar resolution bounds every entry to `as_of` minus a few days,
+    or removes the ticker from the run.
+    """
+    dates = pd.bdate_range("2024-01-01", periods=10)
+    full = _frame(dates)
+    short = _frame(dates.delete([7, 8]))                    # gaps straddling the entry window
+    stale = _frame(pd.bdate_range("2023-06-01", periods=10))  # stopped trading long ago
+    days_ago = 3
+    as_of = backtest.resolve_as_of_date([full, short, stale], days_ago)
+
+    def old_entry_date(df):
+        return pd.to_datetime(df.iloc[len(df) - days_ago]['date'])
+
+    # The old scheme spreads the same run across unrelated dates -- half a year apart here.
+    assert old_entry_date(full) != old_entry_date(short)
+    assert (as_of - old_entry_date(stale)).days > 180
+
+    # The new one bounds every surviving entry, and drops what it cannot place.
+    for df in (full, short):
+        idx = backtest.resolve_entry_index(df, as_of)
+        assert idx is not None
+        entered = pd.to_datetime(df.iloc[idx]['date'])
+        assert entered <= as_of
+        assert (as_of - entered).days <= backtest.ENTRY_DATE_TOLERANCE_DAYS
+    assert backtest.resolve_entry_index(stale, as_of) is None
+
+
+def test_a_long_suspension_straddling_as_of_is_excluded_by_the_tolerance():
+    """The case the tolerance actually exists for: a stock suspended across `as_of` and resuming
+    later. It has bars on BOTH sides, so the "no outcome window" rule does not catch it -- its
+    last bar at or before as_of is months stale, and entering there would price a position that
+    could not have been opened."""
+    suspended = _frame(
+        pd.bdate_range("2023-06-01", periods=5).append(pd.bdate_range("2024-02-01", periods=5))
+    )
+    as_of = pd.Timestamp("2024-01-15")
+
+    idx = backtest.resolve_entry_index(suspended, as_of)
+    assert idx is None, "a bar months before as_of is not an entry for this cross-section"
+
+    # Sanity: it is NOT the outcome-window rule doing the work here -- there are later bars.
+    dates = pd.to_datetime(suspended['date'])
+    last_before = int(np.flatnonzero((dates <= as_of).to_numpy())[-1])
+    assert last_before < len(suspended) - 1
+
+
+def test_calendar_prepass_survives_a_long_run_of_empty_candidates(monkeypatch):
+    """The universe is ~1,800 codes while the DB may hold far fewer, so a fixed head slice of the
+    candidate list can be entirely empty — which is exactly what happened on the real panel: the
+    first 25 candidates all had no data and the run aborted with "not enough trading history".
+    The pre-pass must walk the whole list until it finds populated frames."""
+    dates = pd.bdate_range("2024-01-01", periods=20)
+    populated = {f"HAS{i}": _frame(dates) for i in range(3)}
+    empty = {f"NONE{i}": pd.DataFrame() for i in range(400)}
+    frames = {**empty, **populated}   # every empty ticker sorts before the populated ones
+
+    monkeypatch.setattr(backtest, "get_all_tw_stocks",
+                        lambda: [{"code": t, "name": t} for t in frames])
+    monkeypatch.setattr(backtest, "_load_from_db", lambda t, **_k: frames[t])
+    from core import indicators_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+    from core import rise_score_v2
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2",
+                        lambda in_df: in_df.assign(total_score_v2=1.0))
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_a, **_k: {"prob": 0.9})
+
+    result = backtest.run_time_machine(days_ago=3, limit=5)
+
+    assert "error" not in result or result.get("error") is None
+    assert result["simulated_date"] is not None
+    assert len(result["top_picks"]) == 3

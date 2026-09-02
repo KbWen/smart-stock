@@ -178,6 +178,16 @@ Run time-machine simulation over past N days.
 **Response:** `summary` includes `avg_return`, `avg_net_return` (after friction),
 `win_rate`, `net_win_rate`, `sniper_hit_rate`, `sniper_hits`, `sniper_stops`,
 `profit_factor` and `net_profit_factor` (**`null` when there are no losing trades**),
+Top-level alongside `summary`: `simulated_date` (the run's single entry date — every pick is
+anchored to it), `excluded_no_data_at_as_of` and `excluded_no_price_rows` (candidates dropped, so a
+thin cross-section is visible rather than inferred), and `model_temporal_scope`
+(`in_sample` | `as_of_model` | `unknown`). **`in_sample` means the model scoring the run was trained
+over the window it scored** — the numbers measure recall over data it has already seen, not
+predictive skill. It fails toward `in_sample` when the model's training date cannot be determined.
+
+`summary.holding_days` and `summary.exit_date_actual` are **`null` unless every pick agrees** — they
+used to be read off `top_picks[0]` and presented as the whole run's.
+
 `sharpe_ratio` (unannualized single-period mean ÷ stddev of net returns — not a
 conventional annualized Sharpe; **`null` when that stddev is undefined or exactly zero**,
 i.e. a single pick, or every settled trade landing on the same barrier),
