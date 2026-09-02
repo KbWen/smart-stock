@@ -46,12 +46,21 @@ feature set or label definition.
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in `avg_return` / `net_win_rate` / `profit_factor` / `sharpe_ratio` (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | quick-win | In Progress | — |
+| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in `avg_return` / `net_win_rate` / `profit_factor` / `sharpe_ratio` (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | hotfix | In Progress | — |
 | 2 | Date-based train/test embargo — measure the embargo in trading days rather than pooled rows, scale the `TimeSeriesSplit` gap by per-date row count, and apply the same correction in `scripts/eval_label_modes.py` (F1, 3/3 auditors) | review-finding | ml | P0 | — | feature | Pending | — |
 | 3 | Backtest temporal guard — refuse or explicitly badge a run whose model `trained_at` post-dates the entry date, and resolve the entry point by calendar date per ticker instead of a row offset (F5, F6) | review-finding | backtest | P1 | — | feature | Pending | #1 |
 | 4 | Model rotation ranking honesty — move the rotation backtest window past the final fit's label horizon, and stop sorting a `None` profit factor below 0.0 (F7) | review-finding | ml | P1 | — | feature | Pending | #2 |
 | 5 | OOS metric attribution and baseline lift — attribute holdout metrics to the split model that earned them, record test-split class prevalence, report precision as lift over prevalence, and let `get_model_health` call a below-prevalence model degraded (F8, F9, F10) | review-finding | ml, transparency | P1 | — | feature | Pending | #2 |
 | 6 | Docs-vs-reality alignment — correct the four `DATA_INTEGRITY.md` claims, `README.md:237` 「完全杜絕」, the whitepaper's `auto_adjust` assertion, and the `risk_level` naming plus its tooltip (F3, 3/3 auditors) | review-finding | docs | P0 | — | feature | Pending | #1, #2 |
+
+## Classification Note
+
+#1 is `quick-win` by size — two assignments in one module plus tests — but was **escalated to
+`hotfix`** at bootstrap. Escalation is never a bypass; the reason is that a `quick-win` makes the
+review and test gates optional, and this change rewrites financial performance numbers that users
+read as achievable. AC6 (six empirically falsified tests) and AC7 (a same-seed before/after evidence
+run, with tuning explicitly forbidden) are review-grade requirements, and every honesty-affecting
+change in this repo has gone through independent review. The gates are worth their cost here.
 
 ## Sequencing Note
 

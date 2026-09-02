@@ -1,10 +1,11 @@
 ---
-status: draft
+status: frozen
 title: Backtest Settlement Realism
 source: external
 source_doc: _product-backlog.md #1 (quant-expert panel audit, finding F2 — 3/3 independent auditors)
 created: 2026-09-02
 updated: 2026-09-02
+frozen: 2026-09-02
 primary_domain: backtest
 secondary_domains: [transparency]
 ---
@@ -30,31 +31,31 @@ sides.
 
 ## Acceptance Criteria
 
-1. **[FROM-SOURCE]** On a target touch (`day_high_pct >= target_gain`), `locked_roi` is
+1. On a target touch (`day_high_pct >= target_gain`), `locked_roi` is
    **`target_gain`**, not `day_high_pct` (`backend/backtest.py:218`). Gap exception: when the bar
    *opens* at or above the target, a resting limit sell fills at the open, so `locked_roi` is
    `day_open_pct` in that case. Formally: `locked_roi = max(target_gain, day_open_pct)` restricted to
    the branch where the target is touched.
 
-2. **[FROM-SOURCE]** On a stop touch (`day_low_pct <= -stop_loss`), `locked_roi` is **`-stop_loss`**,
+2. On a stop touch (`day_low_pct <= -stop_loss`), `locked_roi` is **`-stop_loss`**,
    not `day_low_pct` (`backend/backtest.py:212`). Gap exception: when the bar *opens* at or below the
    stop, the stop becomes a market order filling at the open, so `locked_roi` is `day_open_pct` in
    that case. Formally: `locked_roi = min(-stop_loss, day_open_pct)` restricted to the branch where
    the stop is touched.
 
-3. **[INFERRED]** Same-bar precedence is **unchanged**: when a bar touches both the stop and the
+3. Same-bar precedence is **unchanged**: when a bar touches both the stop and the
    target, the stop still wins (`backend/backtest.py:209`). This is the existing deliberate
    conservative choice and this spec does not revisit it.
 
-4. **[INFERRED]** `max_gain_pct` and `max_drawdown_pct` continue to use `day_high_pct` / `day_low_pct`
+4. `max_gain_pct` and `max_drawdown_pct` continue to use `day_high_pct` / `day_low_pct`
    (`backend/backtest.py:206-207`). They are maximum favorable/adverse **excursion** measures, for
    which the intraday extreme is the correct input — they are not settlement prices and are out of
    scope.
 
-5. **[FROM-SOURCE]** The `PENDING` (neither barrier touched) path is unchanged: `locked_roi` remains
+5. The `PENDING` (neither barrier touched) path is unchanged: `locked_roi` remains
    the running `day_close_pct`, and the final value the last observed close.
 
-6. **[FROM-SOURCE]** Tests, each **empirically falsified** before acceptance (revert the fix, watch it
+6. Tests, each **empirically falsified** before acceptance (revert the fix, watch it
    fail):
    - a bar whose high exceeds the target settles at exactly `target_gain`, **not** at the high;
    - a bar that gaps open above the target settles at the **open**, above `target_gain`;
@@ -64,11 +65,19 @@ sides.
    - net-of-cost arithmetic (`backend/backtest.py:224-226`) is applied to the new `locked_roi`
      unchanged, so the buy/sell cost asymmetry keeps working.
 
-7. **[FROM-SOURCE]** The direction of the change is **reported, not hidden**. The Work Log records a
+7. The direction of the change is **reported, not hidden**. The Work Log records a
    before/after run of `run_time_machine` on the same seed and window, showing how each affected
    summary metric moved. AC2 alone makes losses *smaller*; AC1 alone makes wins *smaller*. The net
    effect is whatever it is — this spec does not permit tuning `target_gain`, `stop_loss`,
    `BACKTEST_AI_THRESHOLD`, or any default to compensate for a less attractive result.
+
+## Clarifications Resolved
+
+- **Stop-side settlement (AC2)**: confirmed at intake that **both** sides are corrected, not just the
+  winning side. Fixing only AC1 would leave the simulation one-directionally *pessimistic* — an
+  equally wrong execution model that understates profit factor on no principled basis. Keeping a
+  known-wrong pessimistic loss figure as an implicit safety margin was rejected as its own form of
+  dishonesty.
 
 ## Non-goals
 
