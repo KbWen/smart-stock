@@ -712,3 +712,46 @@ def test_settlement_at_a_bar_that_opens_exactly_on_the_barrier(monkeypatch):
     )
     assert top["sniper_result"] == "STOP"
     assert top["actual_return"] == pytest.approx(-0.05)
+
+
+def test_sharpe_is_none_when_dispersion_is_undefined(monkeypatch):
+    # Settlement realism makes zero dispersion reachable: a no-gap HIT settles at exactly
+    # target_gain, so a sample where every trade landed on the same barrier has std == 0.
+    # That means "undefined", not "no edge" — report None, like profit_factor already does.
+    dates = pd.date_range("2024-01-01", periods=8, freq="D")
+
+    monkeypatch.setattr(
+        backtest,
+        "get_all_tw_stocks",
+        lambda: [{"code": "AAA", "name": "AAA"}, {"code": "BBB", "name": "BBB"}],
+    )
+    # Both tickers run the same bars, so both settle at exactly +15% → std of net returns is 0.
+    monkeypatch.setattr(
+        backtest,
+        "_load_from_db",
+        lambda _ticker, **_kwargs: pd.DataFrame(
+            {
+                "date": dates,
+                "open": [100] * 8,
+                "high": [100, 100, 100, 100, 100, 100, 130, 100],
+                "low": [100] * 8,
+                "close": [100, 100, 100, 100, 100, 100, 125, 100],
+                "volume": [1000] * 8,
+            }
+        ),
+    )
+
+    from core import indicators_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+
+    from core import rise_score_v2
+    monkeypatch.setattr(
+        rise_score_v2, "calculate_rise_score_v2", lambda in_df: in_df.assign(total_score_v2=1.0)
+    )
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_a, **_k: {"prob": 0.9})
+
+    result = backtest.run_time_machine(days_ago=3, limit=2)
+
+    assert len(result["top_picks"]) == 2
+    assert all(p["sniper_result"] == "HIT" for p in result["top_picks"])
+    assert result["summary"]["sharpe_ratio"] is None

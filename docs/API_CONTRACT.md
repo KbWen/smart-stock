@@ -144,7 +144,9 @@ Run time-machine simulation over past N days.
 `win_rate`, `net_win_rate`, `sniper_hit_rate`, `sniper_hits`, `sniper_stops`,
 `profit_factor` and `net_profit_factor` (**`null` when there are no losing trades**),
 `sharpe_ratio` (unannualized single-period mean ÷ stddev of net returns — not a
-conventional annualized Sharpe), `avg_max_drawdown`, `worst_drawdown`; plus
+conventional annualized Sharpe; **`null` when that stddev is undefined or exactly zero**,
+i.e. a single pick, or every settled trade landing on the same barrier),
+`avg_max_drawdown`, `worst_drawdown`; plus
 `top_picks[]` and `history[]`.
 
 ---

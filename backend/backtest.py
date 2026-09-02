@@ -331,7 +331,17 @@ def run_time_machine(
     # Sharpe Ratio (Period Sharpe Ratio: mean of net returns divided by std of net returns)
     net_returns = top_df['net_return']
     std_net = net_returns.std()
-    sharpe_ratio = float(net_returns.mean() / std_net) if std_net > 0 else 0.0
+    # std is NaN for a single pick and exactly 0.0 when every settled trade landed on the same
+    # barrier — which settlement realism made reachable, since a no-gap HIT now settles at exactly
+    # target_gain and a no-gap STOP at exactly -stop_loss. Both cases mean "dispersion is
+    # undefined here", not "this strategy has no edge", but the UI styles 0.00 as a real result.
+    # Report None, matching the profit_factor precedent in this same summary; both frontend
+    # surfaces already render null as "—".
+    sharpe_ratio = (
+        float(net_returns.mean() / std_net)
+        if pd.notna(std_net) and std_net > 0
+        else None
+    )
 
     best_pick = None
     if not top_df.empty:
@@ -357,7 +367,7 @@ def run_time_machine(
             "sniper_stops": sniper_stops,
             "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
             "net_profit_factor": round(net_profit_factor, 2) if net_profit_factor is not None else None,
-            "sharpe_ratio": round(sharpe_ratio, 3),
+            "sharpe_ratio": round(sharpe_ratio, 3) if sharpe_ratio is not None else None,
             "avg_max_drawdown": round(avg_max_drawdown * 100, 2),
             "worst_drawdown": round(worst_drawdown * 100, 2),
             "best_stock": best_pick['name'] if best_pick is not None else "N/A",

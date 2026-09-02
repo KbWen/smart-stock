@@ -23,6 +23,12 @@ On the 92-ticker dev data the headline moved the *flattering* way (`avg_return` 
 because that sample was stop-heavy: correcting 11 over-punished losses outweighed correcting 3
 over-credited wins. On a hit-heavy sample the sign flips. No threshold or default was changed.
 
+`sharpe_ratio` is now `null` (shown as `—`) instead of `0.00` when the standard deviation of net
+returns is undefined or exactly zero — a single pick, or every settled trade landing on the same
+barrier. The old code fabricated a zero there. On the dev data at shipped settings this is in fact
+the *only* number the release moves, because the honestly-weak model admits one candidate that
+touches no barrier.
+
 Note for anyone with a populated `models_history.json`: `backtest_30d.profit_factor` entries written
 before this change are **not comparable** to ones written after, and model rotation ranks on that
 field.

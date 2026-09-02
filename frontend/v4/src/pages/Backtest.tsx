@@ -26,7 +26,7 @@ interface BacktestSummary {
     profit_factor: number | null
     avg_net_return?: number
     net_win_rate?: number
-    sharpe_ratio?: number
+    sharpe_ratio?: number | null
     worst_drawdown?: number
     net_profit_factor?: number | null
     avg_max_drawdown?: number

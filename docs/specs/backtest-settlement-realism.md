@@ -77,8 +77,28 @@ sides.
    effect is whatever it is — this spec does not permit tuning `target_gain`, `stop_loss`,
    `BACKTEST_AI_THRESHOLD`, or any default to compensate for a less attractive result.
 
+8. **[POST-REVIEW]** `sharpe_ratio` is `None`, not `0.0`, when the standard deviation of net
+   returns is NaN or exactly zero. Settlement realism **created** this case: a no-gap HIT now
+   settles at exactly `target_gain` and a no-gap STOP at exactly `-stop_loss`, so a sample where
+   every trade landed on the same barrier has zero dispersion, which continuous high/low values
+   made effectively impossible before. Zero dispersion means *undefined*, not "no edge", but
+   `Backtest.tsx:298` styles `0.00` as a real muted result. `None` matches the `profit_factor`
+   precedent in the same summary object, and **both frontend surfaces already implement the null
+   contract** — `Backtest.tsx:298` renders `!= null ? … : '—'` and `StrategyCompare.tsx:59`
+   returns `'—'` for null/undefined/NaN — so this completes a contract the UI was already written
+   against. `docs/API_CONTRACT.md` is updated to document the null, and `Backtest.tsx`'s type is
+   widened from `number` to `number | null` to stop the type lying (`useStrategies.ts:32` already
+   had it right). Test: `test_sharpe_is_none_when_dispersion_is_undefined`, falsified.
+
 ## Clarifications Resolved
 
+- **AC8 was added after review**, amending the "No change to metric definitions / No API contract
+  change" Constraint below for this one field. Rationale: the reviewer and the tenth-man showed the
+  change itself creates the zero-dispersion case, so shipping without AC8 would mean this very PR
+  widens a flattering-sentinel path the `backtest-metric-label-honesty` spec exists to close. The
+  amendment is narrow — one field, an existing precedent, and a UI that already handles it. The
+  user was asked and delegated the scope call back with the standard "well-researched and good for
+  the project"; the research is the two frontend call sites cited in AC8.
 - **Stop-side settlement (AC2)**: confirmed at intake that **both** sides are corrected, not just the
   winning side. Fixing only AC1 would leave the simulation one-directionally *pessimistic* — an
   equally wrong execution model that understates profit factor on no principled basis. Keeping a
@@ -106,8 +126,9 @@ sides.
   forward-walk loop in `backend/backtest.py`. Rollback is reverting those two lines.
 - **Honesty guard** (epic-wide): this fix is expected to change published numbers. No threshold,
   default, or metric definition may be adjusted to soften the result.
-- **No API contract change**: response field names and types stay identical, so the frontend and
-  `docs/API_CONTRACT.md` are untouched.
+- **No API contract change** *(amended by AC8)*: response field **names** stay identical. The one
+  type change is `sharpe_ratio` gaining `null`, which AC8 justifies and which both frontend
+  surfaces already handle; `docs/API_CONTRACT.md` is updated to match. Nothing else moves.
 
 ## Domain Decisions
 
@@ -132,9 +153,13 @@ sides.
   is assembled from multiple ingest paths that do not all guarantee an open.
 - **[TRADEOFF]** Same-bar stop-before-target precedence is preserved unchanged, so a bar that gaps
   open **above** the target while also trading below the stop still books a STOP even though the
-  target demonstrably filled at the open first. Revisiting precedence is a larger decision than this
-  spec's scope; the fix already makes that case strictly less wrong (it settles at `-stop_loss`
-  rather than at the session low). Recorded so a follow-up can pick it up deliberately.
+  target demonstrably filled at the open first. Deferred to backlog #3 rather than amended, on
+  **measured** grounds: the case needs a single bar whose open is ≥ `target_gain` above entry while
+  its low is ≤ `-stop_loss` below it — an intraday range of ≥ 20% at the default barriers. Across
+  the 99,287 real bars in `storage.db` only **4 (0.004%)** have a range that wide at all, and that
+  is merely the *necessary* condition; Taiwan's ±10% daily price limit makes it structurally
+  near-impossible for a limit-abiding security. It also biases conservative and is not a regression
+  (the old code booked the session low, which was worse). Not worth amending a frozen AC for.
 
 ## File Relationship
 
