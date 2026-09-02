@@ -23,9 +23,11 @@ limiter = Limiter(key_func=get_remote_address)
 ```
 
 `get_remote_address` reads `request.client.host`. With a proxy in front that is the proxy's own
-address, so every user shares one rate-limit bucket: `/api/backtest`, `/api/v4/sniper/candidates`,
-`/api/v4/meta` and the five `/api/strategies` mutations all become first-come-first-served across the
-entire user base, and an innocent second user gets 429.
+address, so every user shares one rate-limit bucket. Every limited endpoint becomes first-come-first-served
+across the entire user base: `/api/v4/sniper/candidates` (60/min), `/api/v4/meta` (30/min),
+`/api/backtest` (20/min), `/api/transparency` (10/min), `POST /api/sync` (5/min), and the five
+`/api/strategies` routes — three mutations plus `GET /api/strategies` and
+`GET /api/strategies/compare`. Users collect 429s they did not earn.
 
 **A correction to how this was first written up.** The backlog and the triage note said "the
 documented Nginx/Docker deployment". This project documents **no** reverse-proxy deployment:
@@ -64,14 +66,32 @@ bypassed by a header a stranger sets.
 3. **[FROM-SOURCE]** At `N > 0` the key is the **Nth entry from the right** of `X-Forwarded-For` —
    the boundary between the proxies we run and the world. Entries left of it are ignored.
 
-4. **[INFERRED]** It **fails closed**. If the header is absent, has fewer than `N` entries, or the
-   selected entry is not a valid IP address, the key falls back to `request.client.host`. A request
-   that did not arrive through the declared chain is not trusted to describe itself — and a shorter
-   header is exactly what an attacker sends.
+4. **[INFERRED]** It **falls back** to `request.client.host` when the header is absent, has fewer
+   than `N` entries, or the selected entry is not an IP address, and logs that once.
 
-5. **[INFERRED]** A negative or non-integer `TRUSTED_PROXY_COUNT` is a configuration error and fails
-   at import, not at request time. A limiter that silently mis-parses its own configuration is worse
-   than one that is off.
+   **Corrected after review — this AC first said "fails closed", and that was two errors.** It
+   claimed a spoofing attempt sends a *short* header; a spoofing attempt sends a **long** one, and
+   the short-chain fallback is the case an attacker never needs to trigger. And "fails closed" was
+   the wrong description of the whole design: the function verifies the chain's **length**, never
+   who wrote it, so an over-declared count is undetectable from inside the app. What is true is
+   narrower: an unusable chain degrades to per-peer limiting, and a **forged** chain is bounded
+   rather than prevented (AC9).
+
+   **Amended after review.** The header must be read as **every** occurrence joined in order, not
+   the first line. `X-Forwarded-For` is a list-typed field (RFC 7230 §3.2.2), so repeated lines are
+   one comma-joined value — and `request.headers.get` returns only the first, which is the line a
+   caller can send *ahead* of the proxy's. HAProxy's `option forwardfor` inserts its own field
+   rather than merging, so this is not hypothetical. Review demonstrated the bypass on the shipped
+   code: four requests against a 1/minute budget, each with a different forged first line, all
+   returned `200` and the proxy's real entry was never read. That falsifies this spec's own Goal.
+
+5. **[INFERRED]** A `TRUSTED_PROXY_COUNT` that is not a plain non-negative integer is a
+   configuration error and fails at import, not at request time, with a message that says what the
+   value means. A limiter that silently mis-parses its own configuration is worse than one that is
+   off. **Stricter than `int()` after review**: `int()` reads `"1_0"` as `10`, which is ten declared
+   hops against one real proxy — precisely the "the caller chooses its own identity" failure, from
+   a typo, with no error. An empty value (trivially easy in a compose file) would also have died
+   with a bare parse error instead of an explanation.
 
 6. **[INFERRED]** The selected identity is what `@limiter.limit` actually keys on. A test must
    exercise a real limited endpoint through the app and observe that two clients behind one proxy
@@ -85,6 +105,25 @@ bypassed by a header a stranger sets.
 
 8. **[INFERRED]** No new dependency. `slowapi`'s `key_func` contract is unchanged; this replaces the
    function, not the mechanism.
+
+9. **[ADDED AFTER REVIEW]** The forwarded key space is **bounded**. A forwarded identity is chosen
+   by whoever writes the header, and slowapi keeps one in-process counter per identity with an
+   O(total keys) expiry sweep on a 0.01s timer — so an unbounded key space is a way to stall the
+   event loop that the pre-change code **could not have had** (behind a proxy it produced exactly
+   one key). The pre-mortem measured it on the shipped branch: 2000 requests with an invented first
+   entry produced 2000 keys and 2000 `200`s. At most `MAX_TRACKED_FORWARDED_CLIENTS` distinct
+   forwarded identities are admitted per window; past that, new ones are limited by connecting
+   address, and an already-tracked client keeps its own budget.
+
+10. **[ADDED AFTER REVIEW]** A mis-declared count is **visible**. Neither error direction produces
+    an error, so: one startup line naming the effective mode, and a one-time warning per condition
+    — a header arriving while the count is `0`, a chain shorter than declared (which also catches
+    the nginx-default and Azure `ip:port` cases), an unparseable entry, and the flood cap engaging.
+    One warning per condition, not per request.
+
+11. **[ADDED AFTER REVIEW]** An entry of the form `<ipv4>:<port>` or `[<ipv6>]:<port>` is accepted.
+    Azure Application Gateway appends the port; rejecting it made the whole feature a silent no-op
+    there — the operator sets the variable, restarts, and nothing changes with nothing logged.
 
 ## Non-goals
 
@@ -109,7 +148,12 @@ bypassed by a header a stranger sets.
 ## Domain Decisions
 
 - **[DECISION]** Count from the **right**, never the left. `X-Forwarded-For[0]` is the value most
-  guides reach for and is the one entry an attacker fully controls.
+  guides reach for and is the one slot an attacker fully controls whenever the chain runs longer
+  than declared. In a well-formed chain of exactly N entries the two coincide; the rule is the
+  direction, not the index.
+- **[CONSTRAINT]** Read the header as a **list**, not a string. Any code here that calls
+  `headers.get` on a list-typed field is reading one line of several and can be fed an extra line
+  from outside.
 - **[CONSTRAINT]** Fail closed on a short header. Falling back to `request.client.host` when the
   chain does not match means a spoofing attempt is rate-limited as the proxy — degraded, not open.
 - **[DECISION]** Configuration errors are import-time failures. A rate limiter that starts with a
@@ -119,6 +163,13 @@ bypassed by a header a stranger sets.
   their own compose file, and because the failure mode is disclosed rather than silent.
 - **[CONSTRAINT]** This is a **correctness** fix for the deployments it applies to, not a security
   hardening of the default. At `0` the app is exactly as exposed as it was.
+- **[CONSTRAINT]** Trusting a hop count means trusting three things the app cannot verify: that
+  every counted proxy appends the header (**nginx does not by default**), that the origin is
+  unreachable except through them, and that the operator counted correctly. The documentation must
+  state all three, because the app can only ever check the chain's length.
+- **[DECISION]** Bound the blast radius rather than claim to prevent the failure. "Never open" was
+  a claim this design cannot support; "a forged chain degrades to the old shared bucket instead of
+  an unbounded key store" is one it can.
 
 ## File Relationship
 

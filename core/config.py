@@ -1,4 +1,5 @@
 import os
+import re
 
 # Base Directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -38,12 +39,18 @@ BACKTEST_AI_THRESHOLD = float(os.getenv("BACKTEST_AI_THRESHOLD", 0.35))
 # requires trusting nothing. Behind a proxy, leaving this at 0 counts every user as one client
 # and hands innocent users a 429; setting it HIGHER than the real number of proxies lets a caller
 # choose its own identity by sending X-Forwarded-For. See docs/specs/trusted-proxy-client-identity.md.
-TRUSTED_PROXY_COUNT = int(os.getenv("TRUSTED_PROXY_COUNT", 0))
-if TRUSTED_PROXY_COUNT < 0:
+_trusted_proxy_raw = str(os.getenv("TRUSTED_PROXY_COUNT", "0")).strip()
+# Deliberately stricter than int(): that accepts "1_0" as 10 and " 1 " as 1. Ten declared hops
+# with one real proxy is exactly the "the caller chooses its own identity" failure, reached by a
+# typo with no error -- and an empty value (trivially easy in a compose file) would otherwise die
+# with a bare parse error instead of saying what is wrong.
+if not re.fullmatch(r"\d+", _trusted_proxy_raw):
     raise ValueError(
-        f"TRUSTED_PROXY_COUNT must be >= 0, got {TRUSTED_PROXY_COUNT}. A rate limiter that starts "
-        f"with a mis-parsed trust boundary offers protection it does not have."
+        f"TRUSTED_PROXY_COUNT must be a plain non-negative integer, got {_trusted_proxy_raw!r}. "
+        f"It is the number of reverse proxies you run in front of this app (0 = none). A rate "
+        f"limiter that starts with a mis-parsed trust boundary offers protection it does not have."
     )
+TRUSTED_PROXY_COUNT = int(_trusted_proxy_raw)
 MIN_TRAIN_ROWS = int(os.getenv("MIN_TRAIN_ROWS", 260))
 MIN_PREDICT_ROWS = int(os.getenv("MIN_PREDICT_ROWS", 120))
 

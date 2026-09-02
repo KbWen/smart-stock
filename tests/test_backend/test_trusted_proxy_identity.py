@@ -8,8 +8,16 @@ be worse than the bug: that header is set by the client, so trusting it lets any
 address per request and never be limited at all.
 """
 import itertools
+import sys
 
+import httpx
 import pytest
+
+# tests/test_backend/test_backtest.py installs a fake `core.data` into sys.modules at import and
+# never removes it. Importing backend.main below pulls in the real one, so without this guard the
+# file passes only because its name sorts after test_backtest.py -- an order dependence that
+# reports a pass depending on what else ran. Same guard as test_transparency.py.
+sys.modules.pop("core.data", None)
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from slowapi import _rate_limit_exceeded_handler
@@ -25,6 +33,22 @@ def clean_limiter():
     limiter.reset()
     yield
     limiter.reset()
+
+
+
+def _request_with(xff_lines, peer="10.0.0.1"):
+    """A minimal Starlette request carrying repeated X-Forwarded-For lines."""
+    from starlette.requests import Request
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/probe",
+        "headers": [(b"x-forwarded-for", v.encode()) for v in xff_lines],
+        "client": (peer, 12345),
+        "query_string": b"",
+    }
+    return Request(scope)
 
 
 _probe_seq = itertools.count()
@@ -183,3 +207,161 @@ class TestConfigurationErrorsAreLoud:
 
         monkeypatch.delenv("TRUSTED_PROXY_COUNT")
         importlib.reload(config)
+
+
+class TestRepeatedHeaderLines:
+    """X-Forwarded-For is list-typed: repeated lines are one comma-joined value in order.
+
+    `request.headers.get` returns only the FIRST line — the one a caller can send ahead of the
+    proxy's. Reading it handed the caller an attacker-chosen identity and no limit at all.
+    Review found this; four requests against a 1/minute budget all returned 200.
+
+    `headers=` as a dict cannot express repeats, which is why the first round of tests missed it.
+    """
+
+    def _get(self, client, lines):
+        request = client.build_request(
+            "GET", "/probe",
+            headers=httpx.Headers([("x-forwarded-for", v) for v in lines]),
+        )
+        return client.send(request)
+
+    def test_a_caller_cannot_prepend_its_own_header_line(self, limited_app, monkeypatch):
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+
+        first = self._get(limited_app, ["198.51.100.0", "203.0.113.77"])
+        assert first.status_code == 200
+        assert first.json()["seen"] == "203.0.113.77", (
+            "the caller's own header line was read instead of the proxy's"
+        )
+
+        # A different forged line must not buy a fresh budget.
+        second = self._get(limited_app, ["198.51.100.1", "203.0.113.77"])
+        assert second.status_code == 429, "a caller minted a new identity by varying its own line"
+
+    def test_repeated_lines_are_joined_in_order(self, limited_app, monkeypatch):
+        """Two proxies that each emit their own line must read the same as one joined chain."""
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 2)
+
+        split = self._get(limited_app, ["203.0.113.30", "198.51.100.7"])
+        assert split.json()["seen"] == "203.0.113.30"
+
+
+class TestOnTheRealApp:
+    """AC6 as written: a real limited endpoint on the real app, not the fixture's probe route.
+
+    The probe route carries the production limiter, but "the same limiter" is an assumption about
+    wiring; this exercises a route `backend/main.py` actually serves. `/api/transparency` is the
+    tightest read-only limit (10/min), so a budget can be exhausted without side effects.
+    """
+
+    ENDPOINT = "/api/transparency"
+    LIMIT = 10
+
+    def test_two_clients_behind_one_proxy_do_not_share_a_budget(self, monkeypatch):
+        from backend.main import app
+
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+        client = TestClient(app)
+
+        def hit(ip):
+            return client.get(self.ENDPOINT, headers={"X-Forwarded-For": ip}).status_code
+
+        alice = [hit("203.0.113.60") for _ in range(self.LIMIT + 1)]
+        assert alice[-1] == 429, f"alice was never limited: {alice}"
+
+        # Bob arrives after alice exhausted her budget. Before this change he inherited her 429.
+        assert hit("203.0.113.61") != 429, "a second user was limited by someone else's traffic"
+
+    def test_one_client_is_still_limited(self, monkeypatch):
+        """The separation must not become 'nobody is limited'."""
+        from backend.main import app
+
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+        client = TestClient(app)
+
+        codes = [client.get(self.ENDPOINT, headers={"X-Forwarded-For": "203.0.113.62"}).status_code
+                 for _ in range(self.LIMIT + 1)]
+        assert codes[-1] == 429, f"the same client was never limited: {codes}"
+
+
+class TestTheKeySpaceIsBounded:
+    """A forwarded identity is chosen by whoever wrote the header, so the key space is not ours.
+
+    slowapi keeps one in-process counter per identity for the window, and its expiry sweep is
+    O(total keys) on a 0.01s timer. Before this bound, a caller able to write the entry we read
+    could mint a fresh key per request: the pre-mortem measured 2000 requests -> 2000 keys, all
+    200, where the pre-change code produced exactly ONE key behind a proxy. That is a stall the
+    old behaviour could not have had.
+
+    The bound does not stop a forged chain -- nothing here can, since the app checks the chain's
+    length and never who wrote it. It makes the failure mode the old shared bucket instead.
+    """
+
+    def test_a_flood_of_invented_identities_degrades_to_the_peer(self, monkeypatch):
+        from backend import limiter as limiter_mod
+
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+        monkeypatch.setattr(limiter_mod, "MAX_TRACKED_FORWARDED_CLIENTS", 8)
+        monkeypatch.setattr(limiter_mod, "_seen", limiter_mod.OrderedDict())
+
+        request = _request_with(["203.0.113.%d" % i for i in range(1)])
+        admitted = []
+        for i in range(40):
+            req = _request_with(["198.51.100.%d" % i])
+            admitted.append(limiter_mod.client_identity(req))
+
+        distinct = set(admitted)
+        assert len(distinct) <= 8 + 1, f"key space unbounded: {len(distinct)} distinct keys"
+        assert admitted[-1] == "10.0.0.1", "past the cap, new identities must fall back to the peer"
+        assert request is not None
+
+    def test_a_known_client_keeps_its_own_budget_under_the_flood(self, monkeypatch):
+        """The bound must not punish the clients already being tracked."""
+        from backend import limiter as limiter_mod
+
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+        monkeypatch.setattr(limiter_mod, "MAX_TRACKED_FORWARDED_CLIENTS", 4)
+        monkeypatch.setattr(limiter_mod, "_seen", limiter_mod.OrderedDict())
+
+        regular = _request_with(["203.0.113.9"])
+        assert limiter_mod.client_identity(regular) == "203.0.113.9"
+
+        for i in range(50):
+            limiter_mod.client_identity(_request_with(["198.51.100.%d" % i]))
+
+        assert limiter_mod.client_identity(regular) == "203.0.113.9", (
+            "an established client lost its own budget because someone else flooded the table"
+        )
+
+
+class TestProxiesThatAppendAPort:
+    """Azure Application Gateway appends `<ip>:<port>`. Failing to parse it is a silent no-op:
+    the operator sets the variable, restarts, and nothing changes with nothing logged."""
+
+    @pytest.mark.parametrize("entry,expected", [
+        ("203.0.113.9:51234", "203.0.113.9"),
+        ("[2001:db8::1]:443", "2001:db8::1"),
+        ("[2001:db8::1]", "2001:db8::1"),
+        ("203.0.113.9", "203.0.113.9"),
+    ])
+    def test_the_address_is_recovered(self, monkeypatch, entry, expected):
+        from backend import limiter as limiter_mod
+
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+        monkeypatch.setattr(limiter_mod, "_seen", limiter_mod.OrderedDict())
+        assert limiter_mod.client_identity(_request_with([entry])) == expected
+
+
+class TestStartupDisclosure:
+    """Both error directions are silent, so the effective mode has to be greppable."""
+
+    def test_it_names_the_mode(self, monkeypatch):
+        from backend.limiter import describe_configuration
+
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 0)
+        assert "connecting address" in describe_configuration()
+
+        monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 2)
+        described = describe_configuration()
+        assert "X-Forwarded-For" in described and "2" in described

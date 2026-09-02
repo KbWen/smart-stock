@@ -78,6 +78,12 @@ See **DB Runbook → Common Issues → DB Locked** (`docs/guides/db-operations.m
 
 **Fix:** Reduce request frequency, or for local dev set `RATE_LIMIT_DISABLED=true` (not implemented in production builds — restart server with slowapi removed for local stress testing).
 
+**If you are behind a reverse proxy and users hit 429s they did not earn:** every request looks like
+it comes from the proxy, so the whole user base shares one bucket. Set `TRUSTED_PROXY_COUNT` to the
+number of proxies you run — see `docs/CONFIGURATION.md` §Deployment Behind a Reverse Proxy. Setting
+it higher than the real number is the dangerous direction: it lets callers choose their own
+identity.
+
 ---
 
 ### `/api/smart_scan` returns 403

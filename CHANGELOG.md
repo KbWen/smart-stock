@@ -10,8 +10,9 @@ downstream then treats the unknown as known. In progress.
 
 The limiter identified every request by the address that connected to it. Put nginx, Caddy or a CDN
 in front (the ordinary way to add TLS to a container that speaks plain HTTP) and that address is the
-proxy's — so **every user shared one rate-limit bucket**, and the second person to open the app got
-a `429`. Nothing errored; the limiter kept working and counted everyone as one person.
+proxy's — so **every user shared one rate-limit bucket**: your users start collecting `429`s they
+did not earn, because someone else spent the budget. Nothing errored; the limiter kept working and
+counted everyone as one person.
 
 Set **`TRUSTED_PROXY_COUNT`** to the number of proxies you run. The default is `0` — the app is
 reached directly and behaves exactly as before.
@@ -21,11 +22,17 @@ preferring it whenever present lets anyone send a random address per request and
 all — trading "innocent users are blocked" for "rate limiting does nothing", on the endpoints that
 run a backtest. Instead the app walks back exactly the number of hops you declared, from the right
 of the header, where each of your proxies wrote what it actually saw. Anything further left came
-from outside and is ignored. If the header does not match what you declared, it falls back to the
-connecting address — degraded, never open.
+from outside and is ignored. A chain shorter than declared, or an entry that is not an address,
+falls back to the connecting address and logs a warning once.
 
-Both mistakes are described in `docs/CONFIGURATION.md`, because setting this **too high** is the
-dangerous direction and it looks just as harmless as setting it too low.
+**Be honest about what this cannot do.** The app checks the chain's *length*; it cannot check who
+wrote it. Declare more proxies than actually append the header — a typo, an nginx left on its
+default `proxy_pass`, or an origin still reachable without going through your CDN — and callers
+choose their own identity. That is now **bounded**: only a few thousand distinct forwarded
+identities get their own counter per window, and past that new ones are limited by connecting
+address, so a flood degrades to the old shared bucket rather than growing the limiter's in-process
+key store without limit. `docs/CONFIGURATION.md` states the two conditions that have to hold, and
+the startup log names the mode in force.
 
 ### Some stocks will stop showing an AI probability
 
