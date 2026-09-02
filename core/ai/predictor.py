@@ -162,9 +162,18 @@ def get_model_health() -> dict:
     Cheap: reads the cached version string + models_history.json only (no model load).
     Returns {status, version, message}:
       - 'unavailable': model not loaded/trained, or no metrics recorded
-      - 'degraded'   : zero buy-signal discriminative power (buy/strong precision+recall == 0)
+      - 'degraded'   : one of three things is true, each with its own message because they are
+                       different facts for a reader to act on --
+                         (a) the entry has no `embargo` key, so its metrics predate the
+                             date-based embargo and are contaminated by construction;
+                         (b) StrongBuy lift is <= 1.0, i.e. the model is at or below the base
+                             rate on the class the product acts on;
+                         (c) zero buy-signal power (all buy/strong precision+recall are 0).
       - 'ok'         : otherwise
     `message` is an honest, user-facing zh-TW string for non-ok states ('' for ok).
+
+    This function fails TOWARD disclosure: anything it cannot evaluate resolves to 'degraded' or
+    'unavailable', never to 'ok'.
     """
     version = get_model_version()
     if not version or version == "unknown":
@@ -199,6 +208,47 @@ def get_model_health() -> dict:
             "message": (
                 "AI 模型對買訊的辨識力不足（買進/強買的準確率與召回率為 0）。"
                 "AI 機率僅供參考，請勿單獨作為買賣依據。"
+            ),
+        }
+
+    # An entry without an `embargo` block predates 2026-09-02, when the train/test embargo was
+    # measured in pooled ROWS rather than trading days -- on the real panel that separated the two
+    # sides by 0 days, so the metrics above were never out-of-sample. Do not present them as a
+    # healthy model just because they look non-zero.
+    if not (entry or {}).get("embargo"):
+        return {
+            "status": "degraded",
+            "version": version,
+            "message": (
+                "此模型的評估指標是在舊的切分方式下產生的（訓練集與測試集實際上沒有隔離），"
+                "數字並非真正的樣本外結果。重新訓練後才會有可信的指標；在那之前 AI 機率僅供參考。"
+            ),
+        }
+
+    # Precision without its base rate is unreadable. A lift of 1.0 means the model is no better
+    # than guessing at the class prevalence, so <= 1.0 is disclosed as degraded rather than shown
+    # as a working model. Absent lift (older entry) does not trigger this branch -- the embargo
+    # check above already caught those.
+    # A post-embargo entry always carries lift_strong (trainer writes both together), so its
+    # absence means a hand-edited or partially-written entry -- something we cannot evaluate.
+    # The constraint is to fail TOWARD disclosure, so that resolves to degraded, not ok.
+    lift_strong = metrics.get("lift_strong")
+    if lift_strong is None:
+        return {
+            "status": "degraded",
+            "version": version,
+            "message": (
+                "此模型缺少與基準比例的對照（提升倍數），無法判斷它是否真的優於隨機猜測。"
+                "AI 機率僅供參考，請勿單獨作為買賣依據。"
+            ),
+        }
+    if _metric(lift_strong) <= 1.0:
+        return {
+            "status": "degraded",
+            "version": version,
+            "message": (
+                f"AI 模型在「強買」上的準確率並未優於基準比例（提升倍數 {_metric(lift_strong):.2f}×，"
+                "1.0 代表與隨機猜測基準相同）。AI 機率僅供參考，請勿單獨作為買賣依據。"
             ),
         }
 

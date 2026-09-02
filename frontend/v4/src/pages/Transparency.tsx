@@ -11,6 +11,10 @@ interface OosMetrics {
     f1_strong?: number | null
     precision_buy?: number | null
     recall_buy?: number | null
+    // precision / test-split prevalence. 1.0 = no better than guessing at the base rate.
+    // null when the class is absent from the test split — there is no base rate to divide by.
+    lift_strong?: number | null
+    lift_buy?: number | null
 }
 
 interface TransparencyData {
@@ -33,8 +37,15 @@ interface TransparencyData {
         trained_at?: string | null
         samples?: number | null
         test_samples?: number | null
-        class_distribution?: { hold: number; buy: number; strong: number } | null
+        train_class_distribution?: { hold: number; buy: number; strong: number } | null
+        test_class_distribution?: { hold: number; buy: number; strong: number } | null
         oos_metrics?: OosMetrics | null
+        // "split_model" => the metrics describe the 80%-split ensemble, not the full-data refit
+        // that ships. Absent => the entry predates 2026-09-02.
+        oos_metrics_scope?: string | null
+        // Absent => metrics produced under the old row-based split, which separated train from
+        // test by 0 trading days. Contaminated by construction.
+        embargo?: { days?: number | null; cut_date?: string | null } | null
     }
 }
 
@@ -164,7 +175,17 @@ const Transparency: React.FC = () => {
                                     <p className="mb-3 text-[11px] text-dark-muted">
                                         以下為訓練 universe 上的<strong className="text-dark-text">樣本外 (OOS)</strong> 評估，
                                         <strong className="text-dark-text">不是對未來的保證</strong>。
+                                        這些數字是在 <strong className="text-dark-text">80/20 切分</strong>的模型上量到的；
+                                        實際出貨的模型是用全部資料重新訓練的另一個模型。
                                     </p>
+                                    {data.model.oos_metrics && !data.model.embargo && (
+                                        <p className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-[11px] leading-relaxed text-red-300">
+                                            <strong>這批指標並非真正的樣本外結果。</strong>
+                                            它們是在 2026-09-02 之前的舊切分方式下產生的 —— 當時訓練集與測試集的隔離以「列數」計算，
+                                            在本專案的資料面板上實際隔離為 <strong>0 個交易日</strong>，
+                                            也就是模型在被評分的那段期間上訓練過。重新訓練後才會有可信的數字。
+                                        </p>
+                                    )}
                                     {data.model.oos_metrics ? (
                                         <>
                                             <div className="mb-3 grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
@@ -173,18 +194,40 @@ const Transparency: React.FC = () => {
                                                 <Metric label="測試樣本" value={fmtNum(data.model.test_samples)} />
                                                 <Metric label="版本" value={data.model.version} />
                                             </div>
-                                            {data.model.class_distribution && (
+                                            {data.model.train_class_distribution && (
                                                 <div className="mb-3 rounded-lg border border-dark-border/40 bg-dark-bg/30 p-3">
                                                     <div className="mb-1 text-[10px] uppercase tracking-wider text-dark-muted">
-                                                        訓練標籤分布（類別越不平衡，上面的「整體正確率」越容易被灌高）
+                                                        <strong>訓練集</strong>標籤分布（類別越不平衡，上面的「整體正確率」越容易被灌高）
                                                     </div>
                                                     <div className="flex flex-wrap gap-4 text-sm text-white">
-                                                        <span>持有 {fmtPct(data.model.class_distribution.hold)}</span>
-                                                        <span>買進 {fmtPct(data.model.class_distribution.buy)}</span>
-                                                        <span>強買 {fmtPct(data.model.class_distribution.strong)}</span>
+                                                        <span>持有 {fmtPct(data.model.train_class_distribution.hold)}</span>
+                                                        <span>買進 {fmtPct(data.model.train_class_distribution.buy)}</span>
+                                                        <span>強買 {fmtPct(data.model.train_class_distribution.strong)}</span>
                                                     </div>
                                                 </div>
                                             )}
+                                            {data.model.test_class_distribution && (
+                                                <div className="mb-3 rounded-lg border border-sniper-gold/30 bg-dark-bg/30 p-3">
+                                                    <div className="mb-1 text-[10px] uppercase tracking-wider text-dark-muted">
+                                                        <strong>測試集</strong>標籤分布 —— 這才是下面精確率該比對的基準比例
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-4 text-sm text-white">
+                                                        <span>持有 {fmtPct(data.model.test_class_distribution.hold)}</span>
+                                                        <span>買進 {fmtPct(data.model.test_class_distribution.buy)}</span>
+                                                        <span>強買 {fmtPct(data.model.test_class_distribution.strong)}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <LiftRow
+                                                label="強買提升倍數"
+                                                plain="強買精確率 ÷ 測試集強買比例。1.0 代表與「照基準比例亂猜」一樣好。"
+                                                value={data.model.oos_metrics?.lift_strong}
+                                            />
+                                            <LiftRow
+                                                label="買進提升倍數"
+                                                plain="買進精確率 ÷ 測試集買進比例。低於 1.0 代表比亂猜還差。"
+                                                value={data.model.oos_metrics?.lift_buy}
+                                            />
                                             <div className="space-y-2">
                                                 {OOS_LABELS.map((m) => (
                                                     <div key={m.key} className="flex items-start justify-between gap-3 border-t border-dark-border/30 pt-2">
@@ -208,6 +251,33 @@ const Transparency: React.FC = () => {
                     </div>
                 </>
             )}
+        </div>
+    )
+}
+
+/**
+ * A lift is precision divided by the test-split base rate. It is the number that makes a raw
+ * precision readable, so it is rendered as a verdict rather than as a neutral figure: at or below
+ * 1.0 the model is not beating a coin weighted to the class prevalence, and saying so is the whole
+ * point of this panel.
+ */
+const LiftRow: React.FC<{ label: string; plain: string; value?: number | null }> = ({ label, plain, value }) => {
+    const hasValue = typeof value === 'number' && Number.isFinite(value)
+    const noEdge = hasValue && (value as number) <= 1.0
+    return (
+        <div className="mb-3 flex items-start justify-between gap-3 rounded-lg border border-dark-border/40 bg-dark-bg/30 p-3">
+            <div>
+                <div className="text-sm text-white">{label}</div>
+                <div className="text-[10px] leading-tight text-dark-muted">{plain}</div>
+                {noEdge && (
+                    <div className="mt-1 text-[10px] font-semibold text-red-400">
+                        未優於基準比例 —— 這個類別上模型沒有可用的優勢。
+                    </div>
+                )}
+            </div>
+            <div className={`shrink-0 font-mono text-sm ${noEdge ? 'text-red-400' : hasValue ? 'text-white' : 'text-dark-muted'}`}>
+                {hasValue ? `${(value as number).toFixed(2)}×` : '—'}
+            </div>
         </div>
     )
 }

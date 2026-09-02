@@ -98,12 +98,17 @@ class TestModelHealth:
         assert h["message"]
 
     def test_ok_when_model_has_buy_power(self, monkeypatch):
+        """`ok` now requires more than non-zero metrics: an `embargo` block proving the numbers
+        are actually out-of-sample, and a StrongBuy lift above the test-split base rate."""
         import core.ai.predictor as predictor
         monkeypatch.setattr(predictor, "get_model_version", lambda: "v4.good")
         monkeypatch.setattr(predictor, "list_available_models", lambda: [
-            {"version": "v4.good", "oos_metrics": {
+            {"version": "v4.good",
+             "embargo": {"days": 21, "basis": "trading_days"},
+             "oos_metrics": {
                 "precision_buy": 0.4, "recall_buy": 0.3,
-                "precision_strong": 0.2, "recall_strong": 0.1}},
+                "precision_strong": 0.2, "recall_strong": 0.1,
+                "lift_strong": 2.0, "lift_buy": 1.6}},
         ])
         h = predictor.get_model_health()
         assert h["status"] == "ok"

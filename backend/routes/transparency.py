@@ -89,8 +89,18 @@ def _compute_transparency() -> dict:
         "trained_at": entry.get("trained_at") or entry.get("timestamp"),
         "samples": entry.get("samples"),
         "test_samples": entry.get("test_samples"),
-        "class_distribution": entry.get("class_distribution"),
+        # Both distributions are exposed, explicitly named. The panel used to render the TRAIN
+        # distribution under an "OOS" heading, so a reader took it as the denominator for the
+        # precision beside it -- it never was.
+        "train_class_distribution": entry.get("class_distribution"),
+        "test_class_distribution": entry.get("test_class_distribution"),
         "oos_metrics": entry.get("oos_metrics") or None,
+        # "split_model" means the metrics describe the 80%-split ensemble, not the full-data
+        # refit that ships. Absent => the entry predates 2026-09-02.
+        "oos_metrics_scope": entry.get("oos_metrics_scope"),
+        # Absent `embargo` => metrics produced under the old row-based split, which separated
+        # train from test by 0 trading days. Contaminated by construction.
+        "embargo": entry.get("embargo"),
     }
 
     return {"data": data, "model": model}
