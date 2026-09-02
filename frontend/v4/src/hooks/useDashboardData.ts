@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCachedApi } from './useCachedApi'
 import { invalidateApiCache } from '../lib/apiClient'
+import { BREADTH_COLOR, BREADTH_LABEL, breadthOf } from '../lib/breadth'
 
 export interface MarketHistory {
     timestamp: string
@@ -19,7 +20,7 @@ export interface MarketStatus {
     bull_ratio: number
     market_temp: number
     ai_sentiment: number
-    risk_level: string
+    breadth_level: string
     total_stocks: number
     model_version: string
     model_health?: ModelHealth
@@ -77,12 +78,9 @@ export const useDashboardData = () => {
         currentTicker: '',
     })
 
-    const riskColorClass = useMemo(() => {
-        if (!market) return 'text-dark-muted'
-        if (market.risk_level.includes('HIGH')) return 'text-red-500'
-        if (market.risk_level.includes('LOW')) return 'text-sniper-green'
-        return 'text-yellow-500'
-    }, [market])
+    const breadth = useMemo(() => breadthOf(market?.breadth_level), [market])
+    const riskColorClass = useMemo(() => BREADTH_COLOR[breadth], [breadth])
+    const breadthLabel = useMemo(() => BREADTH_LABEL[breadth], [breadth])
 
     const lastUpdated = useMemo(() => {
         return market?.history?.[market.history.length - 1]?.timestamp || '未知'
@@ -172,6 +170,7 @@ export const useDashboardData = () => {
         isPlaceholder,
         marketError,
         riskColorClass,
+        breadthLabel,
         lastUpdated,
         dbUpdatedAt,
         isDbStale,

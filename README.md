@@ -234,7 +234,7 @@ cd frontend/v4 && npm run dev   # → http://localhost:5173
 | 功能 | 說明 |
 | :--- | :--- |
 | **Ensemble V4 AI** | 結合三種異質機器學習模型 (GB, RF, MLP)，並整合 **Rise Score** 技術指標分數作為訓練特徵，大幅提升預測穩定性。 |
-| **Time-Series Split** | 訓練模型採用嚴格的「時間序列漫步驗證 (Walk-Forward Validation)」，切分 80/20 時間軸，完全杜絕傳統交叉驗證「用未來預測過去」的資料外洩 (Data Leakage) 漏洞。 |
+| **Time-Series Split** | 訓練採 80/20 時間序列切分，訓練集與測試集之間隔離 `PRED_DAYS` 個**交易日**（從資料本身的日曆取得），使標籤的 20 日觀察窗不會延伸進測試區間。這消除的是訓練/測試的時序外洩；**回測仍在用一個訓練期涵蓋該區間的模型評分，且存活者偏差未處理** — 尚未解決的項目逐條列在 [`docs/DATA_INTEGRITY.md`](docs/DATA_INTEGRITY.md)。2026-09-02 前此處寫「完全杜絕」，而當時的隔離實測為 0 個交易日。 |
 | **Model Versioning** | 完整模型版本管理系統，自動追蹤訓練版本與同步時間，確保 UI 排名與策略回測結果 100% 一致。 |
 | **Smart Sync 2.0** | 偵測資料過期 (>6h)，支援手動觸發背景同步（非阻塞）。並行同步技術 (`ThreadPoolExecutor`，預設 5 workers) 加速資料抓取。 |
 | **Stability Plus** | 啟用 SQLite WAL 模式與並行鎖定處理，確保在高強度同步與 API 請求同時發生時系統依然穩定不噴錯。 |

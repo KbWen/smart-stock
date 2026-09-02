@@ -7,7 +7,7 @@ const createMarketStatus = (overrides: Partial<MarketStatus> = {}): MarketStatus
     bull_ratio: 58.5,
     market_temp: 62.3,
     ai_sentiment: 71.2,
-    risk_level: '中性',
+    breadth_level: 'NEUTRAL',
     total_stocks: 1200,
     model_version: 'v4.2',
     history: [],
@@ -32,8 +32,8 @@ describe('MarketStatusHeader', () => {
         expect(screen.getByText('71.2')).toBeInTheDocument()
 
         // Risk level card
-        expect(screen.getByText('風險等級')).toBeInTheDocument()
-        expect(screen.getByText('中性')).toBeInTheDocument()
+        expect(screen.getByText('多頭廣度')).toBeInTheDocument()
+        expect(screen.getByText('中性')).toBeInTheDocument()  // BREADTH_LABEL.NEUTRAL
     })
 
     it('shows model version in AI sentiment subtitle', () => {
@@ -72,13 +72,15 @@ describe('MarketStatusHeader', () => {
     it('applies riskColorClass to risk level value', () => {
         render(
             <MarketStatusHeader
-                market={createMarketStatus({ risk_level: '積極' })}
+                market={createMarketStatus({ breadth_level: 'BULLISH' })}
                 isLoading={false}
                 riskColorClass="text-sniper-green"
             />,
         )
-        const riskValue = screen.getByText('積極')
-        expect(riskValue.className).toContain('text-sniper-green')
+        // BULLISH maps to a breadth label and colour in src/lib/breadth.ts, not to substring
+        // matching on the display string -- which is what made the old logic silently fragile.
+        const breadthValue = screen.getByText('偏多 (廣度高)')
+        expect(breadthValue.className).toContain('text-sniper-green')
     })
 
     it('passes isLoading to all three StatCards', () => {

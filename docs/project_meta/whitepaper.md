@@ -86,7 +86,13 @@ To solve the "black box" problem of AI, the system includes an explanation layer
 To prevent overfitting and survivorship bias:
 
 * **Time-Series Splitting**: We use strict historical splitting for training. The model never "sees" the future during its training phase.
-* **Adjusted OHLC Data**: Market data is fetched with `auto_adjust=True` to reduce distortions from dividends/splits and keep return labeling consistent.
+* **OHLC adjustment basis — a known open issue, not a guarantee**: the per-ticker yfinance path
+  (`core/data.py`) fetches with `auto_adjust=True`, but the bulk path (`core/bulk_history.py`) writes
+  **raw** TWSE/TPEX closes, and `stock_history` has no `source` column to distinguish them. A single
+  ticker's series can therefore mix both bases, and each splice point turns a dividend or split into
+  a fake overnight return that feeds `return_1d`, ATR and the triple-barrier labels. Corporate actions
+  specific to Taiwan (減資, rights issues) are not handled at all. Until 2026-09-02 this line asserted
+  `auto_adjust=True` as a system-wide property, which has been false since the bulk path shipped.
 * **Chronological Sanitization**: Downloaded OHLCV is re-sorted by date and de-duplicated per trading day before persistence.
 * **Normalized Features**: All price-based features are relative (percentages) to ensure the model generalizes across different stock price ranges (e.g., a $10 penny stock vs a $1000 blue chip).
 

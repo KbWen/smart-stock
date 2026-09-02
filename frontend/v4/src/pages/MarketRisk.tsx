@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, Cpu, Database, Info, ShieldAlert, Thermometer 
 import Tooltip from '../components/Tooltip'
 import { useCachedApi } from '../hooks/useCachedApi'
 import type { MarketStatus } from '../hooks/useDashboardData'
+import { BREADTH_COLOR, BREADTH_LABEL, BREADTH_TOOLTIP, breadthOf } from '../lib/breadth'
 
 const MarketRiskHistoryChart = lazy(() => import('../components/charts/MarketRiskHistoryChart'))
 
@@ -13,16 +14,8 @@ const MarketRisk: React.FC = () => {
         throttleMs: 600,
     })
 
-    const riskColorClass = useMemo(() => {
-        if (!data) return 'text-dark-muted'
-        if (data.risk_level.includes('HIGH')) {
-            return 'text-red-500'
-        }
-        if (data.risk_level.includes('LOW')) {
-            return 'text-sniper-green'
-        }
-        return 'text-yellow-500'
-    }, [data])
+    const breadth = useMemo(() => breadthOf(data?.breadth_level), [data])
+    const riskColorClass = useMemo(() => BREADTH_COLOR[breadth], [breadth])
 
     if (loading && !data) {
         return <div className="p-6 text-dark-muted">市場風險掃描中…</div>
@@ -71,7 +64,7 @@ const MarketRisk: React.FC = () => {
                 <div className="flex flex-col justify-between rounded-xl border border-dark-border bg-dark-card p-6 shadow-lg">
                     <div className="mb-4 flex items-center gap-2">
                         <h3 className="text-lg font-semibold tracking-wide text-white">市場狀態 (Market Status)</h3>
-                        <Tooltip content="根據動量均值與系統風險評估當前市場過熱或過冷。">
+                        <Tooltip content={BREADTH_TOOLTIP}>
                             <Info size={14} className="text-dark-muted opacity-50" />
                         </Tooltip>
                     </div>
@@ -83,8 +76,8 @@ const MarketRisk: React.FC = () => {
                         </div>
                         <div className="rounded-lg border border-dark-border bg-dark-bg/30 p-4">
                             <ShieldAlert className={`mb-2 ${riskColorClass}`} size={20} />
-                            <div className="text-sm text-dark-muted">風險等級</div>
-                            <div className={`text-2xl font-bold ${riskColorClass}`}>{data.risk_level}</div>
+                            <div className="text-sm text-dark-muted">多頭廣度</div>
+                            <div className={`text-2xl font-bold ${riskColorClass}`}>{BREADTH_LABEL[breadth]}</div>
                         </div>
                     </div>
                 </div>
