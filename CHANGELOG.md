@@ -29,6 +29,25 @@ barrier. The old code fabricated a zero there. On the dev data at shipped settin
 the *only* number the release moves, because the honestly-weak model admits one candidate that
 touches no barrier.
 
+### The AI's out-of-sample numbers were not out-of-sample
+
+The training embargo was measured in **pooled rows**, not days. On a panel stacking N tickers, one
+calendar day is N rows, so removing `PRED_DAYS = 20` rows removed a fraction of a day. Measured on
+the real 92-ticker panel, the split separated train from test by **zero trading days** — while every
+label looks forward 20 trading days. The model was scored on outcomes it had been trained on.
+
+The embargo is now counted in trading days from the data's own calendar. Retraining will produce
+**worse** numbers, which is the correct direction: on the same panel and seed, StrongBuy recall
+falls 0.744 → 0.629 and precision 0.352 → 0.345.
+
+**Your existing `oos_metrics` are stale**, in `models_history.json` and on `/transparency`. This
+release does not force a retrain and does not silently rewrite them; the contamination is disclosed
+in `docs/specs/ml-label-oos-evaluation.md`, whose 2026-06-13 ATR-vs-fixed table is now marked as
+superseded and kept verbatim as the record of what was believed at the time.
+
+Training now **aborts with an explicit message** if the data cannot support a clean embargo, rather
+than quietly shrinking it. A published number that cannot be computed honestly is worse than no model.
+
 Note for anyone with a populated `models_history.json`: `backtest_30d.profit_factor` entries written
 before this change are **not comparable** to ones written after, and model rotation ranks on that
 field.
