@@ -23,7 +23,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-RECALC_LOOKBACK_DAYS = 420
+# Calendar days, and `load_from_db` anchors the window on `datetime.now()` -- so the number of
+# TRADING ROWS this yields shrinks as the database ages. It must stay well clear of
+# MIN_FEATURE_ROWS (250), or predict_prob() correctly refuses the entire universe: at 420 days the
+# shipped 92-ticker DB produced ~225 rows per ticker and 91 of 92 lost their AI probability.
+# 730 matches `load_from_db`'s own default and the sync path (backend/routes/sync.py), so the same
+# stock can no longer get opposite verdicts on the same day depending on which writer ran last.
+# test_recalculate.py pins the relationship to MIN_FEATURE_ROWS.
+RECALC_LOOKBACK_DAYS = 730
 
 
 def _load_target_tickers(incremental: bool, stale_hours: int, model_version: str) -> list[str]:
@@ -101,7 +108,11 @@ def recalculate_all(incremental: bool = True, stale_hours: int = 6):
             if is_v4:
                 df = compute_v4_indicators(df)
                 df = calculate_rise_score_v2(df)
-                # Prevent NaN propagation to frontend/API payloads.
+                # Prevent NaN propagation to frontend/API payloads. DISPLAY ONLY --
+                # `df_for_model` keeps the NaNs so predict_prob() can still tell which
+                # features could not be computed and refuse rather than score an invented
+                # input. See docs/specs/unknown-is-not-zero-ml-features.md.
+                df_for_model = df
                 df = df.fillna(0)
                 last_row = df.iloc[-1]
                 score = {
@@ -128,7 +139,7 @@ def recalculate_all(incremental: bool = True, stale_hours: int = 6):
             if cache_key in ai_cache:
                 ai_prob = ai_cache[cache_key]
             else:
-                ai_result = predict_prob(df)
+                ai_result = predict_prob(df_for_model)
                 # None = prediction unavailable (stored as NULL, not a fake 0.0)
                 ai_prob = ai_result.get('prob') if isinstance(ai_result, dict) else ai_result
                 ai_cache[cache_key] = ai_prob

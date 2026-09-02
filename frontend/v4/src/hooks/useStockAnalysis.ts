@@ -14,6 +14,9 @@ export interface StockDetail {
         volatility: number
     }
     ai_probability: number | null  // null = prediction unavailable (honest, not a fake 0)
+    // Machine token for WHY there is no number, when the backend can attribute it.
+    // null when the cause is the model rather than the data -- model_health reports that.
+    ai_unavailable_reason?: 'insufficient_history' | null
     analyst_summary: string
     updated_at?: string
     signals: {

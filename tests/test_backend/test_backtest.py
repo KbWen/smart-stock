@@ -998,3 +998,46 @@ def test_calendar_prepass_survives_a_long_run_of_empty_candidates(monkeypatch):
     assert "error" not in result or result.get("error") is None
     assert result["simulated_date"] is not None
     assert len(result["top_picks"]) == 3
+
+
+def test_a_refusal_is_counted_not_booked_as_a_low_score(monkeypatch):
+    """docs/specs/unknown-is-not-zero-ml-features.md: a refusal must not become a 0% forecast.
+
+    `ai_prob = ... or 0.0` turned `None` into `0.0`, which then failed the AI threshold and
+    dropped the candidate through the STRATEGY filter — indistinguishable in the response from a
+    stock the model scored and rejected. That is the substitution this epic exists to remove,
+    reappearing one layer down in the module that produces the headline performance numbers.
+
+    Falsifiable: restore the `or 0.0` coercion and `excluded_unscorable` goes to 0.
+    """
+    dates = pd.date_range("2024-01-01", periods=8, freq="D")
+    df = pd.DataFrame({
+        "date": dates,
+        "open": [10, 11, 12, 13, 14, 15, 16, 17],
+        "high": [10, 11, 12, 13, 14, 15, 16, 17],
+        "low": [10, 11, 12, 13, 14, 15, 16, 17],
+        "close": [10, 11, 12, 13, 14, 15, 16, 17],
+        "volume": [1000] * 8,
+    })
+
+    monkeypatch.setattr(backtest, "get_all_tw_stocks",
+                        lambda: [{"code": "2330", "name": "TSMC"}, {"code": "2317", "name": "HonHai"}])
+    monkeypatch.setattr(backtest, "_load_from_db", lambda ticker, **_kwargs: df)
+
+    from core import indicators_v2, rise_score_v2
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda in_df: in_df)
+    monkeypatch.setattr(rise_score_v2, "calculate_rise_score_v2",
+                        lambda in_df: in_df.assign(total_score_v2=5.0))
+    # The model refuses: a feature could not be computed from this window.
+    monkeypatch.setattr(backtest, "predict_prob", lambda *_a, **_k: None)
+
+    result = backtest.run_time_machine(days_ago=3, limit=5)
+
+    assert result["excluded_unscorable"] == 2, (
+        "a stock the model refused to score was booked as a strategy rejection"
+    )
+    # "No stocks met requirements" alone would read as "the strategy filtered everything out".
+    # The counts have to survive onto this branch or the reader cannot tell the two apart.
+    assert result["error"] == "No stocks met requirements"
+    assert result["candidates_considered"] == 2
+    assert result["excluded_no_price_rows"] == 0

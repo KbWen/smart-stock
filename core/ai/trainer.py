@@ -180,8 +180,12 @@ def prepare_features(df, is_training=True):
     df[FEATURE_COLS] = df[FEATURE_COLS].replace([np.inf, -np.inf], np.nan)
     if is_training:
         df[FEATURE_COLS] = df[FEATURE_COLS].ffill()
-    else:
-        df[FEATURE_COLS] = df[FEATURE_COLS].ffill().bfill()
+    # Prediction fills nothing. It used to `ffill().bfill()`: the bfill could never reach the
+    # prediction row (it is the last one, so there is no later value to pull back) but the ffill
+    # could, carrying YESTERDAY's indicator into today whenever today's is uncomputable. That is
+    # a quieter version of the same defect -- a stale number is still a number the model reads as
+    # an observation of today. Measured on the 92-ticker dev panel: 0 latest rows depend on it.
+    # See docs/specs/unknown-is-not-zero-ml-features.md (AC1, amended).
 
     # Prediction only needs features, but we MUST NOT drop the last PRED_DAYS if is_training=False
     if is_training:
@@ -196,8 +200,14 @@ def prepare_features(df, is_training=True):
         # Drop warmup rows where long-period indicators (SMA240 etc.) are still NaN
         # after ffill. These rows pre-date the first valid indicator value and would
         # otherwise be filled with 0, biasing the model with fake "zero" features.
+        # This line is load-bearing: it is what keeps the training panel clean, and
+        # test_unknown_is_not_zero.py fails if it is removed.
         df_clean = df_clean.dropna(subset=FEATURE_COLS)
-    df_clean[FEATURE_COLS] = df_clean[FEATURE_COLS].fillna(0)
+    # Prediction deliberately keeps NaN/inf. An uncomputable feature must reach
+    # predict_prob() so it can refuse; a 0 here would be a specific, plausible, wrong
+    # claim about the stock rather than a blank. There used to be an unconditional
+    # `.fillna(0)` on this line -- it was a no-op for training (the dropna above already
+    # removed those rows) and the entire defect for prediction.
     
     if df_clean.empty:
         return pd.DataFrame(), pd.Series()

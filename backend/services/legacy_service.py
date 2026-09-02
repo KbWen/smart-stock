@@ -9,6 +9,7 @@ from backend.repositories.score_repo import ScoreRepository
 from backend.repositories.stock_repo import StockRepository
 from backend.repositories.system_repo import SystemRepository
 from core.ai import predict_prob, get_model_version
+from core.ai.common import MIN_FEATURE_ROWS
 from core.analysis import generate_analysis_report
 from core.alerts import check_smart_conditions
 from core.features import compute_all_indicators
@@ -35,7 +36,13 @@ class LegacyStockDetailService:
         from core.rise_score_v2 import calculate_rise_score_v2
 
         df = compute_v4_indicators(df)
-        df = calculate_rise_score_v2(df)
+        # The zero-fill below is for DISPLAY only. The model must be given the frame with
+        # its NaNs intact, or an indicator that could not be computed arrives as a real
+        # value: `sma_240 = 0` makes `dist_sma240` a finite astronomical number, and
+        # filling `dist_sma240` itself asserts "the price sits exactly on its 240-day
+        # mean". Either way predict_prob() can no longer tell that anything is missing.
+        # See docs/specs/unknown-is-not-zero-ml-features.md.
+        df_for_model = df
         df = df.fillna(0)
         last_row = df.iloc[-1]
         
@@ -56,7 +63,7 @@ class LegacyStockDetailService:
         )
         score["analysis"] = analysis_report
 
-        ai_result = self.predict_prob(df)
+        ai_result = self.predict_prob(df_for_model)
         ai_prob = None  # None = prediction unavailable (rendered as N/A, not a fake 0.0)
         ai_details = {}
 
@@ -67,6 +74,13 @@ class LegacyStockDetailService:
             ai_prob = ai_result
 
         score["ai_details"] = ai_details
+
+        # Why there is no AI number, when this feature can attribute it. An absent or
+        # unloadable model is already reported by model_health, so it is NOT relabelled
+        # here as a data problem -- the reason stays null in that case.
+        ai_unavailable_reason = None
+        if ai_prob is None and len(df_for_model) < MIN_FEATURE_ROWS and get_model_version() != "unknown":
+            ai_unavailable_reason = "insufficient_history"
 
         last_price = float(last_row.get("close", 0) or 0)
         history = df.tail(30)[["date", "close", "volume"]].to_dict("records")
@@ -92,6 +106,7 @@ class LegacyStockDetailService:
             "updated_at": db_updated_at,
             "score": score,
             "ai_probability": ai_prob,
+            "ai_unavailable_reason": ai_unavailable_reason,
             # Static ±15%/−5% rule-of-thumb band — NOT model-derived (renamed from ai_*).
             "heuristic_target_price": round(last_price * 1.15, 2) if last_price else 0,
             "heuristic_stop_price": round(last_price * 0.95, 2) if last_price else 0,

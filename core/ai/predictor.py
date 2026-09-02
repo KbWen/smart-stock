@@ -11,7 +11,9 @@ import logging
 import threading
 from collections import OrderedDict
 from typing import Optional
-from core.ai.common import FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE, validate_version_string, MIN_PREDICT_ROWS
+from core.logger import setup_logger
+from core.ai.common import (FEATURE_COLS, MODEL_PATH, MAX_PREDICTION_CACHE_SIZE, VERSION_RE,
+                            validate_version_string, MIN_PREDICT_ROWS, uncomputable_features)
 from core import config as _cfg
 
 # ---------------------------------------------------------------------------
@@ -25,7 +27,8 @@ _cache_lock = threading.Lock()
 _model_cache: OrderedDict = OrderedDict()
 _MAX_CACHED_MODELS = MAX_PREDICTION_CACHE_SIZE
 
-logger = logging.getLogger(__name__)
+logger = setup_logger("core.ai.predictor")  # app.log, not lastResort -- a refusal an operator
+                                            # cannot find is not attributable (AC4)
 
 
 def _read_sidecar(path: str) -> Optional[str]:
@@ -289,6 +292,17 @@ def get_model_health() -> dict:
     return {"status": "ok", "reason": "ok", "version": version, "message": ""}
 
 
+def _ticker_of(df) -> str:
+    """Best-effort ticker for a log line. A refusal nobody can attribute to a stock is not
+    attributable at all -- and sync.py runs this across the universe under a thread pool."""
+    try:
+        if "ticker" in df.columns and len(df):
+            return str(df["ticker"].iloc[-1])
+    except Exception:
+        pass
+    return "<unknown ticker>"
+
+
 def predict_prob(df, version: Optional[str] = None):
     """
     Predicts buy probability. Supports specific version loading with caching.
@@ -351,7 +365,19 @@ def predict_prob(df, version: Optional[str] = None):
 
         # Take only the latest row for prediction
         X_single = X_df.iloc[[-1]]
-        X_single = X_single.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+        # Refuse rather than substitute. A feature that could not be computed used to be
+        # filled with 0, which for dist_sma240 asserts "the price sits exactly on its
+        # 240-day mean" -- a specific, plausible, invented claim the model cannot tell
+        # apart from a real one. `None` is this function's existing failure contract, so
+        # ai_prob is stored NULL and rendered N/A, which is true.
+        unusable = uncomputable_features(X_single.iloc[0])
+        if unusable:
+            logger.warning(
+                "Refusing to predict %s: %d of %d features could not be computed from %d rows (%s)",
+                _ticker_of(df), len(unusable), len(FEATURE_COLS), len(df), ", ".join(unusable),
+            )
+            return None
 
         if isinstance(model_data, dict):
             # Ensemble Voting
@@ -359,9 +385,19 @@ def predict_prob(df, version: Optional[str] = None):
             total_prob = 0
             count = 0
             for name, clf in model_data.items():
-                # Robust Feature Mapping (sklearn 1.0+ feature_names_in_)
+                # Robust Feature Mapping (sklearn 1.0+ feature_names_in_).
+                # A column the model wants but the frame does not have is NOT invented as 0
+                # -- that is the same defect as the fill above, reached from a model trained
+                # against a different FEATURE_COLS.
                 if hasattr(clf, "feature_names_in_"):
-                    X_clf = X_single.reindex(columns=clf.feature_names_in_, fill_value=0)
+                    absent = [c for c in clf.feature_names_in_ if c not in X_single.columns]
+                    if absent:
+                        logger.warning(
+                            "Refusing to predict %s: model %r expects features this frame does "
+                            "not have (%s)", _ticker_of(df), name, ", ".join(map(str, absent)),
+                        )
+                        return None
+                    X_clf = X_single.reindex(columns=clf.feature_names_in_)
                 else:
                     X_clf = X_single
 
@@ -393,7 +429,14 @@ def predict_prob(df, version: Optional[str] = None):
             # Single model (Legacy support)
             clf = model_data
             if hasattr(clf, "feature_names_in_"):
-                X_clf = X_single.reindex(columns=clf.feature_names_in_, fill_value=0)
+                absent = [c for c in clf.feature_names_in_ if c not in X_single.columns]
+                if absent:
+                    logger.warning(
+                        "Refusing to predict %s: legacy model expects features this frame does "
+                        "not have (%s)", _ticker_of(df), ", ".join(map(str, absent)),
+                    )
+                    return None
+                X_clf = X_single.reindex(columns=clf.feature_names_in_)
             else:
                 X_clf = X_single
             p_vec  = clf.predict_proba(X_clf)[0]

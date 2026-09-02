@@ -23,6 +23,7 @@ interface ScoreBreakdownProps {
         volatility: number
     }
     aiProbability: number | null
+    aiUnavailableReason?: 'insufficient_history' | null
     signals?: ScoreSignals | null
     modelHealth?: ScoreModelHealth | null
 }
@@ -73,7 +74,30 @@ function useCountUp(target: number, duration = 1000): number {
     return display
 }
 
-const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability, signals, modelHealth }) => {
+// Why there is no AI number. The old copy asserted a single cause ("no model trained yet"),
+// which is wrong for a stock whose history is simply too short — the same mistake the model-health
+// chip made before it was keyed on a machine reason. Text lives here; the API sends only the token.
+const AI_UNAVAILABLE_TOOLTIP: Record<string, string> = {
+    insufficient_history:
+        '這檔股票的歷史資料不足 250 個交易日，年線距離、年線斜率這類長週期特徵算不出來。' +
+        '本專案選擇不預測，而不是用 0 補一個看起來合理的數字 —— 技術分數仍正常運作。',
+}
+const AI_UNAVAILABLE_NO_MODEL = '尚未訓練 AI 模型，技術分數仍正常運作。執行 train_ai.py 即可啟用。'
+// The backend cannot always attribute the cause -- the cached-DB branch of /api/v4/stock does not
+// load price history, and that branch serves most requests. But when model_health says the model is
+// fine, we can at least refuse to blame it: telling someone to run train_ai.py for a stock whose
+// model is loaded and healthy is advice that cannot work. Say what is known, name no cause.
+const AI_UNAVAILABLE_MODEL_OK =
+    '這檔股票目前沒有 AI 機率。模型本身是正常的，所以缺的是這檔股票這一側的條件（最常見的是歷史資料長度不足），' +
+    '重新訓練不會有幫助。技術分數仍正常運作。'
+
+function aiUnavailableText(reason: string | null | undefined, modelStatus: string | undefined): string {
+    if (reason && AI_UNAVAILABLE_TOOLTIP[reason]) return AI_UNAVAILABLE_TOOLTIP[reason]
+    if (modelStatus === 'ok') return AI_UNAVAILABLE_MODEL_OK
+    return AI_UNAVAILABLE_NO_MODEL
+}
+
+const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability, aiUnavailableReason, signals, modelHealth }) => {
     const displayProb = useCountUp(aiProbability ?? 0)
     const safeScores = scores || { total: 0, trend: 0, momentum: 0, volatility: 0 }
     const aiUnhealthy = !!modelHealth && modelHealth.status !== 'ok'
@@ -118,7 +142,7 @@ const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ scores, aiProbability, 
                     <div className="mb-1 text-[10px] uppercase tracking-wider font-bold text-dark-muted">AI 預測機率</div>
                     <div className="text-3xl font-bold font-mono text-sniper-gold">
                         {aiProbability == null ? (
-                            <Tooltip content="尚未訓練 AI 模型，技術分數仍正常運作。執行 train_ai.py 即可啟用。">
+                            <Tooltip content={aiUnavailableText(aiUnavailableReason, modelHealth?.status)}>
                                 <span className="cursor-help border-b border-dashed border-dark-muted/40">N/A</span>
                             </Tooltip>
                         ) : `${(displayProb ?? 0).toFixed(1)}%`}

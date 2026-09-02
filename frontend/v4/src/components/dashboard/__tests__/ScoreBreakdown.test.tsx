@@ -3,7 +3,7 @@
  * The AI number must be qualified by model_health; fired signals get plain-language
  * chips; nothing is fabricated.
  */
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import ScoreBreakdown from '../ScoreBreakdown'
 
@@ -49,5 +49,53 @@ describe('ScoreBreakdown — explainable screening', () => {
     it('renders N/A honestly when AI probability is null', () => {
         render(<ScoreBreakdown scores={SCORES} aiProbability={null} />)
         expect(screen.getByText('N/A')).toBeTruthy()
+    })
+
+    /*
+     * docs/specs/unknown-is-not-zero-ml-features.md AC7. The N/A tooltip used to assert one
+     * cause ("no model trained yet") for every missing number — the same mistake the model-health
+     * chip made before it was keyed on a machine reason. A stock whose history is too short would
+     * have been told to run train_ai.py, which would not have helped.
+     */
+    it('explains a short-history refusal instead of blaming the model', () => {
+        render(
+            <ScoreBreakdown scores={SCORES} aiProbability={null} aiUnavailableReason="insufficient_history" />,
+        )
+        fireEvent.mouseEnter(screen.getByText('N/A').parentElement!)
+        expect(screen.getByText(/歷史資料不足/)).toBeTruthy()
+        expect(screen.queryByText(/尚未訓練 AI 模型/)).toBeNull()
+    })
+
+    it('falls back to the untrained-model wording when no reason is given', () => {
+        render(<ScoreBreakdown scores={SCORES} aiProbability={null} />)
+        fireEvent.mouseEnter(screen.getByText('N/A').parentElement!)
+        expect(screen.getByText(/尚未訓練 AI 模型/)).toBeTruthy()
+        expect(screen.queryByText(/歷史資料不足/)).toBeNull()
+    })
+
+    /*
+     * The backend cannot attribute the cause on the cached-DB branch, which serves most requests
+     * for six hours after a recalculation. Without this the panel told the user to run train_ai.py
+     * while rendering model_health "ok" eight lines below — advice that cannot work, in the
+     * majority case. Review caught it; both reviewers flagged the same contradiction.
+     */
+    it('does not blame the model when model_health says the model is fine', () => {
+        render(<ScoreBreakdown scores={SCORES} aiProbability={null} modelHealth={{ status: 'ok' }} />)
+        fireEvent.mouseEnter(screen.getByText('N/A').parentElement!)
+        expect(screen.queryByText(/尚未訓練 AI 模型/)).toBeNull()
+        expect(screen.getByText(/模型本身是正常的/)).toBeTruthy()
+    })
+
+    it('still prefers the specific reason over the generic model-ok wording', () => {
+        render(
+            <ScoreBreakdown
+                scores={SCORES}
+                aiProbability={null}
+                aiUnavailableReason="insufficient_history"
+                modelHealth={{ status: 'ok' }}
+            />,
+        )
+        fireEvent.mouseEnter(screen.getByText('N/A').parentElement!)
+        expect(screen.getByText(/歷史資料不足/)).toBeTruthy()
     })
 })

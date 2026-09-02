@@ -1,82 +1,73 @@
 ---
-status: archived
-title: Product Backlog — Honest Metrics [COMPLETE — all 6 shipped 2026-09-02]
-source: 2026-09-02 quant-expert panel audit (3 independent read-only auditors, batch A+B+C selected by user)
+status: active
+title: Product Backlog — Unknown Is Not Zero
+source: 2026-09-02 issue triage (12 open GitHub issues verified against master 88e6086)
 created: 2026-09-02
-last_updated: 2026-09-02 (ALL 6 SHIPPED — epic complete)
+last_updated: 2026-09-02 (#1 shipped; #2 next)
 ---
 
 # Product Backlog
 
 ## Source Summary
 
-Three independent read-only auditors were commissioned with disjoint lenses — **ML methodology**,
-**backtest realism**, and **data integrity & risk** — none of them knowing what the others were
-assigned. They converged on the same small set of defects, which is the strongest prioritization
-signal available here. The primary agent independently re-read `backend/backtest.py:195-235` and
-`core/ai/trainer.py:225-270` and confirmed the two P0 findings directly rather than relying on the
-reports alone.
+Opened the same day the **Honest Metrics** epic closed. With the tracker untouched since 2026-06-05,
+the user asked for its 12 open issues to be triaged. Every verdict was checked against master
+`88e6086` before it was written — by reading the code, and in two cases by running it. One issue was
+closed (GH #9: the capability already existed end-to-end), eight were commented on, three were left
+alone because nothing about them had changed.
 
-The theme is the same 「說到做不到」 identity gap the 2026-07-19 audit found — but this time in the
-**mathematics layer**, not the copy layer. `docs/DATA_INTEGRITY.md:42` presents the broken embargo
-code *as the mitigation* for chronological leakage; `README.md:237` claims data leakage is 「完全杜絕」;
-`docs/DATA_INTEGRITY.md:51` credits random sampling with mitigating survivorship bias, which it
-cannot do. Meanwhile the backtest books winners at the session high and losers at the session low,
-so every magnitude-based performance number a user sees is inflated in one direction.
+Three of those verdicts found defects worth fixing, and the user selected all three.
 
-**This directly threatens the project's stated differentiator** — transparency over prediction. A
-research workbench whose own integrity doc overstates its guarantees is worse positioned than one
-that never made the claim.
+**The theme, for two of the three, is one sentence**: a value that cannot be computed is filled with
+`0`, and everything downstream then treats the unknown as known. That is the same failure this
+project has been removing for a year — `profit_factor=None` rather than 9999, `ai_prob=NULL` rather
+than a fake 0.0, `sharpe_ratio=None` when dispersion is undefined — reappearing in two places nobody
+had looked at.
 
-> [!NOTE]
-> **Epic complete 2026-09-02.** All six features shipped (PRs #64–#68 plus #66). What the epic
-> deliberately did **not** fix is recorded in `docs/DATA_INTEGRITY.md` §Verification, which is now
-> the canonical statement of where this project stands: survivorship bias (no point-in-time
-> universe), the backtest scoring a model trained over its own window (disclosed via
-> `model_temporal_scope`, not removed — that needs an as-of model per window), and **deferred batch
-> D**, price-source consistency. Batch D's detail moved into this file's §Deferred section below
-> when `_raw-intake.md` was deleted, its job done.
+**What makes it worse than a plain bug is which value gets substituted.** `0` is not a neutral
+placeholder in either location. `dist_sma240 = 0` asserts *the price is exactly on its 240-day mean*.
+KD's `k = 0` renders as *extremely oversold* — a strong buy signal, shown for a stock nobody can
+trade. In both cases the guard against a crash produced a confident falsehood instead, which is
+strictly worse than the `NaN` it replaced, because a `NaN` is visibly missing and a plausible number
+is not.
 
-**Scope selected by the user at intake**: batch A+B+C. Batch **D (price-source consistency)** was
-explicitly deferred — mixed raw/adjusted series within one ticker, the missing `source` column, the
-reconciliation script's OTC false PASS, and the absent point-in-time universe. It needs a
-`stock_history` schema migration plus a story for existing `storage.db` files and is likely
-ADR-worthy. Full detail is preserved in `_raw-intake.md` so the deferral is recoverable.
+The third item is unrelated in cause and bundled for deployment correctness: behind the reverse proxy
+this project documents, every user shares one rate-limit bucket.
 
-**Honesty guard for this epic**: every fix here is expected to make the numbers *look worse*. That is
-the point, and no feature in this epic may compensate by loosening a threshold, changing a default,
-or re-framing a metric to preserve an attractive figure. Where a number cannot be computed honestly,
-it stays `None` / N/A — consistent with the shipped `profit_factor=None` and `ai_prob=NULL` precedent.
-
-**Out of scope for the whole epic**: improving model quality (the model is honestly weak and stays
-that way), training an as-of model per backtest window, live trading, and any change to the ML
-feature set or label definition.
+**Both premises in the original issues were partly wrong, and were corrected at triage rather than
+inherited.** GH #8 claims a `ZeroDivisionError` that pandas does not raise, and asks for exactly the
+epsilon guard that manufactures the false signal. GH #14 describes `sma_240` as all-`NaN` at cold
+start without noticing that the prediction gate lets those rows through at 120. Fixing what an issue
+*says* rather than what the code *does* would have shipped two non-fixes.
 
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in the magnitude-based metrics (`avg_return`, `profit_factor`, `sharpe_ratio`, `best_return`); win rates are structurally unaffected because trade signs do not change (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | hotfix | Shipped | — |
-| 2 | Date-based train/test embargo — measure the embargo in trading days rather than pooled rows, scale the `TimeSeriesSplit` gap by per-date row count, and apply the same correction in `scripts/eval_label_modes.py` (F1, 3/3 auditors) | review-finding | ml | P0 | docs/specs/date-based-train-test-embargo.md | feature | Shipped | — |
-| 3 | Backtest temporal guard — refuse or explicitly badge a run whose model `trained_at` post-dates the entry date, and resolve the entry point by calendar date per ticker instead of a row offset (F5, F6). **Carries two #1 review deferrals**: a bar that gaps open above the target while also breaching the stop still books a STOP (measured at ≤0.004% of real bars, and structurally near-impossible under TW's ±10% limit), and `best_stock` is now an arbitrary tie-break because every no-gap HIT settles at exactly `target_gain` | review-finding | backtest | P1 | docs/specs/backtest-temporal-guard.md | feature | Shipped | #1 |
-| 4 | Model rotation ranking honesty — move the rotation backtest window past the final fit's label horizon, and stop sorting a `None` profit factor below 0.0 (F7). **Raised in priority by #1**: `backtest_30d.profit_factor` entries written before and after the settlement fix are not comparable, `core/ai/trainer.py:472` ranks them together, and `:487` then irreversibly `os.remove`s the `.pkl` files outside the top 5 — so a genuinely better pre-fix model can be deleted for being measured with a different ruler. Needs a settlement marker on the persisted structure | review-finding | ml | **P0** | docs/specs/model-rotation-ranking-honesty.md | feature | Shipped | #2 |
-| 5 | OOS metric attribution and baseline lift — attribute holdout metrics to the split model that earned them, record test-split class prevalence, report precision as lift over prevalence, and let `get_model_health` call a below-prevalence model degraded. **Raised to P0 by #2's measurement**: with a clean embargo StrongBuy precision 0.3454 sits BELOW the test-split prevalence 0.3512 — no skill to negative skill — and `core/ai/predictor.py:195` still reports `ok`, so the health check is now most wrong exactly when the metrics are most honest. #2 also added the `embargo` marker on history entries that the transparency badge will need (F8, F9, F10) | review-finding | ml, transparency | **P0** | docs/specs/oos-metric-attribution-and-lift.md | feature | Shipped | #2 |
-| 6 | Docs-vs-reality alignment — correct the four `DATA_INTEGRITY.md` claims, `README.md:237` 「完全杜絕」, the whitepaper's `auto_adjust` assertion, and the `risk_level` naming plus its tooltip (F3, 3/3 auditors) | review-finding | docs | P0 | docs/specs/docs-reality-alignment.md | feature | Shipped | #1, #2 |
-
-## Classification Note
-
-#1 is `quick-win` by size — two assignments in one module plus tests — but was **escalated to
-`hotfix`** at bootstrap. Escalation is never a bypass; the reason is that a `quick-win` makes the
-review and test gates optional, and this change rewrites financial performance numbers that users
-read as achievable. AC6 (six empirically falsified tests) and AC7 (a same-seed before/after evidence
-run, with tuning explicitly forbidden) are review-grade requirements, and every honesty-affecting
-change in this repo has gone through independent review. The gates are worth their cost here.
+| 1 | Unknown is not zero — ML features. A ticker with 120 <= rows < 260 passes `MIN_PREDICT_ROWS` (`core/config.py:36`, checked at `core/ai/predictor.py:341`) but cannot support the 240-day features, so `dist_sma240` / `sma240_slope` (`core/ai/common.py:132-136`) are `NaN` and `fillna(0)` (`core/ai/trainer.py:200`, `core/ai/predictor.py:354`) turns them into `0` — an assertion that the price sits exactly on its annual mean, indistinguishable to the model from a ticker that genuinely does. Measured on ticker 2330's real last trading day: with full history `dist_sma240 = +0.3429` (34.3% above its annual mean); with 150 rows it is `0.0` (exactly on it), and `sma240_slope` goes +0.0312 -> 0.0. Affected band is **120 <= rows < 260**, and 260 is already in the codebase as `MIN_TRAIN_ROWS`. **Training is NOT affected** — `trainer.py:199` drops warm-up rows before the fill; the defect is prediction-only. (GH #14) | review-finding | ml | **P0** | docs/specs/unknown-is-not-zero-ml-features.md | feature | Shipped | — |
+| 2 | Trusted-proxy client identity — `backend/limiter.py:9` keys rate limits on `get_remote_address`, i.e. `request.client.host`, which behind the documented Nginx/Docker deployment is the proxy's internal address, so every user shares one bucket. Must NOT be fixed by trusting `X-Forwarded-For`, which is client-settable and would trade "innocent users blocked" for "rate limiting does nothing": needs an explicit trusted-hop count, default `0` (today's behaviour), counting from the right. (GH #16) | review-finding | api, security | P1 | docs/specs/trusted-proxy-client-identity.md | feature | Pending | — |
+| 3 | Unknown is not zero — technical indicators. On a flat series (`close == high == low`: suspension, no-volume limit-down) `calculate_kd` returns `k = 0.0` because of its epsilon guard, which the product renders as extremely oversold. `calculate_rsi` (`core/analysis.py:15`) has no guard and returns `nan`. Neither raises. The fix is the opposite of the one GH #8 requests: an indicator that cannot be computed stays null and is disclosed. (GH #8) | review-finding | indicators | P1 | docs/specs/unknown-is-not-zero-indicators.md | feature | Pending | #1 |
 
 ## Sequencing Note
 
-#6 is P0 but deliberately **last** among the P0s: the docs must describe the behavior that exists
-after #1 and #2 land, otherwise the same paragraphs get rewritten twice and risk being wrong in a new
-way in between. #1 is the cheapest and its effect is immediately visible to users; #2 is the finding
-all three auditors independently raised. #3–#5 are follow-ons that each depend on one of the two P0s.
+Order fixed by the user: **#1 → #2 → #3**.
+
+#1 first because it is the only one that reaches the number users act on — the AI probability on a
+candidate card. #2 second because it is small, self-contained, and the only item here that affects
+anyone running the documented deployment. #3 last because it shares #1's root cause and should reuse
+whatever disclosure shape #1 establishes rather than inventing a second one; the dependency is on the
+*pattern*, not on the code.
+
+Each ships as its own PR, merged to `master` before the next begins.
+
+## Honesty Guard
+
+Carried forward from the Honest Metrics epic, unchanged and equally binding here. Every fix in this
+backlog is expected to make the product show **fewer signals and more blanks**. No item may
+compensate by loosening a gate, widening a window, or substituting a different plausible number.
+Where a value cannot be computed honestly it stays null and is labelled. Specifically rejected in
+advance: raising `MIN_PREDICT_ROWS` to 260 as the whole fix (new listings vanish with no explanation
+given to the user) and shortening the 240-day window (changes model inputs) — either may still turn out to be right, but only with the
+impact measured first, not as a way to make the symptom go away.
 
 ## Column Reference
 - **Kind**: `feature` (planned) · `quick-win` (small planned) · `review-finding` (surfaced by review/audit) · `hotfix-spawn` (systemic issue from hotfix)
@@ -89,13 +80,38 @@ all three auditors independently raised. #3–#5 are follow-ons that each depend
 - Deferred: explicitly deferred
 - Cancelled: dropped
 
+## Still Open, Not In This Backlog
+
+Recorded so the deferrals stay recoverable rather than being rediscovered by the next audit.
+
+**From the tracker, verified 2026-09-02 and left open with the reasoning in the issue thread:**
+
+- **GH #10** SQLite `database is locked` — WAL (`core/data.py:117`) and a busy timeout (`:55`) are
+  already in place; the missing piece is a write retry. Not attempted because there is **no recorded
+  occurrence** to verify a fix against. Next step is evidence: the row of silently-swallowed
+  `except sqlite3.OperationalError` at `core/data.py:195-230` should log before anything is built.
+- **GH #11** model comparison dashboard — `GET /api/models` exists (`backend/routes/stock.py:86`).
+  The dashboard must not be built as originally specified: profit factors written before and after
+  PR #64 use different settlement regimes and `oos_metrics` before PR #65 had a zero-day embargo, so
+  it has to read `settlement` / `oos_metrics_scope` / `embargo` and refuse to compare across them.
+- **GH #15** ensemble weight sliders — deliberately not scheduled while StrongBuy precision (0.3454)
+  sits below the test-split prevalence (0.3512). Sliders would imply that tuning improves accuracy.
+- **GH #17** ex-dividend alerts — its premise is outdated and it is blocked by Batch D below.
+- **GH #18** sync error reporting — retry and `failed_count` already exist; only the error *reason*
+  is missing from `sync_status` (`backend/routes/sync.py:23-31`).
+- **GH #12**, **GH #13**, **GH #19** — unimplemented feature requests, unchanged, no comment added.
+
+**From the closed Honest Metrics epic** (`docs/DATA_INTEGRITY.md` §Verification is canonical):
+survivorship bias, and the backtest scoring a model trained over its own window — disclosed via
+`model_temporal_scope`, not removed.
+
 ## Deferred: Batch D — price-source consistency
 
-> Carried over verbatim from `_raw-intake.md` when that file was deleted at the end of the
-> epic. It is the one audit finding no feature here addressed, and it needs a `stock_history`
-> schema migration plus a story for existing `storage.db` files — likely ADR-worthy.
-
-Preserved so the deferral is recoverable, not lost.
+> Carried forward from the Honest Metrics backlog, still deferred, still unaddressed by any feature.
+> Needs a `stock_history` schema migration plus a story for existing `storage.db` files — likely
+> ADR-worthy. **GH #17 (ex-dividend alerts) is blocked on this**: ex-dividend gaps are flattened in
+> the adjusted rows and preserved in the raw ones, so the same corporate action looks different
+> depending on which fetcher wrote that stretch of the series.
 
 - Mixed adjusted/raw price basis within a single ticker's series. `core/data.py:622,628` fetches
   yfinance with `auto_adjust=True`; `core/bulk_history.py:9-11,190` writes raw TWSE/TPEX closes; both
@@ -117,3 +133,8 @@ Preserved so the deferral is recoverable, not lost.
   listing/delisting dates, so `get_all_tw_stocks()` applies today's listed set retroactively.
 
 ---
+
+**Prior epics** (all shipped, archived):
+`docs/specs/_product-backlog-honest-metrics-2026-09-02.md` ·
+`docs/specs/_product-backlog-honest-research-workbench-2026-07-02.md` ·
+`docs/specs/_product-backlog-directly-usable-v1-2026-06-20.md`

@@ -1,5 +1,50 @@
 # Changelog
 
+## [Unknown Is Not Zero] - 2026-09-02
+
+An epic opened from a triage of the 12 GitHub issues left untouched since 2026-06-05. Two of its
+three items share one cause: a value that cannot be computed is filled with `0`, and everything
+downstream then treats the unknown as known. In progress.
+
+### Some stocks will stop showing an AI probability
+
+A feature the model needs but the data cannot support used to be filled with `0`. That is not a
+blank. `dist_sma240 = 0` asserts *the price sits exactly on its 240-day mean*; a slope of `0`
+asserts *flat*. Both are among the most ordinary states a stock can be in, which is exactly why
+nothing downstream could tell that anything was missing.
+
+Measured on ticker 2330's real last trading day: with full history `dist_sma240` is **+0.3429** —
+the price sat 34.3% above its annual mean, a pronounced uptrend. Given 150 rows of history the
+model was told **0.0**. The substitution did not lose a signal, it replaced it with a confident
+neutral falsehood.
+
+A stock whose history is shorter than **250 trading days** (the 240-period SMA plus its 10-row
+slope) therefore now shows **N/A** for the AI probability instead of a number, and the detail panel
+says why: 「歷史資料不足」, rather than the old blanket 「尚未訓練 AI 模型」, which would have sent
+you to retrain a model that was working fine. **Technical scores are unaffected** — only the AI
+number is withheld.
+
+**A correction to the first version of this note**, which said the bundled dev data was unaffected
+because every ticker carries 729+ rows. That measured rows in the database, not the window the model
+is actually handed. The nightly recalculation loaded **420 calendar days**, which on the shipped
+92-ticker database is ~225 trading rows — below the 250-row requirement — so the refusal fired for
+**91 of 92 tickers** and would have wiped the AI probability from the entire product on the first
+recalculation. `RECALC_LOOKBACK_DAYS` is now 730, matching what the detail and sync paths already
+used, so the same stock can no longer get opposite answers on the same day depending on which writer
+ran last. Measured after the fix: **0 of 92** refuse.
+
+That window is counted in **calendar** days from *today*, so the trading rows it yields shrink as a
+database goes stale. At 730 days the margin is ~170 rows, roughly eight months of neglect. A test
+pins the relationship so nobody lowers it back without seeing the requirement.
+
+Three quieter substitutions were removed alongside it: the prediction path no longer forward-fills
+yesterday's indicator into today's prediction row; a model asking for a column the frame does not
+have is no longer given it as `0`; and the two request paths that zero-fill the frame for the JSON
+payload now hand the model the **unfilled** frame, because that fill was erasing the very evidence
+the refusal depends on.
+
+What is still filled is named in `docs/DATA_INTEGRITY.md` rather than left for the next audit.
+
 ## [Honest Metrics] - 2026-09-02
 
 An epic correcting 說到做不到 gaps found in the **mathematics** layer by a three-auditor quant panel
