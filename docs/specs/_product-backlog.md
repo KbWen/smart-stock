@@ -1,29 +1,64 @@
 ---
 status: living
-title: Product Backlog — Honest Research Workbench
-source: 2026-07-02 user-directed post-v1 product direction
-created: 2026-07-02
-last_updated: 2026-07-02 (ALL SHIPPED — epic complete: #1 Strategy Lab, #2 Transparency Panel, #3 Explainable Screening, #4 Novice Entry, #5 Reproducible Reference Layer, #6 CSRF-parity)
+title: Product Backlog — Honest Metrics
+source: 2026-09-02 quant-expert panel audit (3 independent read-only auditors, batch A+B+C selected by user)
+created: 2026-09-02
+last_updated: 2026-09-02 (intake — #1 selected as starting point)
 ---
 
 # Product Backlog
 
 ## Source Summary
-After the "Directly-Usable v1" self-install epic completed (all 6 shipped 2026-06-20; archived to `_product-backlog-directly-usable-v1-2026-06-20.md`), the user set the next-stage direction: an **honest, self-hostable TW-stock research workbench** — primary audience TW retail investors (an antidote to black-box "AI 飆股" tools), secondary audience developers/quant learners wanting a transparent reproducible reference. **Differentiator = transparency/honesty, NOT prediction accuracy** (honesty-first preserved: the ML model is honestly weak; do not chase model quality as the headline).
 
-**Cross-cutting design constraint (applies to every feature in this epic)**: the audience spans experts and complete novices, so the product must offer a solid base architecture + flexibility via **progressive disclosure — simple, good defaults up front; depth revealed on demand** — so even someone who "just wants to invest" has a good place to go. Each feature spec MUST state how it satisfies this (simple default path + expert depth path).
+Three independent read-only auditors were commissioned with disjoint lenses — **ML methodology**,
+**backtest realism**, and **data integrity & risk** — none of them knowing what the others were
+assigned. They converged on the same small set of defects, which is the strongest prioritization
+signal available here. The primary agent independently re-read `backend/backtest.py:195-235` and
+`core/ai/trainer.py:225-270` and confirmed the two P0 findings directly rather than relying on the
+reports alone.
 
-**Out of scope (honesty guards)**: no 飆股/guaranteed-profit framing; no fake numbers hiding a weak model (honest N/A stays honest); no live trading/order execution/money movement; no hosted service or external data send (self-install/local-only stays). Full source detail: `_raw-intake.md` (deleted after all first-round specs are generated).
+The theme is the same 「說到做不到」 identity gap the 2026-07-19 audit found — but this time in the
+**mathematics layer**, not the copy layer. `docs/DATA_INTEGRITY.md:42` presents the broken embargo
+code *as the mitigation* for chronological leakage; `README.md:237` claims data leakage is 「完全杜絕」;
+`docs/DATA_INTEGRITY.md:51` credits random sampling with mitigating survivorship bias, which it
+cannot do. Meanwhile the backtest books winners at the session high and losers at the session low,
+so every headline performance number a user sees is inflated in one direction.
+
+**This directly threatens the project's stated differentiator** — transparency over prediction. A
+research workbench whose own integrity doc overstates its guarantees is worse positioned than one
+that never made the claim.
+
+**Scope selected by the user at intake**: batch A+B+C. Batch **D (price-source consistency)** was
+explicitly deferred — mixed raw/adjusted series within one ticker, the missing `source` column, the
+reconciliation script's OTC false PASS, and the absent point-in-time universe. It needs a
+`stock_history` schema migration plus a story for existing `storage.db` files and is likely
+ADR-worthy. Full detail is preserved in `_raw-intake.md` so the deferral is recoverable.
+
+**Honesty guard for this epic**: every fix here is expected to make the numbers *look worse*. That is
+the point, and no feature in this epic may compensate by loosening a threshold, changing a default,
+or re-framing a metric to preserve an attractive figure. Where a number cannot be computed honestly,
+it stays `None` / N/A — consistent with the shipped `profit_factor=None` and `ai_prob=NULL` precedent.
+
+**Out of scope for the whole epic**: improving model quality (the model is honestly weak and stays
+that way), training an as-of model per backtest window, live trading, and any change to the ML
+feature set or label definition.
 
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Strategy Lab — named/saveable/side-by-side backtest workbench built on existing `/api/backtest` + TW cost sliders; compare net-of-cost equity/Sharpe/drawdown across saved strategies (flagship; needs no model improvement) | feature | backtest | P1 | docs/specs/strategy-lab.md | feature | Shipped | — |
-| 2 | Transparency Panel — first-class "what does the system actually know" view: data coverage (history depth/universe completeness), model_health, last-trained, sample size, OOS metrics | feature | transparency | P1 | docs/specs/transparency-panel.md | feature | Shipped | — |
-| 3 | Explainable Screening — deepen ScoreBreakdown on 選股雷達: which signals fired + that combo's backtested hit-rate + model_health/sample-size-qualified AI number | feature | screening | P1 | docs/specs/explainable-screening.md | feature | Shipped | #1 (soft) |
-| 4 | Novice Entry — progressive-disclosure simple default / guided mode so casual "just want to invest" users have a good starting destination; expert depth on demand | feature | onboarding, ux | P2 | docs/specs/novice-entry.md | feature | Shipped | #2, #3 (soft) |
-| 5 | Reproducible Reference Layer — one-command data→label→train→backtest→eval flow + walkthrough doc for the developer/learner audience (Docker self-seed already exists) | feature | docs, ml | P2 | docs/specs/reproducible-reference.md | feature | Shipped | — |
-| 6 | CSRF-header parity — add the `smart_scan`-style `X-Requested-With` check to `/api/strategies` mutations (POST/PUT/DELETE) for security-baseline consistency (no active vuln — app has no cookie auth; frontend already sends the header). Surfaced by #1 independent review. | review-finding | api, security | P2 | docs/specs/strategies-csrf-parity.md | quick-win | Shipped | #1 |
+| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in `avg_return` / `net_win_rate` / `profit_factor` / `sharpe_ratio` (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | quick-win | In Progress | — |
+| 2 | Date-based train/test embargo — measure the embargo in trading days rather than pooled rows, scale the `TimeSeriesSplit` gap by per-date row count, and apply the same correction in `scripts/eval_label_modes.py` (F1, 3/3 auditors) | review-finding | ml | P0 | — | feature | Pending | — |
+| 3 | Backtest temporal guard — refuse or explicitly badge a run whose model `trained_at` post-dates the entry date, and resolve the entry point by calendar date per ticker instead of a row offset (F5, F6) | review-finding | backtest | P1 | — | feature | Pending | #1 |
+| 4 | Model rotation ranking honesty — move the rotation backtest window past the final fit's label horizon, and stop sorting a `None` profit factor below 0.0 (F7) | review-finding | ml | P1 | — | feature | Pending | #2 |
+| 5 | OOS metric attribution and baseline lift — attribute holdout metrics to the split model that earned them, record test-split class prevalence, report precision as lift over prevalence, and let `get_model_health` call a below-prevalence model degraded (F8, F9, F10) | review-finding | ml, transparency | P1 | — | feature | Pending | #2 |
+| 6 | Docs-vs-reality alignment — correct the four `DATA_INTEGRITY.md` claims, `README.md:237` 「完全杜絕」, the whitepaper's `auto_adjust` assertion, and the `risk_level` naming plus its tooltip (F3, 3/3 auditors) | review-finding | docs | P0 | — | feature | Pending | #1, #2 |
+
+## Sequencing Note
+
+#6 is P0 but deliberately **last** among the P0s: the docs must describe the behavior that exists
+after #1 and #2 land, otherwise the same paragraphs get rewritten twice and risk being wrong in a new
+way in between. #1 is the cheapest and its effect is immediately visible to users; #2 is the finding
+all three auditors independently raised. #3–#5 are follow-ons that each depend on one of the two P0s.
 
 ## Column Reference
 - **Kind**: `feature` (planned) · `quick-win` (small planned) · `review-finding` (surfaced by review/audit) · `hotfix-spawn` (systemic issue from hotfix)
