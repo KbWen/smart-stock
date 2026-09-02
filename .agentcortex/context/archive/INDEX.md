@@ -95,3 +95,10 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - D: "FastAPI route order: specific paths like /history must come before {ticker} wildcard or 'history' is matched as ticker" → master-visual-upgrade-2026-03-27.md
 - D: "Recharts Tooltip formatter must accept `undefined` (Recharts v3 internal type); use `Number(value ?? 0)` to pass tsc -b" → master-visual-upgrade-2026-03-27.md
 - D: "isPlaceholder never set false on error in useCachedApi — skeleton guard must be `loading && isPlaceholder`, not `loading || isPlaceholder`" → master-visual-upgrade-2026-03-27.md
+- D: "Brain sync is always ≥ hotfix — the deployer rewrites installer source-selection logic, and §10.4 Supply-Chain/Provenance Escalation forces that minimum regardless of patch size" → chore-brain-update-v1.8.25-20260902.md
+- D: "A validate PASS delta is not improvement when the validator itself grew: validate.sh gained 273 lines in v1.8.25, so 89→107 PASS is new checks, not newly passing old ones" → chore-brain-update-v1.8.25-20260902.md
+- D: "The incoming current_state.md sidecar is always the blank template — never adopt it; keep-local is the only correct resolution" → chore-brain-update-v1.8.25-20260902.md
+- D: "A backtest exit settles at the price an ORDER could have received — the bar's high/low say WHICH barrier was touched, not at what price the position left" → fix-backtest-settlement-realism-20260902.md
+- D: "Settlement must stay clamped inside [low, high]: the old code was bounded by construction because it WAS the high or low; introducing the open created a new unbounded path" → fix-backtest-settlement-realism-20260902.md
+- D: "A metric with undefined dispersion reports None, not 0.0 — std() of a single pick is NaN and the old guard fabricated a zero the UI styled as a real result" → fix-backtest-settlement-realism-20260902.md
+- D: "A test suite can actively DEFEND a bug — two pre-existing tests asserted the buggy session-extreme values, which is why the defect survived. Check what old assertions encode before trusting them" → fix-backtest-settlement-realism-20260902.md
