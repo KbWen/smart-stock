@@ -17,6 +17,9 @@ from datetime import datetime
 from core import config as _cfg
 from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, profit_factor_sort_key
 from core.ai import common as _c  # read LABEL_MODE / ATR_* dynamically (togglable)
+from core.logger import setup_logger
+
+logger = setup_logger("core.ai.trainer")
 
 
 def _compute_targets(closes, highs, lows, atr, mode):
@@ -234,6 +237,18 @@ def chronological_split(df_all, pred_days=PRED_DAYS, test_fraction=0.2):
         )
 
     dates = pd.to_datetime(df_all['date'])
+    if getattr(dates.dt, 'tz', None) is not None:
+        # Comparing tz-aware against the tz-naive values derived below raises a TypeError that
+        # would escape this function's own exception type. Normalise to UTC-naive instead.
+        dates = dates.dt.tz_convert('UTC').dt.tz_localize(None)
+    if dates.isna().any():
+        # train_and_save only attaches `date` to frames that carry one, so a mixed batch yields
+        # NaT. Those rows would silently vanish from BOTH splits while `gap_dates` still reported
+        # a healthy embargo -- exactly the kind of quiet wrongness this spec exists to remove.
+        raise InsufficientPanelHistory(
+            f"{int(dates.isna().sum())} of {len(dates)} rows have no usable date; refusing to "
+            "split a partially dated panel"
+        )
     unique_dates = np.sort(dates.unique())
     if len(unique_dates) < pred_days + 2:
         raise InsufficientPanelHistory(
@@ -281,11 +296,20 @@ def chronological_split(df_all, pred_days=PRED_DAYS, test_fraction=0.2):
         'cv_gap': cv_gap,
         'n_train': int(train_mask.sum()),
         'n_test': int(test_mask.sum()),
+        # Rows are not time. The cut is taken at a row position, so on a panel whose ticker count
+        # grows over time a "20% of rows" test window can span far fewer than 20% of the dates.
+        'n_train_dates': int(dates[train_mask].nunique()),
+        'n_test_dates': int(dates[test_mask].nunique()),
     }
     return train_mask, test_mask, meta
 
 
 def train_and_save(all_dfs):
+    """Train and persist the ensemble. Returns True on success, False if training was refused.
+
+    A caller MUST check the return value: an honest abort (no data, or a panel that cannot
+    support a clean embargo) is indistinguishable from success if it is ignored.
+    """
     print("=" * 60)
     print("SNIPER AI - Training (Hardened with Out-of-Sample Split)")
     print("=" * 60)
@@ -304,8 +328,8 @@ def train_and_save(all_dfs):
             data_list.append(df_feat)
     
     if not data_list:
-        print("No valid training data found.")
-        return
+        logger.error("Aborting training: no valid training data found.")
+        return False
     
     df_all = pd.concat(data_list)
     if 'date' in df_all.columns:
@@ -323,9 +347,11 @@ def train_and_save(all_dfs):
     try:
         train_mask, test_mask, split_meta = chronological_split(df_all, PRED_DAYS)
     except InsufficientPanelHistory as exc:
-        print(f"Aborting training: {exc}.")
-        print("Refusing to shrink the embargo — a contaminated oos_metrics is worse than no model.")
-        return
+        logger.error("Aborting training: %s.", exc)
+        logger.error(
+            "Refusing to shrink the embargo - a contaminated oos_metrics is worse than no model."
+        )
+        return False
 
     X_train_full = X_all[train_mask]
     y_train_full = y_all[train_mask]
@@ -358,14 +384,31 @@ def train_and_save(all_dfs):
     
     # Cross Validation on Training part. TimeSeriesSplit's `gap` counts SAMPLES, not days, so it
     # is scaled by the widest date in the train split (see chronological_split()).
+    # This CV is DIAGNOSTIC ONLY: each fold's classifier is fit, its accuracy printed, and then
+    # discarded. It does not touch the shipped model or oos_metrics. So when the scaled gap makes
+    # folds infeasible we degrade the diagnostic (fewer folds, or none) instead of aborting the
+    # run -- the guarantee that matters, the holdout embargo, is already enforced above and is
+    # unaffected. Aborting here would conflate a nice-to-have with the guarantee, and would strand
+    # small panels (the shipped demo fixture among them) with no model at all.
     cv_gap = split_meta['cv_gap']
-    try:
-        tscv = TimeSeriesSplit(n_splits=3, gap=cv_gap)
-        cv_folds = list(tscv.split(X_train_full))
-    except ValueError as exc:
-        print(f"Aborting training: cannot build 3 CV folds with a {cv_gap}-sample gap ({exc}).")
-        print("Refusing to shrink the gap — a contaminated oos_metrics is worse than no model.")
-        return
+    cv_folds = []
+    cv_splits_used = 0
+    for n_splits in (3, 2):
+        try:
+            cv_folds = list(TimeSeriesSplit(n_splits=n_splits, gap=cv_gap).split(X_train_full))
+            cv_splits_used = n_splits
+            break
+        except ValueError:
+            continue
+    if not cv_folds:
+        logger.warning(
+            "Skipping CV diagnostics: %s training rows cannot host 2 folds with a %s-sample gap. "
+            "The holdout embargo (%s trading days) is unaffected.",
+            len(X_train_full), cv_gap, split_meta['gap_dates'],
+        )
+    elif cv_splits_used < 3:
+        logger.warning("CV diagnostics reduced to %s folds to keep the %s-sample gap intact.",
+                       cv_splits_used, cv_gap)
     for fold, (t_idx, v_idx) in enumerate(cv_folds):
         X_t, X_v = X_train_full.iloc[t_idx], X_train_full.iloc[v_idx]
         y_t, y_v = y_train_full.iloc[t_idx], y_train_full.iloc[v_idx]
@@ -541,6 +584,17 @@ def train_and_save(all_dfs):
             "buy": round(win_rate_1, 3),
             "strong": round(win_rate_2, 3)
         },
+        # An entry WITHOUT `embargo` predates the date-based split and its oos_metrics are
+        # contaminated (the old row-based embargo separated train from test by ~0 trading days).
+        # Absence of this key is therefore a reliable "pre-fix" marker for anything downstream
+        # that needs to badge or exclude those numbers.
+        "embargo": {
+            "days": split_meta['gap_dates'],
+            "basis": "trading_days",
+            "cut_date": str(split_meta['cut_date'].date()),
+            "test_dates": split_meta['n_test_dates'],
+            "train_dates": split_meta['n_train_dates'],
+        },
         "oos_metrics": {
             "accuracy": round(oos_accuracy, 4),
             "precision_strong": round(oos_precision_2, 4),
@@ -599,3 +653,4 @@ def train_and_save(all_dfs):
             pass
 
     print(f"Model trained and saved as {version_tag}")
+    return True

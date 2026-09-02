@@ -59,10 +59,17 @@ def main():
     load_time = time.perf_counter() - start_time
     logger.info(f"Total stocks with sufficient data: {len(all_dfs)} (Prepared in {load_time:.2f}s)")
     
-    train_and_save(all_dfs)
-    
+    trained = train_and_save(all_dfs)
+
     total_time = time.perf_counter() - start_time
+    if not trained:
+        # An honest abort (no data, or a panel too short for a clean embargo) must not be
+        # reported as success: a scheduled retrain that exits 0 with no new model is exactly
+        # how a stale model goes unnoticed.
+        logger.error(f"Training pipeline ABORTED after {total_time:.2f}s - no model was written.")
+        return False
     logger.info(f"Training pipeline complete in {total_time:.2f}s!")
+    return True
 
 if __name__ == "__main__":
-    main()
+    sys.exit(0 if main() else 1)

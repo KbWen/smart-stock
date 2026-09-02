@@ -135,3 +135,116 @@ def test_embargo_holds_when_tickers_do_not_all_trade_every_day():
     assert _distinct_date_gap(df, train_mask, test_mask) >= PRED_DAYS
     dates = pd.to_datetime(df["date"])
     assert dates[train_mask].max() < meta["cut_date"]
+
+
+def _fold_date_gaps(panel, train_mask, cv_gap, n_splits=3):
+    """Distinct-date gap between train and validation for each real TimeSeriesSplit fold."""
+    from sklearn.model_selection import TimeSeriesSplit
+
+    dates = pd.to_datetime(panel["date"])[train_mask].reset_index(drop=True)
+    unique = np.sort(pd.to_datetime(panel["date"]).unique())
+    gaps = []
+    for t_idx, v_idx in TimeSeriesSplit(n_splits=n_splits, gap=cv_gap).split(np.zeros(len(dates))):
+        last_train = np.datetime64(dates.iloc[t_idx].max())
+        first_val = np.datetime64(dates.iloc[v_idx].min())
+        gaps.append(int(np.searchsorted(unique, first_val) - np.searchsorted(unique, last_train)))
+    return gaps
+
+
+def test_every_cv_fold_is_separated_by_pred_days_of_dates():
+    """AC6 bullet 2, asserted against a real TimeSeriesSplit rather than inferred from `meta`.
+
+    The scaled gap is only meaningful if the FOLD BOUNDARIES it produces are actually
+    PRED_DAYS apart in calendar terms — arithmetic on `cv_gap` alone cannot show that.
+    """
+    df = _panel(n_tickers=92, n_dates=400)
+    train_mask, _, meta = chronological_split(df, PRED_DAYS)
+
+    gaps = _fold_date_gaps(df, train_mask, meta["cv_gap"])
+    assert len(gaps) == 3
+    assert all(g >= PRED_DAYS for g in gaps), gaps
+
+
+def test_every_cv_fold_holds_on_an_uneven_panel():
+    """The max-based scaling exists for exactly this shape: dates of wildly different widths.
+    A mean-based gap would under-cover the folds that land near the wide stretch."""
+    df = _panel(n_tickers=8, n_dates=1000, rows_per_date={i: 60 for i in range(300, 340)})
+    train_mask, _, meta = chronological_split(df, PRED_DAYS)
+
+    gaps = _fold_date_gaps(df, train_mask, meta["cv_gap"])
+    assert all(g >= PRED_DAYS for g in gaps), gaps
+
+    # A mean-scaled gap would have been far smaller, and is what the max protects against.
+    dates = pd.to_datetime(df["date"])[train_mask]
+    mean_gap = int(PRED_DAYS * (len(dates) / dates.nunique()))
+    assert mean_gap < meta["cv_gap"]
+
+
+def test_partially_dated_panel_aborts_instead_of_dropping_rows_silently():
+    """A batch where only some frames carry a date yields NaT after concat. Those rows would
+    vanish from BOTH splits while `gap_dates` still reported a healthy embargo."""
+    df = _panel(n_tickers=10, n_dates=300)
+    df.loc[df.index[:200], "date"] = pd.NaT
+
+    with pytest.raises(InsufficientPanelHistory, match="no usable date"):
+        chronological_split(df, PRED_DAYS)
+
+
+def test_timezone_aware_dates_are_normalised_rather_than_raising():
+    """A tz-aware `date` column used to raise TypeError, escaping this module's own exception
+    type so the caller never saw the honest message."""
+    df = _panel(n_tickers=6, n_dates=300)
+    df["date"] = pd.to_datetime(df["date"]).dt.tz_localize("Asia/Taipei")
+
+    train_mask, test_mask, meta = chronological_split(df, PRED_DAYS)
+    assert meta["gap_dates"] >= PRED_DAYS
+    assert int(train_mask.sum()) > 0 and int(test_mask.sum()) > 0
+
+
+def test_cv_degrades_but_the_holdout_embargo_never_does(monkeypatch):
+    """The scaled gap is deliberately large, so on a short panel `TimeSeriesSplit` cannot build
+    3 folds. That must NOT abort training: the CV loop is diagnostic only — each fold's model is
+    fit, its accuracy printed, and discarded — while the holdout embargo is the actual guarantee.
+    Aborting would conflate the two and strand small panels (the shipped demo fixture among them)
+    with no model at all.
+
+    Pins the real cliff the tenth-man measured: feasibility is driven by distinct TRAINING DATES,
+    roughly `> 4 x PRED_DAYS`, and is INDEPENDENT of ticker count — adding tickers scales the gap
+    and the row count together.
+    """
+    from sklearn.model_selection import TimeSeriesSplit as _RealTSS
+
+    for n_tickers in (8, 60):
+        # ~60 training dates: comfortably above the 22-date InsufficientPanelHistory floor, but
+        # below the CV feasibility cliff.
+        df = _panel(n_tickers=n_tickers, n_dates=100)
+        train_mask, test_mask, meta = chronological_split(df, PRED_DAYS)
+
+        # The holdout guarantee still holds regardless.
+        assert _distinct_date_gap(df, train_mask, test_mask) >= PRED_DAYS
+
+        # The cliff is about dates, not tickers: same verdict at 8 and at 60 tickers.
+        feasible = True
+        try:
+            list(_RealTSS(n_splits=2, gap=meta["cv_gap"]).split(np.zeros(meta["n_train"])))
+        except ValueError:
+            feasible = False
+        assert feasible is False, (
+            f"expected {meta['n_train_dates']} training dates to be below the CV cliff "
+            f"at {n_tickers} tickers"
+        )
+
+
+def test_meta_records_test_window_in_dates_not_just_rows():
+    """A row-position cut on a panel whose width grows over time yields "20% of rows" spanning
+    far fewer than 20% of the dates. Without this the concentration is invisible."""
+    df = _panel(n_tickers=4, n_dates=400, rows_per_date={i: 40 for i in range(360, 400)})
+    _, _, meta = chronological_split(df, PRED_DAYS)
+
+    assert meta["n_test_dates"] >= 1
+    assert meta["n_train_dates"] + meta["n_test_dates"] < 400  # the embargo removed dates
+    # The wide tail pulls the row-based cut late, so the test window covers a much smaller share
+    # of DATES than of rows -- the distortion this field exists to expose.
+    row_share = meta["n_test"] / (meta["n_train"] + meta["n_test"])
+    date_share = meta["n_test_dates"] / (meta["n_train_dates"] + meta["n_test_dates"])
+    assert date_share < row_share

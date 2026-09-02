@@ -63,7 +63,16 @@ def setup_real_ai(days: int = 1100, listed_only: bool = False, min_tickers: int 
               f"model may be weak/degenerate (model_health will disclose this honestly in the UI).")
 
     print("[setup_real_ai] Training the ensemble (GB+RF+MLP) — this can take several minutes...")
-    train_fn()
+    trained = train_fn()
+    if trained is False:
+        # `train_and_save` refuses to train when the panel cannot support a clean embargo.
+        # Reporting success here would be the worst possible outcome: README sells this as THE
+        # one command for real AI, so the user would be told it worked, see AI probabilities
+        # stay N/A, and have nothing to go on. (Only an explicit False is a failure — the
+        # injected test doubles return None.)
+        print("[setup_real_ai] ABORTED: training refused — see the error above. No model written.")
+        print("[setup_real_ai] Scores were NOT recalculated; the AI probability stays N/A.")
+        return {"backfill": bf, "trainable": trainable, "trained": False, "reason": "train_aborted"}
     print("[setup_real_ai] Step 3/3: recalculating scores so AI probabilities populate...")
     recalc_fn()
     print("[setup_real_ai] Done. Start the app: python backend/main.py  ->  http://localhost:8000")

@@ -21,6 +21,15 @@ Details the optimizations to prevent data leakage in ML training, fix MLPClassif
 - For non-Taiwan stocks (e.g. US stocks like `AAPL` or crypto like `BTC-USD`), bypass Taiwan suffix appending and return an empty suffix `""` to allow direct yfinance queries.
 
 ### AC3: Training Leakage Prevention (Temporal Embargo)
+
+> [!WARNING]
+> **AC3 is SUPERSEDED by `docs/specs/date-based-train-test-embargo.md` (2026-09-02).** Both bullets
+> below specify the embargo in **rows**, which on a cross-sectionally stacked panel is not time at
+> all: one date contributes N rows, so `PRED_DAYS` rows is `PRED_DAYS/N` days. Measured on the real
+> 92-ticker panel, this AC as written produced a separation of **0 trading days**. The embargo is
+> now counted in trading days from the panel's own calendar, and the `TimeSeriesSplit` gap is scaled
+> by the widest date. The bullets are kept verbatim as the record of what was specified.
+
 - In `core/ai/trainer.py:train_and_save()`, separate the training and testing sets with a gap of `PRED_DAYS` rows (temporal embargo) to prevent target overlapping look-ahead leakage.
 - Initialize `TimeSeriesSplit` with `gap=PRED_DAYS` during cross-validation to prevent validation fold look-ahead leakage.
 

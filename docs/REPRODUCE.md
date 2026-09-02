@@ -73,8 +73,15 @@ Out-of-sample precision/recall for Buy/StrongBuy, comparing `atr` vs `fixed`
 labeling on a chronological split with an embargo. This is the evidence tool
 behind [`ml-label-oos-evaluation.md`](specs/ml-label-oos-evaluation.md): at
 92-ticker scale the degeneracy did **not** reproduce (it was a small-data
-artifact) and `atr` was modestly better on StrongBuy — but absolute precision
-stays low. Results at demo scale are **indicative only**, not a credible read.
+artifact) — but absolute precision stays low. Results at demo scale are
+**indicative only**, not a credible read.
+
+> **Note (2026-09-02)**: the `atr`-vs-`fixed` conclusion this section used to
+> state was produced under an embargo that separated train from test by **0
+> trading days**. See the supersession warning and re-measurement in
+> [`ml-label-oos-evaluation.md`](specs/ml-label-oos-evaluation.md). The
+> corrected numbers do not settle `atr` vs `fixed` — on lift over the base rate
+> the ranking inverts — and that decision is deliberately left open.
 
 ## What to trust
 

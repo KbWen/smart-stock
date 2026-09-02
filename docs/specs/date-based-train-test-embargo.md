@@ -58,10 +58,23 @@ calendar**, not in pooled rows, so `oos_metrics` is genuinely out-of-sample.
 
 4. Insufficient data fails **honestly and loudly**, never silently. If the panel has
    fewer than `PRED_DAYS + 1` distinct dates before `cut_date`, or the embargo empties the train
-   split, or `TimeSeriesSplit` cannot produce the requested folds under the scaled gap, training
-   aborts with an explicit message naming the shortfall — it does **not** fall back to a smaller
-   embargo, a row-based split, or an unsplit fit. A contaminated `oos_metrics` is worse than no
-   model, because the number is published on `/transparency`.
+   split, or any row lacks a usable date, training aborts with an explicit message naming the
+   shortfall — it does **not** fall back to a smaller embargo, a row-based split, or an unsplit
+   fit. A contaminated `oos_metrics` is worse than no model, because the number is published on
+   `/transparency`. The abort must be **visible to callers**, not merely printed:
+   `train_and_save` returns `False`, `backend/train_ai.py` exits non-zero, and
+   `scripts/setup_real_ai.py` reports `trained: False` and skips the recalc.
+
+   **[AMENDED POST-REVIEW]** An infeasible **cross-validation** gap does **not** abort. The CV loop
+   is diagnostic only — each fold's classifier is fit, its accuracy printed, and discarded; it never
+   touches the shipped model or `oos_metrics`. The pre-mortem measured the consequence of treating
+   it as fatal: feasibility is governed by distinct **training dates** (roughly `> 4 × PRED_DAYS`)
+   and is **independent of ticker count**, because adding tickers scales `cv_gap` and the row count
+   together. The shipped demo fixture sits close to that cliff and would have crossed it as its
+   rolling window slid forward, silently leaving fresh clones unable to train. So the diagnostic
+   degrades — 3 folds, else 2, else skipped with an explicit warning — while the holdout embargo,
+   the actual guarantee, is untouched. Aborting a run because a nice-to-have could not be computed
+   would have conflated the two.
 
 5. `scripts/eval_label_modes.py:70` receives the same date-based split and scaled
    gap, so the ATR-vs-fixed comparison in `docs/specs/ml-label-oos-evaluation.md` is reproducible
@@ -75,7 +88,15 @@ calendar**, not in pooled rows, so `oos_metrics` is genuinely out-of-sample.
    - the CV gap spans `>= PRED_DAYS` distinct dates in every fold;
    - a panel with too few dates aborts with the honest message instead of training;
    - a single-ticker panel (where rows and dates coincide) still behaves correctly — the fix must
-     not regress the degenerate case it was already handling by accident.
+     not regress the degenerate case it was already handling by accident;
+   - **[POST-REVIEW]** every fold of a **real** `TimeSeriesSplit` is separated by `>= PRED_DAYS`
+     distinct dates, on both an even and an uneven panel. Arithmetic on `cv_gap` alone does not
+     show this, and the first version of this suite never instantiated a splitter;
+   - **[POST-REVIEW]** a panel below the CV feasibility cliff **degrades the diagnostic and keeps
+     the holdout embargo**, at both 8 and 60 tickers — pinning that the cliff is about dates, not
+     tickers;
+   - **[POST-REVIEW]** a partially dated panel (NaT after concat) and a timezone-aware date column
+     are handled through this module's own exception type rather than escaping as `TypeError`.
 
 7. The change in reported metrics is **measured and recorded**, not asserted. The
    Work Log records `oos_metrics` before and after on the same data and seed. These numbers are
@@ -124,6 +145,13 @@ calendar**, not in pooled rows, so `oos_metrics` is genuinely out-of-sample.
   scope.
 - **[CONSTRAINT]** Insufficient data aborts training rather than degrading the embargo. `oos_metrics`
   is published on `/transparency`, so a contaminated number is worse than an absent model.
+- **[DECISION]** Degrade diagnostics, never the guarantee. The holdout embargo is load-bearing and
+  aborts when it cannot be honoured; the CV fold count is informational and shrinks instead. Any
+  future addition to this function must be classified into one of those two buckets before it is
+  allowed to fail a run.
+- **[CONSTRAINT]** A history entry without an `embargo` key predates this change and its
+  `oos_metrics` are contaminated by construction. Downstream code may rely on that absence as the
+  pre-fix marker; do not backfill the key onto old entries.
 
 ## File Relationship
 
