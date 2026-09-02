@@ -46,18 +46,28 @@ Consolidated startup payload (market + top picks + models + sync status). Use th
 ## Market
 
 ### `GET /api/market_status`
-Current market status (bull/bear ratio, index, model version, model health) + 30-day history.
+Current market status (breadth, model version, model health) + 30-day history.
 
 **Response:**
 ```json
 {
   "status": "open",
-  "bull_ratio": 0.62,
+  "bull_ratio": 62.0,
+  "breadth_level": "BULLISH",
   "model_version": "v4.20260319_0800",
   "model_health": { "status": "degraded", "version": "v4.20260319_0800", "message": "..." },
-  "history": [ { "date": "2026-03-19", "bull_ratio": 0.62 } ]
+  "history": [ { "date": "2026-03-19", "bull_ratio": 62.0 } ]
 }
 ```
+
+`breadth_level` is a stable machine token — `BULLISH` (`bull_ratio > 60`), `BEARISH`
+(`< 30`), `NEUTRAL`, or `UNKNOWN` when there is no data. It is **market breadth**: the share
+of tracked tickers whose trend score exceeds 20, and nothing else — no volatility, index level,
+drawdown or correlation. Display labels live in the frontend (`src/lib/breadth.ts`).
+
+> Renamed from `risk_level` on 2026-09-02. The old field carried display strings
+> (`"LOW RISK (BULL)"` / `"HIGH RISK (BEAR)"`) that claimed a risk assessment the computation does
+> not perform. No compatibility alias is kept — see `docs/specs/docs-reality-alignment.md`.
 
 ---
 

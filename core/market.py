@@ -25,7 +25,7 @@ def get_market_status():
                 "bull_ratio": 0,
                 "market_temp": 0,
                 "ai_sentiment": 0,
-                "risk_level": "unknown",
+                "breadth_level": "UNKNOWN",
                 "total_stocks": 0,
             }
         model_version = mv_row[0]
@@ -56,7 +56,7 @@ def get_market_status():
                 "bull_ratio": 0,
                 "market_temp": 0,
                 "ai_sentiment": 0,
-                "risk_level": "unknown",
+                "breadth_level": "UNKNOWN",
                 "total_stocks": 0,
             }
 
@@ -65,17 +65,22 @@ def get_market_status():
         ai_sentiment = agg[3] or 0.0
         bull_ratio = bull_count / total_stocks
 
-        risk_level = "NEUTRAL"
+        # Market BREADTH, not risk. This is purely the share of tracked tickers whose trend score
+        # exceeds 20 -- no volatility, no index level, no drawdown, no correlation. Calling it a
+        # "risk level" claimed an assessment that does not exist. The value is a stable machine
+        # token; the display label lives in the frontend, so wording changes cannot silently break
+        # colour logic the way substring matching on "HIGH"/"LOW" did.
+        breadth_level = "NEUTRAL"
         if bull_ratio < 0.30:
-            risk_level = "HIGH RISK (BEAR)"
+            breadth_level = "BEARISH"
         elif bull_ratio > 0.60:
-            risk_level = "LOW RISK (BULL)"
+            breadth_level = "BULLISH"
 
         return {
             "bull_ratio": round(bull_ratio * 100, 1),
             "market_temp": round(market_temp, 1),
             "ai_sentiment": round(ai_sentiment * 100, 1),
-            "risk_level": risk_level,
+            "breadth_level": breadth_level,
             "total_stocks": total_stocks,
         }
 

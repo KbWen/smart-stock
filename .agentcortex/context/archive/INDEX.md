@@ -107,3 +107,8 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - D: "A models_history entry LACKING an `embargo` key is a pre-fix contamination marker by construction — never backfill it onto old entries" → feat-date-based-embargo-20260902.md
 - D: "Measure the cliff before claiming safety: the binding constraint was ~4x PRED_DAYS distinct TRAINING dates and independent of ticker count, not the date floor that was actually checked" → feat-date-based-embargo-20260902.md
 - D: "An abort must be visible to callers — returning None on both success and refusal let a scheduled retrain log success with no model written" → feat-date-based-embargo-20260902.md
+- D: "Writing a truthfulness spec does not make your own prose true — a fact-check review of #6 caught 3 errors in text written DURING that feature, including a sentence the cited test file itself falsifies" → feat-docs-reality-alignment-20260902.md
+- D: "A claim sheet must cite the code implementing each row; a row whose implementation is removed becomes a STATED LIMITATION, never a quiet deletion" → feat-docs-reality-alignment-20260902.md
+- D: "Send a machine token through the API and keep the display label at the presentation layer — string matching on user-facing wording (.includes('HIGH')) is a silent-failure mode" → feat-docs-reality-alignment-20260902.md
+- D: "Fixing the target lines is not enough: the same claim survived in README, which is where the next auditor greps first" → feat-docs-reality-alignment-20260902.md
+- D: "Survivorship bias is NOT mitigated by random sampling — sampling from a survivor-only universe is unbiased WITHIN survivors and says nothing about the names that left" → feat-docs-reality-alignment-20260902.md

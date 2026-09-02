@@ -29,6 +29,39 @@ barrier. The old code fabricated a zero there. On the dev data at shipped settin
 the *only* number the release moves, because the honestly-weak model admits one candidate that
 touches no barrier.
 
+### 風險等級 is now 多頭廣度 — it never measured risk
+
+The dashboard card and the Market page showed 風險等級 with values like "LOW RISK (BULL)", and a
+tooltip claiming an assessment 「根據動量均值與系統風險」. The value is computed **purely** from the
+share of tracked tickers whose trend score exceeds 20 — no volatility, no index level, no drawdown,
+no correlation. It is a **breadth** reading, so it is now labelled as one.
+
+The API field `risk_level` is renamed **`breadth_level`** and carries a stable machine token
+(`BULLISH` / `NEUTRAL` / `BEARISH` / `UNKNOWN`) instead of a display string; labels and colours live
+in the frontend. **No compatibility alias is kept** — keeping the misleading name available would
+defeat the point. If you script against `/api/market_status`, update the field name.
+
+Same market state, new words: 偏多 (廣度高) / 中性 / 偏空 (廣度低), with unchanged colours. The no-data state is the one exception: it was a yellow `unknown` and is now a muted `—`, so an empty database no longer looks like a neutral market reading.
+
+### The integrity documentation now matches the code
+
+`docs/DATA_INTEGRITY.md` asserted protections the code did not provide — in two cases by presenting
+the *defective* code as the mitigation. Every row is rewritten against what the code does today, with
+a runnable check where one exists and a History note where the old text was wrong.
+
+The biggest correction: **survivorship bias is now listed as NOT MITIGATED.** The old text claimed
+`random.sample()` handled it. Sampling from a universe of survivors is unbiased *within* survivors and
+says nothing about the names that left — backtest results are biased upward by an unmeasured amount.
+
+The "Verification" section used to say that consistent profit factors across `days_ago` prove there is
+no look-ahead bias. That is a non-sequitur — both runs inherit the same leak. It now describes a real
+control (retrain on shuffled labels; a clean pipeline collapses toward a profit factor of ~1) and
+lists what is still unprotected, including that **the backtest scores a model trained on the very
+window it is scored over**.
+
+`README.md` no longer claims data leakage is 「完全杜絕」, and the whitepaper no longer asserts
+`auto_adjust=True` as a system-wide property — false since the bulk-history path shipped.
+
 ### The AI's out-of-sample numbers were not out-of-sample
 
 The training embargo was measured in **pooled rows**, not days. On a panel stacking N tickers, one

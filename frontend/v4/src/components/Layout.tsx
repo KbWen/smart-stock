@@ -14,7 +14,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const navItems = [
         { path: '/', label: '儀表板', icon: LayoutDashboard },
         { path: '/backtest', label: 'AI 回測', icon: LineChart },
-        { path: '/risk', label: '市場風險', icon: Activity },
+        { path: '/risk', label: '市場廣度', icon: Activity },
         { path: '/indicators', label: '選股雷達', icon: Scan },
         { path: '/transparency', label: '系統透明度', icon: ShieldCheck },
     ]

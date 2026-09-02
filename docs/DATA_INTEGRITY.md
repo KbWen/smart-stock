@@ -1,10 +1,18 @@
 # SNIPER AI: Data Integrity & Anti-Leakage Safeguards
 
-This document outlines the architectural safeguards built into the core AI training and backtesting pipelines to prevent **Look-Ahead Bias** (偷看未來資料) and ensure all performance metrics are statistically genuine.
+This document outlines the architectural safeguards built into the core AI training and backtesting pipelines against **Look-Ahead Bias** (偷看未來資料).
+
+> [!IMPORTANT]
+> **Scope of this document.** It records which safeguards exist, which do **not**, and where each is
+> implemented — it is not a claim that the metrics are sound. Several known biases are currently
+> **unmitigated**, and metrics produced before 2026-09-02 are contaminated by a defective embargo.
+> Read **§Verification** at the end before trusting any number, and treat every row below as
+> falsifiable at the `file:line` it cites.
 
 ## Core Principle: Strict Temporal Boundaries
 
-The golden rule of the Sniper system is that **no future data can influence past decisions**.
+The intent of the Sniper system is that no future data influences past decisions. The rows below
+record how far that intent is actually implemented, and §Verification records where it is not.
 
 ```mermaid
 sequenceDiagram
@@ -38,19 +46,20 @@ sequenceDiagram
 
 | Risk | Mitigation Strategy | Implementation Details |
 |------|-----------------------|------------------------|
-| **Label Bleeding** (Using recent data where outcomes are unknown) | Truncation of terminal data | Removes the last `PRED_DAYS` (20 days) from the training set entirely (`df_clean.iloc[:-PRED_DAYS]`). |
-| **Chronological Leakage** (Training on future, testing on past) | **[SUPERSEDED 2026-09-02 — the row-based embargo described here separated train from test by 0 trading days on the real panel. Replaced by a date-based embargo; see `docs/specs/date-based-train-test-embargo.md`. This row is corrected in full by backlog #6.]** Strict Chronological Split & Embargo | Sorts all aggregated data by date. Uses `split_idx = int(len(X_all) * 0.8)`. Training set is embargoed by discarding `PRED_DAYS` rows prior to split index (`iloc[:split_idx - PRED_DAYS]`). Test set starts strictly at `split_idx`. |
-| **Cross-Validation Bias** (K-Fold shuffling leaks future states) | **[SUPERSEDED 2026-09-02 — `gap` counts SAMPLES, so `gap=20` on a stacked panel spanned a fraction of one day. Now scaled by the widest date. Corrected in full by backlog #6.]** `TimeSeriesSplit` with Gap | Uses forward-chaining CV instead of K-Fold. Incorporates `gap=20` (PRED_DAYS) to prevent training inputs in fold $i$ from bleeding into validation inputs in fold $i+1$. |
-| **Imputation Leakage** (Filling missing data using future averages) | Forward-Fill Only | `df.ffill()` is strictly applied. `bfill()` is forbidden during training to prevent pulling future values into past technical indicators. Warmup indicator rows are dropped completely via `dropna` instead of zero-biasing. |
-| **Binary Model Corruption** (Interrupted model saves/activations) | Atomic Writes & Switches | All serialized PKL models and sidecar files (`.sha256`, `.sig`) are written to temporary files inside the target directory first, then swapped instantly using `os.replace`. Prevents partial-write file corruption during CLI or training process interruptions. |
+| **Label Bleeding** (Using recent data where outcomes are unknown) | Truncation of terminal data | `core/ai/trainer.py:190` drops the last `PRED_DAYS` (20) rows, whose barriers have not resolved yet. Rows here really are days: `prepare_features` runs **per ticker** before `pd.concat` (`core/ai/trainer.py:327`), so this is not a repeat of the row-vs-day confusion that broke the embargo row above. |
+| **Chronological Leakage** (Training on future, testing on past) | Date-based embargo of `PRED_DAYS` **trading days** | `core/ai/trainer.py:chronological_split`. The cut date is taken at the 80% row position; the training set ends `PRED_DAYS` entries earlier in the panel's own **sorted unique dates**, and the test set starts at the cut date. Verify with `pytest tests/test_core/test_embargo.py`, whose **gap** assertions are about distinct dates rather than row counts (the file also asserts row/sample arithmetic on the CV gap itself). **History**: until 2026-09-02 this row described `iloc[:split_idx - PRED_DAYS]`, which embargoed *rows*. On a stacked panel one date is N rows, so at 92 tickers that separated train from test by **0 trading days** — every `oos_metrics` produced before then is contaminated. See `docs/specs/date-based-train-test-embargo.md`. |
+| **Cross-Validation Bias** (K-Fold shuffling leaks future states) | Forward-chaining `TimeSeriesSplit` with a **date-scaled** gap | `gap = PRED_DAYS x max_rows_per_date`, because scikit-learn counts `gap` in **samples**, not days. The max (not the mean) is used so the gap is guaranteed to span at least `PRED_DAYS` distinct dates on an uneven panel. This CV is **diagnostic only** — each fold's classifier is fit, its accuracy printed, then discarded — so when a short panel cannot host the folds it degrades (3 → 2 → skipped) rather than failing the run; the holdout embargo above is the control that is actually enforced. Neither is a guarantee that no leakage of any kind remains — they bound train/test **dates**, and say nothing about overlapping labels across tickers or about feature construction. **History**: until 2026-09-02 this was a bare `gap=20`, which on a stacked panel spanned a fraction of one day. |
+| **Imputation Leakage** (Filling missing data using future averages) | Forward-fill only during training | `core/ai/trainer.py:182` vs `:184`: training applies `ffill()` only; `bfill()` is confined to the inference path, where there is no future to pull from. Warm-up rows are dropped via `dropna` (`:199`) rather than zero-filled. **Known asymmetry**: prediction *does* zero-fill (`:200`), so a ticker with 120-249 rows is scored with `dist_sma240`/`sma240_slope` at 0, which the model reads as a flat 240-day MA. Not yet addressed. |
+| **Binary Model Corruption** (Interrupted model saves/activations) | Atomic writes and switches | `core/ai/trainer.py:538-555`: PKL models and their `.sha256` / `.sig` sidecars are written to temp files inside the target directory, then swapped with `os.replace`, so an interrupted save cannot leave a truncated artifact that the predictor would load. |
 
 ### 2. Backtesting Pipeline (`backend/backtest.py`)
 
 | Risk | Mitigation Strategy | Implementation Details |
 |------|-----------------------|------------------------|
-| **Selection Bias** (Backtesting only stocks that survived/succeeded) | Random Sampling pool | Candidate universe is selected via `random.seed(42)` and `random.sample()` from the entire DB pool, avoiding alphabetical or market-cap biases. |
+| **Ordering / market-cap bias** in candidate selection | Deterministic random sampling | `backend/backtest.py:79-82` uses `random.seed(42)` + `random.sample()` so the candidate pool is not alphabetical or market-cap ordered, and is reproducible across runs. |
+| **Survivorship bias** (backtesting only stocks that still exist) | **NOT MITIGATED — known limitation** | `backend/backtest.py:66` draws candidates from `get_all_tw_stocks()`, which is **today's** listed TWSE/TPEX set; the `:67-73` fallback reads `stock_scores` from the DB, which is also survivor-only. Delisted names are structurally absent, and no listing/delisting dates are stored anywhere — the universe cache is `{code, name, market, kind}` — so there is no point-in-time universe to draw from. Results are therefore biased **upward** by an unmeasured amount. **History**: until 2026-09-02 this row claimed the random sampling above mitigated survivorship. It does not: sampling from a survivor-only universe is unbiased *within* survivors and says nothing about the names that left. |
 | **Time-Machine Leakage** (AI calculating indicators on future price action) | Strict Data Slicing | `df_past = df_full.iloc[:entry_idx + 1]`. The AI prediction function strictly receives data *up to and including the entry date*. |
-| **Outcome Peeking** (Using future highest-high retrospectively) | Forward Walk Evaluation | `df_future` is evaluated chronologically step-by-step. If a `-5%` stop-loss is hit on day 2, it registers a `STOP` even if day 10 hits `+15%`. |
+| **Outcome Peeking** (Using future highest-high retrospectively) | Forward walk **plus** achievable-fill settlement | `df_future` is walked chronologically: a stop hit on day 2 registers a `STOP` even if day 10 reaches `+15%`. Separately, the **exit price** is one an order could have received — a target touch settles at `target_gain`, a stop touch at `-stop_loss`, with a gap-through bar filling at its open, clamped inside `[low, high]` (`backend/backtest.py:219-259` — the clamp at `:219`, the stop branch at `:231`, the target branch at `:252`). **History**: until 2026-09-02 the forward walk was correct but the price booked was the session **high** on a win and the session **low** on a loss — a one-directional inflation of every magnitude-based metric. See `docs/specs/backtest-settlement-realism.md`. |
 
 ### 3. Feature Engineering (`core/indicators_v2.py`)
 
@@ -62,9 +71,39 @@ Every technical indicator used by the AI model is strictly causal.
 
 ## Verification
 
-If you observe "beautiful" backtest numbers (high win rates or R/R ratios), they are a product of:
+If you observe "beautiful" backtest numbers, **do not read them as evidence of skill.** The measured reality on this project's own data is that the model is weak, and the two runs recorded in
+`docs/specs/ml-label-oos-evaluation.md` §Re-measurement say it slightly differently — both are reported
+here rather than blended into one flattering or one damning sentence:
 
-1. **The Strict Base Rules**: High initial filtering via AI Thresholds.
-2. **True Out-of-Sample generalization**: The AI successfully learned persistent momentum/squeeze patterns.
+- **Run B** (`scripts/eval_label_modes.py`, `ml-label-oos-evaluation.md:78-83`): StrongBuy precision
+  carries only ~**1.2×** lift over the test-split prevalence under the shipped `atr` labels
+  (0.365 against 31.0%), and **Buy precision is below chance** (0.131 against 15.6%).
+- **Run A** (the controlled both-splits panel, recorded in `docs/specs/_product-backlog.md:53`):
+  StrongBuy precision **0.3454 against a 0.3512 prevalence — below the base rate**.
 
-*To verify locally, run the backtest module on different `days_ago` timeframes. The consistent profit factors validate the lack of look-ahead bias.*
+A high win rate on a small, filtered, survivor-only sample is the expected shape of a weak model, not a
+contradiction of it.
+
+**How to actually falsify a look-ahead claim.** Running the backtest at several `days_ago` values and
+observing consistent profit factors proves nothing — consistency is not a leakage test, and both
+runs would inherit the same leak. A real control is a **label shuffle**: retrain with `y` randomly
+permuted and re-run the backtest. A pipeline free of leakage collapses toward a profit factor of ~1;
+one that retains a leak keeps scoring well on labels that carry no information. **This ships no flag
+today** — `grep -rn "shuffle\|permut" core/ai/ scripts/` returns nothing — so running it means editing
+`core/ai/trainer.py` locally to permute `y_train_full` before the fit. Said plainly rather than
+implying a command exists.
+
+**What is still not protected**, stated so the next reader does not have to discover it:
+
+- **The backtest scores the production model over a window that model was trained on.**
+  `backend/backtest.py:176` calls `predict_prob(..., version=version)` with the deployed model, which
+  `core/ai/trainer.py` fit on all rows up to today. For `days_ago=30` this measures in-sample recall.
+  Tracked as backlog #3.
+- **Survivorship** — see the table above. Unmitigated.
+- **Model rotation ranks profit factors measured under different settlement rules** (backlog #4), and
+  **`oos_metrics` are attributed to the split model rather than the shipped full-data refit**
+  (backlog #5). A `models_history.json` entry **without** an `embargo` key predates 2026-09-02 and its
+  metrics are contaminated by construction.
+- **Price basis can be mixed within one ticker's series** — the yfinance path writes back-adjusted
+  closes, the TWSE/TPEX bulk path writes raw ones, and `stock_history` has no `source` column to tell
+  them apart. Deferred; detail in `docs/specs/_raw-intake.md`.

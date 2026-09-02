@@ -2,6 +2,7 @@ import React from 'react'
 import { Activity, Zap, ShieldAlert } from 'lucide-react'
 import StatCard from './StatCard'
 import type { MarketStatus } from '../../hooks/useDashboardData'
+import { BREADTH_LABEL, BREADTH_TOOLTIP, breadthOf } from '../../lib/breadth'
 
 interface MarketStatusHeaderProps {
     market: MarketStatus | null
@@ -38,11 +39,11 @@ const MarketStatusHeader: React.FC<MarketStatusHeaderProps> = ({
             />
 
             <StatCard
-                title="風險等級"
-                value={market?.risk_level ?? '—'}
+                title="多頭廣度"
+                value={BREADTH_LABEL[breadthOf(market?.breadth_level)]}
                 subtitle={`掃描數量: ${market?.total_stocks ?? '—'}`}
                 icon={ShieldAlert}
-                tooltip="綜合市場溫度與風險情緒，建議當前的操作模式（積極/中性/減碼）。"
+                tooltip={BREADTH_TOOLTIP}
                 isLoading={isLoading}
                 valueColorClass={riskColorClass}
             />

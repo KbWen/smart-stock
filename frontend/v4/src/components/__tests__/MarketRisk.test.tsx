@@ -21,7 +21,7 @@ const REAL_MARKET = {
     bull_ratio: 58.5,
     market_temp: 62.3,
     ai_sentiment: 71.2,
-    risk_level: '中性',
+    breadth_level: 'NEUTRAL',
     total_stocks: 1200,
     model_version: 'v4.2',
     history: [],

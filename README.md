@@ -234,7 +234,7 @@ cd frontend/v4 && npm run dev   # → http://localhost:5173
 | 功能 | 說明 |
 | :--- | :--- |
 | **Ensemble V4 AI** | 結合三種異質機器學習模型 (GB, RF, MLP)，並整合 **Rise Score** 技術指標分數作為訓練特徵，大幅提升預測穩定性。 |
-| **Time-Series Split** | 訓練模型採用嚴格的「時間序列漫步驗證 (Walk-Forward Validation)」，切分 80/20 時間軸，完全杜絕傳統交叉驗證「用未來預測過去」的資料外洩 (Data Leakage) 漏洞。 |
+| **Time-Series Split** | 訓練採 80/20 時間序列切分，訓練集與測試集之間隔離 `PRED_DAYS` 個**交易日**（從資料本身的日曆取得），使標籤的 20 日觀察窗不會延伸進測試區間。這消除的是訓練/測試的時序外洩；**回測仍在用一個訓練期涵蓋該區間的模型評分，且存活者偏差未處理** — 尚未解決的項目逐條列在 [`docs/DATA_INTEGRITY.md`](docs/DATA_INTEGRITY.md)。2026-09-02 前此處寫「完全杜絕」，而當時的隔離在本專案 92 檔的資料面板上實測為 0 個交易日。 |
 | **Model Versioning** | 完整模型版本管理系統，自動追蹤訓練版本與同步時間，確保 UI 排名與策略回測結果 100% 一致。 |
 | **Smart Sync 2.0** | 偵測資料過期 (>6h)，支援手動觸發背景同步（非阻塞）。並行同步技術 (`ThreadPoolExecutor`，預設 5 workers) 加速資料抓取。 |
 | **Stability Plus** | 啟用 SQLite WAL 模式與並行鎖定處理，確保在高強度同步與 API 請求同時發生時系統依然穩定不噴錯。 |
@@ -250,9 +250,9 @@ cd frontend/v4 && npm run dev   # → http://localhost:5173
 
 為降低回測失真與資料偏差，系統採用以下防護：
 
-* **調整後價格 (Adjusted Price)**: `fetch_stock_data` 使用 `yfinance.history(..., auto_adjust=True)`，降低除權息造成的價格跳空干擾。
+* **價格調整基準（已知問題，非防護）**: 逐檔的 yfinance 路徑 (`core/data.py:622,628`) 使用 `auto_adjust=True`，但整批路徑 (`core/bulk_history.py:9-11,190`) 寫入的是 **原始** TWSE/TPEX 收盤價，而 `stock_history` 沒有 `source` 欄位可以分辨 (`core/data.py:120-131`)。同一檔股票的序列因此可能混用兩種基準，接縫處的除權息會變成一筆假的隔夜報酬。台股特有的減資、增資也完全未處理。詳見 [`docs/DATA_INTEGRITY.md`](docs/DATA_INTEGRITY.md)。
 * **資料時間序完整性**: 下載後資料會依 `date` 排序並去除重複日期，只保留最後一筆，避免同日重複資料影響指標。
-* **無前視偏誤**: 回測僅以進場日當下資料計算 AI 機率與分數，並以固定持有視窗模擬後續結果。
+* **特徵層無前視**: 回測的技術分數與 AI 機率僅以進場日當下的資料計算 (`backend/backtest.py:158`)，並以固定持有視窗模擬後續結果。**但模型本身沒有時序防護** —— `backend/backtest.py:176` 用的是訓練期涵蓋該回測區間的正式模型，所以 `days_ago=30` 量到的是 in-sample recall；**存活者偏差也未處理**。兩者都列在 [`docs/DATA_INTEGRITY.md`](docs/DATA_INTEGRITY.md)。
 * **績效摘要一致性**: `best_stock / best_return` 以「實際報酬最高」交易計算，不以 AI 排名第一名替代。
 
 ### 首頁入口讀取策略
