@@ -29,6 +29,41 @@ barrier. The old code fabricated a zero there. On the dev data at shipped settin
 the *only* number the release moves, because the honestly-weak model admits one candidate that
 touches no barrier.
 
+### The AI's out-of-sample numbers were not out-of-sample
+
+The training embargo was measured in **pooled rows**, not days. On a panel stacking N tickers, one
+calendar day is N rows, so removing `PRED_DAYS = 20` rows removed a fraction of a day. Measured on
+the real 92-ticker panel, the split separated train from test by **zero trading days** — while every
+label looks forward 20 trading days. The model was scored on outcomes it had been trained on.
+
+The embargo is now counted in trading days from the data's own calendar. Retraining will produce
+**worse** numbers, which is the correct direction: on the same panel and seed, StrongBuy recall
+falls 0.744 → 0.629 and precision 0.352 → 0.345.
+
+**Your existing `oos_metrics` are stale**, in `models_history.json` and on `/transparency`. This
+release does not force a retrain and does not silently rewrite them; the contamination is disclosed
+in `docs/specs/ml-label-oos-evaluation.md`, whose 2026-06-13 ATR-vs-fixed table is now marked as
+superseded and kept verbatim as the record of what was believed at the time.
+
+Training now **aborts with an explicit message** if the data cannot support a clean embargo, rather
+than quietly shrinking it, and the abort is visible to callers: `backend/train_ai.py` exits non-zero
+and `scripts/setup_real_ai.py` reports `trained: false` and skips the recalc, so a scheduled retrain
+can no longer report success with no model written. A published number that cannot be computed
+honestly is worse than no model.
+
+The cross-validation printout is diagnostic only, so when the panel is too short for it the fold
+count degrades (3 → 2 → skipped with a warning) rather than failing the run — the holdout embargo,
+which is the actual guarantee, is untouched either way.
+
+Each new entry in `models_history.json` now carries an `embargo` block. **An entry without that key
+predates this change and its `oos_metrics` are contaminated by construction**, which is the marker
+the transparency page will need to badge them.
+
+Honest reading of the corrected numbers: StrongBuy precision `0.3454` now sits **below** the
+test-split base rate of `0.3512`. That is a move from "no skill" to "negative skill", not a slight
+dip — and `get_model_health` will still call such a model `ok`, because its check predates this.
+Fixing that check is the next item in this epic.
+
 Note for anyone with a populated `models_history.json`: `backtest_30d.profit_factor` entries written
 before this change are **not comparable** to ones written after, and model rotation ranks on that
 field.

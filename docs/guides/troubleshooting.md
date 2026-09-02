@@ -132,6 +132,13 @@ curl -X POST http://localhost:8000/api/smart_scan \
 
 **Symptom:** `python backend/train_ai.py` exits with "Not enough rows for training".
 
+> Since 2026-09-02 training can also refuse for a different reason, with a different message:
+> `Aborting training: panel spans N distinct dates; a 20-day embargo ... needs at least 22`.
+> That is about **calendar coverage**, not rows per ticker, so the fixes below will not help —
+> adding more tickers adds rows but no new dates. Backfill a **longer history window** instead
+> (`python scripts/setup_real_ai.py --days 1100`). The process now exits non-zero when it refuses,
+> so a scheduled retrain can no longer report success without writing a model.
+
 **Fix:**
 1. Ensure you have at least `MIN_TRAIN_ROWS=260` days of price history per ticker
 2. Run a full sync first: `python backend/main.py --sync`

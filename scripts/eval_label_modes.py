@@ -2,8 +2,10 @@
 """Reproducible OOS comparison of ATR vs fixed labeling (no model is saved).
 
 Trains the production ensemble (GB + RF + MLP) under each ``LABEL_MODE`` on whatever
-tickers are present in storage.db, with a chronological 80/20 split + PRED_DAYS
-embargo, and reports per-class precision/recall for Buy / StrongBuy.
+tickers are present in storage.db, with a chronological 80/20 split and a PRED_DAYS
+embargo measured in TRADING DAYS (shared with core.ai.trainer.chronological_split, so this
+tool and production cannot drift apart), and reports per-class precision/recall for
+Buy / StrongBuy.
 
 This is the evidence tool behind docs/specs/ml-label-oos-evaluation.md. Results scale
 with the data: on the bundled 6-ticker demo it is only indicative; populate a broader
@@ -60,15 +62,21 @@ def _build(tickers, mode):
             frames.append(d)
     alld = pd.concat(frames).sort_values("date") if frames else pd.DataFrame()
     X = alld[FEATURE_COLS].replace([np.inf, -np.inf], np.nan).fillna(0)
-    return X, alld["target"].astype(int)
+    return X, alld["target"].astype(int), alld
 
 
 def evaluate(tickers, mode):
-    X, y = _build(tickers, mode)
+    X, y, panel = _build(tickers, mode)
     dist = {int(k): round(float(v), 3) for k, v in y.value_counts(normalize=True).items()}
-    split = int(len(X) * 0.8)
-    Xtr, ytr = X.iloc[: max(0, split - PRED_DAYS)], y.iloc[: max(0, split - PRED_DAYS)]
-    Xte, yte = X.iloc[split:], y.iloc[split:]
+    # Date-based embargo, shared with the trainer so this evidence tool and production cannot
+    # drift apart. The old `iloc[: split - PRED_DAYS]` removed PRED_DAYS ROWS from a stacked
+    # panel, i.e. PRED_DAYS/N trading days -- the numbers it produced were not out-of-sample.
+    try:
+        train_mask, test_mask, split_meta = trainer.chronological_split(panel, PRED_DAYS)
+    except trainer.InsufficientPanelHistory as exc:
+        return {"mode": mode, "samples": len(X), "error": f"insufficient panel history: {exc}"}
+    Xtr, ytr = X[train_mask], y[train_mask]
+    Xte, yte = X[test_mask], y[test_mask]
 
     w = {c: (1.0 / (m if (m := (ytr == c).mean()) > 0 else 1)) for c in (0, 1, 2)}
     w[2] *= 2
@@ -88,6 +96,8 @@ def evaluate(tickers, mode):
     pred = np.argmax((gb.predict_proba(Xte) + rf.predict_proba(Xte) + mlp.predict_proba(Xte)) / 3, axis=1)
 
     out = {"mode": mode, "samples": len(X), "test_n": len(Xte), "dist": dist,
+           "embargo_days": split_meta["gap_dates"],
+           "cut_date": str(split_meta["cut_date"].date()),
            "accuracy": round(accuracy_score(yte, pred), 3)}
     for c, name in ((1, "Buy"), (2, "StrongBuy")):
         out[name] = {
