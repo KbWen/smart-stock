@@ -15,7 +15,7 @@ import json
 import glob
 from datetime import datetime
 from core import config as _cfg
-from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, select_for_deletion, CURRENT_SETTLEMENT
+from core.ai.common import FEATURE_COLS, MODEL_PATH, PRED_DAYS, TARGET_GAIN, STOP_LOSS, BUY_TARGET, MIN_TRAIN_ROWS, MIN_PREDICT_ROWS, MAX_SAVED_MODELS, select_for_deletion, timestamps_to_delete, CURRENT_SETTLEMENT
 from core.ai import common as _c  # read LABEL_MODE / ATR_* dynamically (togglable)
 from core.logger import setup_logger
 
@@ -591,13 +591,16 @@ def train_and_save(all_dfs):
     shutil.copy2(versioned_path, _apkl_tmp)
     os.replace(_apkl_tmp, MODEL_PATH)
 
-    # The window must start AFTER the last label the final fit saw, or the benchmark scores the
-    # model on the price path it was just trained on. Labels look forward PRED_DAYS trading days
-    # and the simulated hold runs BENCHMARK_HOLDING_DAYS, so days_ago must clear their sum --
-    # otherwise the retained "best" model is whichever memorised the last month most closely.
+    # This benchmark is IN-SAMPLE and no choice of window fixes that. The final ensemble is
+    # refit on every row, and training rows run to T-PRED_DAYS with labels resolving on prices
+    # through T -- so the model has seen price information through T, and any window ending
+    # before T sits inside it. Moving days_ago 30 -> 40 would have buried the window MORE
+    # deeply while changing what win_rate / avg_return mean against every older entry, so the
+    # window stays where it was and the entry records the truth instead. A genuinely
+    # out-of-sample rotation score needs an as-of model per window: backlog #3.
     BENCHMARK_HOLDING_DAYS = 20
-    benchmark_days_ago = PRED_DAYS + BENCHMARK_HOLDING_DAYS
-    print(f"\n[Benchmark] Running post-training benchmark backtest ({benchmark_days_ago} days back)...")
+    benchmark_days_ago = 30
+    print(f"\n[Benchmark] Running post-training benchmark backtest ({benchmark_days_ago} days back, IN-SAMPLE)...")
     try:
         import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -606,15 +609,27 @@ def train_and_save(all_dfs):
                                      holding_days=BENCHMARK_HOLDING_DAYS)
         bt_summary = bt_result.get('summary', {})
         pf = bt_summary.get('profit_factor', None)
+        # run_time_machine RETURNS error dicts rather than raising for several conditions
+        # (bad args, no stock list, "No stocks met requirements"), and those responses carry
+        # no summary at all. Reading a missing profit_factor as "no losing trades" would
+        # recreate D2 inside the very field added to fix it.
+        if bt_result.get('error') or 'profit_factor' not in bt_summary:
+            status = 'failed'
+            pf = None
+        elif pf is None:
+            status = 'no_losing_trades'   # a genuinely flawless run: gains, zero losses
+        else:
+            status = 'ok'
         backtest_score = {
             'profit_factor': pf,
-            # `None` used to mean both "no losing trades" (a flawless run) and "the backtest
-            # raised", and the sort key treated both as worse than losing money on every trade.
-            # Name the state instead of collapsing two opposite facts into one absent number.
-            'status': 'ok' if pf is not None else 'no_losing_trades',
+            'status': status,
+            'error': bt_result.get('error') if status == 'failed' else None,
             'settlement': CURRENT_SETTLEMENT,
             'days_ago': benchmark_days_ago,
             'holding_days': BENCHMARK_HOLDING_DAYS,
+            # The scored window lies inside the training data -- see the comment above. This
+            # is a relative yardstick between models, not a measure of live skill.
+            'in_sample': True,
             'win_rate': round(bt_summary.get('win_rate', 0), 3),
             'sniper_hit_rate': round(bt_summary.get('sniper_hit_rate', 0), 3),
             'avg_return': round(bt_summary.get('avg_return', 0), 4),
@@ -628,6 +643,7 @@ def train_and_save(all_dfs):
             'settlement': CURRENT_SETTLEMENT,
             'days_ago': benchmark_days_ago,
             'holding_days': BENCHMARK_HOLDING_DAYS,
+            'in_sample': True,
             'win_rate': 0, 'sniper_hit_rate': 0, 'avg_return': 0,
         }
 
@@ -707,9 +723,13 @@ def train_and_save(all_dfs):
     to_delete, protected = select_for_deletion(
         history, keep=MAX_SAVED_MODELS, protected_versions={version_tag}
     )
-    delete_timestamps = {h['timestamp'] for h in to_delete if h.get('timestamp')}
-    keep_timestamps = {h['timestamp'] for h in history if h.get('timestamp')} - delete_timestamps
-    keep_timestamps.add(timestamp)  # always protect the freshly-trained model
+    # Delete ONLY what was selected. The previous shape -- glob every .pkl and remove anything
+    # not in a keep-set -- silently expired the protection: `history` is truncated to the last
+    # 50 entries, so a protected file eventually fell out of the keep-set and was removed by
+    # the glob with no comparability check and no log line. An allow-list cannot do that.
+    delete_timestamps = timestamps_to_delete(
+        history, keep=MAX_SAVED_MODELS, protected_versions={version_tag}, fresh_timestamp=timestamp
+    )
     if protected:
         print(
             f"[Rotation] Kept {len(protected)} model(s) that could not be compared "
@@ -724,13 +744,13 @@ def train_and_save(all_dfs):
         active_realpath = None
 
     _SIDECAR_EXTS = ('.sha256', '.sig')
-    for fpath in glob.glob(os.path.join(base_dir, f"{name_part}_*{ext_part}")):
-        ts_part = os.path.basename(fpath)[len(name_part) + 1: -len(ext_part)]
-        if ts_part in keep_timestamps:
+    for ts_part in sorted(delete_timestamps):
+        fpath = os.path.join(base_dir, f"{name_part}_{ts_part}{ext_part}")
+        if not os.path.exists(fpath):
             continue
         try:
             if active_realpath and os.path.realpath(fpath) == active_realpath:
-                continue  # AC4: never delete the active model file
+                continue  # never delete the active model file
             os.remove(fpath)
             for sidecar_ext in _SIDECAR_EXTS:
                 sidecar = fpath + sidecar_ext

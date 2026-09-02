@@ -52,8 +52,13 @@ def validate_version_string(version: str) -> bool:
 # not comparable to one measured under another, and rotation DELETES files based on that comparison.
 CURRENT_SETTLEMENT = "achievable_fill"
 
+# (days_ago, holding_days) the benchmark backtest uses. Part of the comparability key: a
+# profit factor measured over a different span is a different measurement, and PRED_DAYS is
+# env-configurable so this is reachable without any code change.
+BENCHMARK_WINDOW = (30, 20)
 
-def is_rankable(h: dict, settlement: str = CURRENT_SETTLEMENT) -> bool:
+
+def is_rankable(h: dict, settlement: str = CURRENT_SETTLEMENT, window=BENCHMARK_WINDOW) -> bool:
     """True when this entry's profit factor may be compared with others'.
 
     Requires a matching settlement marker AND a finite profit factor. An entry that fails either
@@ -71,6 +76,11 @@ def is_rankable(h: dict, settlement: str = CURRENT_SETTLEMENT) -> bool:
     if not isinstance(bt, dict):
         return False
     if bt.get('settlement') != settlement:
+        return False
+    # The window is part of the ruler, not decoration. PRED_DAYS is env-configurable
+    # (core/config.py), so two runs can carry the same settlement marker and still be measured
+    # over different spans. Require the window to be recorded AND to match the current one.
+    if (bt.get('days_ago'), bt.get('holding_days')) != window:
         return False
     pf = bt.get('profit_factor')
     if pf is None or isinstance(pf, bool):
@@ -107,8 +117,10 @@ def select_for_deletion(history: list, keep: int, protected_versions=None) -> tu
     keep = int(keep)
     if keep < 0:
         raise ValueError(f"keep must be >= 0, got {keep}; refusing to guess before an irreversible delete")
-    rankable = [h for h in history if is_rankable(h)]
-    unrankable = [h for h in history if not is_rankable(h)]
+    # An entry with no `version` cannot be deleted by the version-keyed path, and discovering
+    # that mid-loop would leave a partially pruned store. Treat it as unrankable up front.
+    rankable = [h for h in history if is_rankable(h) and h.get('version')]
+    unrankable = [h for h in history if not (is_rankable(h) and h.get('version'))]
     keepers = {id(h) for h in sorted(rankable, key=profit_factor_sort_key, reverse=True)[:keep]}
     to_delete = [
         h for h in rankable
@@ -129,3 +141,24 @@ FEATURE_COLS = [
     'k', 'd', 'kd_diff',
     'total_score_v2', 'trend_score_v2', 'momentum_score_v2', 'volatility_score_v2'
 ]
+
+
+def timestamps_to_delete(history: list, keep: int, protected_versions=None,
+                         fresh_timestamp: str = None) -> set:
+    """Model-file timestamps that a rotation pass may delete. Shared by the trainer and its tests.
+
+    Wraps :func:`select_for_deletion` with the file-level guards, because the mapping from entries
+    to filenames is where protection can leak: timestamps are minute-resolution, so two history
+    entries can name the SAME .pkl, and deleting on a rankable entry's behalf would take a
+    protected entry's file with it.
+
+    Returns an ALLOW-LIST. Callers must delete exactly these and nothing else -- the previous
+    "glob every .pkl and remove anything not in a keep-set" shape silently expired the protection,
+    because `history` is truncated and a protected file eventually fell out of the keep-set.
+    """
+    to_delete, protected = select_for_deletion(history, keep=keep,
+                                               protected_versions=protected_versions)
+    stamps = {h['timestamp'] for h in to_delete if h.get('timestamp')}
+    stamps -= {h['timestamp'] for h in protected if h.get('timestamp')}
+    stamps.discard(fresh_timestamp)
+    return stamps

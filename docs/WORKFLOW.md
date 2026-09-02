@@ -56,7 +56,8 @@ python backend/manage_models.py list
 # Swap to a better performing historical model
 python backend/manage_models.py activate <version_string>
 
-# Clean up low-performing models (keep top 5)
+# Clean up low-performing models (keep top 5 COMPARABLE ones; anything measured with a
+# different settlement rule or window, or with no usable profit factor, is protected)
 python backend/manage_models.py prune --keep=5
 ```
 

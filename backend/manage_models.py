@@ -81,7 +81,7 @@ def cmd_list():
         pf_s = f"{pf:.2f}" if isinstance(pf, (int, float)) else str(pf)
         wr_s = f"{wr:.1%}" if isinstance(wr, (int, float)) else str(wr)
         print(f"{v:<25} {samples:>8} {acc_s:>6} {p2_s:>6} {lift_s:>6} {r2_s:>6} {pf_s:>6} {settle:>18} {wr_s:>7} {active:>7}")
-    print(f"{'='*95}")
+    print(f"{'='*124}")
     print(f"Active model: {active_version}\n")
 
 def cmd_activate(version):
@@ -115,8 +115,26 @@ def cmd_activate(version):
     except Exception as e:
         print(f"[ERROR] Failed to activate model atomically: {e}")
 
-def cmd_delete(version):
-    """Delete a specific model version."""
+def cmd_delete(version, force=False):
+    """Delete a model version and its files.
+
+    Refuses the ACTIVE version without force=True: MODEL_PATH is a COPY, not a symlink, so
+    deleting the active entry leaves the running model on disk with no history entry --
+    get_model_health then reports metrics_not_for_this_version and the transparency panel
+    goes null. Both the trainer's rotation log and prune now point users here, so the
+    footgun would be a routine one.
+    """
+    if not force:
+        try:
+            from core.ai.predictor import get_model_version
+            if get_model_version() == version:
+                print(f"[REFUSED] {version} is the ACTIVE model. Deleting its history entry would leave\n"
+                      f"           the running .pkl with no provenance. Activate another version first,\n"
+                      f"           or pass force=True if you really mean it.")
+                return
+        except Exception:
+            pass  # never let the guard's own failure block an explicit delete
+
     if not _validate_version(version):
         print(f"[ERROR] Invalid version format: {version!r}. Expected: v<N>.<YYYYMMDD>_<HHMM>")
         return
@@ -157,7 +175,8 @@ def cmd_prune(keep=MAX_SAVED_MODELS):
     if protected:
         print(f"[PROTECTED] {len(protected)} model(s) cannot be compared and will NOT be deleted:")
         for h in protected:
-            bt = h.get('backtest_30d') or {}
+            bt = h.get('backtest_30d')
+            bt = bt if isinstance(bt, dict) else {}
             why = ("no settlement marker (recorded before 2026-09-02)"
                    if not bt.get('settlement') else
                    f"profit_factor unusable (status={bt.get('status', 'unknown')})")
@@ -178,12 +197,14 @@ if __name__ == "__main__":
     act.add_argument("version", help="Model version tag (e.g., v4.20260225_1343)")
     dl = sub.add_parser("delete", help="Delete a model version")
     dl.add_argument("version", help="Model version tag")
-    pr = sub.add_parser("prune", help="Delete low-scoring models")
+    dl.add_argument("--force", action="store_true",
+                    help="Delete even the ACTIVE version (leaves the running .pkl with no history entry)")
+    pr = sub.add_parser("prune", help="Delete low-scoring COMPARABLE models (protects the rest)")
     pr.add_argument("--keep", type=int, default=MAX_SAVED_MODELS, help="Number of models to keep")
 
     args = parser.parse_args()
     if args.command == "list": cmd_list()
     elif args.command == "activate": cmd_activate(args.version)
-    elif args.command == "delete": cmd_delete(args.version)
+    elif args.command == "delete": cmd_delete(args.version, force=getattr(args, "force", False))
     elif args.command == "prune": cmd_prune(args.keep)
     else: parser.print_help()

@@ -151,7 +151,7 @@ curl -X POST http://localhost:8000/api/smart_scan \
 
 **Symptom:** Old good models disappearing after training a bad new model.
 
-**Cause:** Pre-fix issue — now resolved by `profit_factor_sort_key` in common.py (always protects the active model and freshly trained model).
+**Cause:** Pre-fix issue. Rotation protects the freshly trained model, and since 2026-09-02 it also refuses to delete anything it cannot compare — see `select_for_deletion` in `core/ai/common.py`. Note the sort key itself never protected the active model; the file-level guard in `trainer.py` does, and `manage_models delete` now refuses the active version without `force=True`.
 
 **Check:** `python backend/manage_models.py list` — the active model (`*`) should never be pruned.
 

@@ -70,10 +70,22 @@ already seen.
    flawless run) and `failed` (the backtest raised). Both non-`ok` states are unrankable per AC2,
    but they are no longer indistinguishable to a reader or to a future feature.
 
-5. The rotation benchmark runs on a window the final fit has not seen:
-   `days_ago` is at least `PRED_DAYS + holding_days`, so the scored outcome window starts after the
-   last label the model was trained on. The value used is recorded in `backtest_30d` (AC1) rather
-   than assumed from the field's name.
+5. **[AMENDED POST-REVIEW — the original AC was unachievable]** The original text required the
+   benchmark to run on "a window the final fit has not seen", with `days_ago >= PRED_DAYS +
+   holding_days`. **That property cannot be delivered.** Both reviewers derived the same thing: the
+   final ensemble is refit on *every* row, training rows run to `T - PRED_DAYS`, and their labels
+   resolve on prices through `T` — so any window ending before `T` sits inside the training data,
+   and raising `days_ago` buries it *deeper*. At `days_ago=40` the scored `df_future` slice is
+   exactly the training label window of the entry row.
+
+   So the window stays at 30 (changing it would have altered what `win_rate` / `avg_return` mean
+   against every older entry, for nothing), and the entry records the truth instead:
+   `backtest_30d.in_sample: true`, plus `days_ago` and `holding_days` so the span is recorded rather
+   than assumed from the field's name. A genuinely out-of-sample rotation score needs an **as-of
+   model per window**, which is backlog #3's territory.
+
+   This amendment is itself the epic's rule applied to my own spec: a claim that cannot be
+   delivered is removed, not weakened into something that sounds delivered.
 
 6. `backend/manage_models.py` `prune` uses the same comparability rule and the same
    protection, because it performs the same irreversible deletion from a different entry point.
@@ -87,7 +99,18 @@ already seen.
    - `no_losing_trades` and `failed` are distinguishable in the recorded entry;
    - among comparable entries the ranking is still by profit factor, descending;
    - the freshly-trained model is always protected (existing guarantee, regression guard);
-   - the benchmark's `days_ago` is `>= PRED_DAYS + holding_days`.
+   - **[POST-REVIEW]** the benchmark records `in_sample: true` and its actual window, rather than
+     claiming a property it does not have;
+   - **[POST-REVIEW]** a backtest that returns an **error dict** (`run_time_machine` does not always
+     raise) records `status: failed`, not `no_losing_trades` — otherwise D2 is recreated inside the
+     field added to fix it;
+   - **[POST-REVIEW]** deletion is an **allow-list**: only timestamps explicitly selected are
+     removed. The glob-and-keep shape silently expired the protection once `history` truncation
+     dropped a protected entry;
+   - **[POST-REVIEW]** two entries sharing a minute-resolution timestamp: the shared `.pkl` survives
+     if either entry is protected;
+   - **[POST-REVIEW]** a malformed `backtest_30d` (list, string, number) is unrankable and does not
+     raise, and a negative `keep` raises rather than deleting everything.
 
 8. No deletion path is added, widened, or made reachable from a new caller. The
    change can only ever result in **fewer** files being deleted than before.
@@ -122,6 +145,12 @@ already seen.
   two different things.
 - **[CONSTRAINT]** Any future ranking used to select files for deletion must be comparability-aware.
   A raw `sorted(history, key=...)` over a persisted metric is the shape of this bug.
+- **[CONSTRAINT]** Deletion is an **allow-list**, never "everything not kept". `history` is
+  truncated to the last 50 entries, so a keep-set derived from it silently stops covering older
+  files — which is exactly how the protection expired around night 52 in the first implementation.
+- **[CONSTRAINT]** The comparability key is `(settlement, days_ago, holding_days)`. `PRED_DAYS` is
+  env-configurable, so two runs can share a settlement marker and still be measured over different
+  spans; the window is part of the ruler, not decoration.
 - **[TRADEOFF]** The model store can exceed `MAX_SAVED_MODELS` and stay there until a human prunes.
   Disk is cheap; an irreversibly deleted good model is not, and the cap was never a hard requirement.
 

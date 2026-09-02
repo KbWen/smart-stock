@@ -12,7 +12,8 @@ applies_to:
 
 - **Status**: Proposed (2026-07-19)
 - **Origin**: 2026-07-19 find-more audit (LOW).
-- **applies_to**: `core/ai/common.py` (`profit_factor_sort_key`), `core/ai/trainer.py`
+- **applies_to**: `core/ai/common.py` (`profit_factor_sort_key`, `is_rankable`, `select_for_deletion`, `timestamps_to_delete`), `core/ai/trainer.py`
+- **superseded_in_part**: 2026-09-02 by `docs/specs/model-rotation-ranking-honesty.md` — the quality-first ranking this ADR chose still stands, but ranking is now applied **only among comparable entries**, and anything unrankable is protected from deletion rather than sorted last.
   (rotation), `backend/manage_models.py` (prune/list), `models_history.json` schema
 
 ## Context

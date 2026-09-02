@@ -186,7 +186,9 @@ python backend/manage_models.py list
 # 切換到指定模型版本
 python backend/manage_models.py activate v4.20260225_1409
 
-# 自動清理舊模型，僅保留績效前 5 名
+# 清理舊模型：在「可比較」的模型中保留績效前 5 名。
+# 2026-09-02 起，量測方式不同（settlement / 視窗不同）或沒有可用獲利因子的模型會被**保護不刪**，
+# 所以實際留存數可能超過 5 個 —— 這是拒絕用不可比的數字做不可逆刪除的結果。
 python backend/manage_models.py prune --keep=5
 ```
 
