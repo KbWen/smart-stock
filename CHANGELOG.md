@@ -46,7 +46,23 @@ in `docs/specs/ml-label-oos-evaluation.md`, whose 2026-06-13 ATR-vs-fixed table 
 superseded and kept verbatim as the record of what was believed at the time.
 
 Training now **aborts with an explicit message** if the data cannot support a clean embargo, rather
-than quietly shrinking it. A published number that cannot be computed honestly is worse than no model.
+than quietly shrinking it, and the abort is visible to callers: `backend/train_ai.py` exits non-zero
+and `scripts/setup_real_ai.py` reports `trained: false` and skips the recalc, so a scheduled retrain
+can no longer report success with no model written. A published number that cannot be computed
+honestly is worse than no model.
+
+The cross-validation printout is diagnostic only, so when the panel is too short for it the fold
+count degrades (3 → 2 → skipped with a warning) rather than failing the run — the holdout embargo,
+which is the actual guarantee, is untouched either way.
+
+Each new entry in `models_history.json` now carries an `embargo` block. **An entry without that key
+predates this change and its `oos_metrics` are contaminated by construction**, which is the marker
+the transparency page will need to badge them.
+
+Honest reading of the corrected numbers: StrongBuy precision `0.3454` now sits **below** the
+test-split base rate of `0.3512`. That is a move from "no skill" to "negative skill", not a slight
+dip — and `get_model_health` will still call such a model `ok`, because its check predates this.
+Fixing that check is the next item in this epic.
 
 Note for anyone with a populated `models_history.json`: `backtest_30d.profit_factor` entries written
 before this change are **not comparable** to ones written after, and model rotation ranks on that
