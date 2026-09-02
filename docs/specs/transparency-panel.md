@@ -11,6 +11,16 @@ created: 2026-07-02
 
 Honest Research Workbench epic **#2**. A first-class, read-only view that makes the project's differentiator (transparency) visible: how much data the system has, and exactly what the AI model does and does not know — aggregating **existing, already-honest signals** into one place. No new data, no ML change, no persistence.
 
+
+> [!NOTE]
+> **Payload changed 2026-09-02** by `docs/specs/oos-metric-attribution-and-lift.md` (#5). The single
+> `class_distribution` field is replaced by `train_class_distribution` and `test_class_distribution`,
+> because the stored value was the **train** split while the panel rendered it under an OOS heading,
+> where a reader took it as the denominator for the precision beside it. Also added:
+> `oos_metrics.lift_strong` / `lift_buy` (precision over the test-split base rate),
+> `oos_metrics_scope`, and `embargo`. No compatibility alias — an absent key is the marker that an
+> entry predates the measurement.
+
 ## 1. Goal
 - Give any user (novice or expert) a single honest answer to "how much can I trust what this app shows me?" by surfacing **data sufficiency** and **model quality/state** together.
 - Reuse the existing honest primitives — `get_model_health()`, `report_history_coverage()`, `get_history_context()`, model `oos_metrics` — so the panel can never claim more than those already do.
@@ -22,7 +32,7 @@ Honest Research Workbench epic **#2**. A first-class, read-only view that makes 
 ## 3. Acceptance Criteria
 1. **[FROM-SOURCE]** New read-only endpoint `GET /api/transparency` aggregates (additive; changes no existing endpoint):
    - `data`: `{ universe_size, tickers_with_history, date_range:{start,end}|null, coverage:{ with_predict_rows, with_train_rows, short_count, min_predict_rows, min_train_rows } }` from `report_history_coverage()` (`core/data.py:482`) + `get_history_context()` (added in strategy-lab). **Counts only** — never return the full `short` ticker list in the payload (keep it small + honest).
-   - `model`: `get_model_health()` (`core/ai/predictor.py:159`) → `{ status: 'unavailable'|'degraded'|'ok', version, message }` PLUS, when a model entry exists, `{ trained_at, samples, test_samples, class_distribution, oos_metrics }` read from `models_history.json`. When no model / no metrics, these are `null` and `status` is `unavailable` — **honest N/A, never fabricated**.
+   - `model`: `get_model_health()` (`core/ai/predictor.py:159`) → `{ status: 'unavailable'|'degraded'|'ok', version, message }` PLUS, when a model entry exists, `{ trained_at, samples, test_samples, train_class_distribution, test_class_distribution, oos_metrics }` read from `models_history.json`. When no model / no metrics, these are `null` and `status` is `unavailable` — **honest N/A, never fabricated**.
 2. **[FROM-SOURCE]** Performance guards (the coverage/history scans are heavy on a full-universe DB): the endpoint's aggregate is **server-side cached with a short TTL** (≈60s; recompute only when stale) and **rate-limited** via the shared `backend/limiter.py` limiter (e.g. `10/minute`). One cache miss recomputes; concurrent misses do not each rescan.
 3. **[FROM-SOURCE]** Frontend first-class "系統透明度 (System Transparency)" view on a new `/transparency` route with a sidebar nav entry, reusing the existing dark-glass design system + `ModelHealthBanner`/`Tooltip` (no new visual language). Renders the §2 simple headline always; the expert numbers behind an expand toggle. Honest empty/error/loading states (no fabricated numbers on failure).
 4. **[FROM-SOURCE]** Honesty guards: every model metric is shown with a plain-language caption (novices won't hover); a `status!=='ok'` state shows the existing honest `model_health.message`; OOS metrics are labeled as **out-of-sample on the training universe, not a forward guarantee** (consistent with `ml-label-oos-evaluation.md`); N/A stays visibly N/A.

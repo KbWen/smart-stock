@@ -11,8 +11,6 @@ Three defects this pins:
 The through-line: get_model_health must fail TOWARD disclosure. Every test here that adds a
 reason to doubt the numbers expects `degraded`, never `ok`.
 """
-import pytest
-
 import core.ai.predictor as predictor
 
 
@@ -135,3 +133,51 @@ def test_train_and_test_prevalence_differ_so_the_wrong_one_is_detectable():
     precision = 0.25
     assert lift_over_prevalence(precision, train_dist["strong"]) == 5.0
     assert lift_over_prevalence(precision, test_dist["strong"]) == 1.0
+
+
+def test_trainer_records_the_test_split_prevalence_not_the_train_one(tmp_path, monkeypatch):
+    """Pins the CALL SITE, which the helper tests above cannot: rewriting
+    `class_prevalence(y_test)` to `class_prevalence(y_train_full)` in trainer.py breaks nothing
+    unless something actually runs the trainer and reads what it wrote. AC6 bullet 1 asks for
+    exactly that proof, so this runs a real (small) train_and_save into a temp MODEL_PATH.
+
+    The panel is built so the two splits have visibly different class balances -- late dates are
+    mostly StrongBuy, early dates mostly Hold -- so reading the wrong one is detectable rather
+    than a coincidental match.
+    """
+    import json
+
+    from core.ai import trainer as t
+    from core.ai.common import FEATURE_COLS
+
+    # Patch the module constant rather than the env var: reloading core/* mid-suite would leave
+    # other tests importing modules that had baked in this temp path.
+    monkeypatch.setattr(t, "MODEL_PATH", str(tmp_path / "m.pkl"))
+
+    dates = pd.bdate_range("2021-01-01", periods=400)
+    rows = []
+    for i, d in enumerate(dates):
+        late = i > len(dates) * 0.8
+        for k in range(12):
+            rows.append({
+                **{c: float(i + k) for c in FEATURE_COLS},
+                "target": (2 if k % 4 else 0) if late else (0 if k % 4 else 1),
+                "date": d,
+            })
+    panel = pd.DataFrame(rows)
+    monkeypatch.setattr(t, "prepare_features", lambda df: (df[FEATURE_COLS], df["target"]))
+
+    assert t.train_and_save([panel]) is True
+
+    entry = json.loads((tmp_path / "models_history.json").read_text())[-1]
+    train_mask, test_mask, _ = t.chronological_split(panel, t.PRED_DAYS)
+    expected = t.class_prevalence(panel["target"][test_mask])
+
+    assert entry["test_class_distribution"]["strong"] == round(expected["strong"], 3)
+    # The train split is genuinely different, so the assertion above could not have passed by
+    # reading the wrong series.
+    train_dist = t.class_prevalence(panel["target"][train_mask])
+    assert entry["test_class_distribution"]["strong"] != round(train_dist["strong"], 3)
+    assert entry["class_distribution"]["strong"] == round(train_dist["strong"], 3)
+    assert entry["oos_metrics_scope"] == "split_model"
+    assert "lift_strong" in entry["oos_metrics"]

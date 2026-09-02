@@ -47,15 +47,14 @@ def _reset_transparency_cache() -> None:
 def _active_model_entry(version: str) -> Optional[dict]:
     """Return the models_history.json entry for the active version.
 
-    Mirrors the exact lookup get_model_health() uses internally (same
-    fallback-to-latest behavior) so the extra fields we surface here are
-    consistent with the status/message get_model_health already returned.
+    Returns None when the active version has no entry of its own. It deliberately does NOT fall
+    back to the latest entry: this panel exists to show what the system actually knows, and
+    rendering another model's metrics, distributions and embargo block under the active version
+    string would recreate the very mis-attribution defect this feature was written to close.
+    get_model_health() reports that state as `metrics_not_for_this_version`.
     """
     history = list_available_models()
-    entry = next((h for h in history if h.get("version") == version), None)
-    if entry is None and history:
-        entry = history[-1]
-    return entry
+    return next((h for h in history if h.get("version") == version), None)
 
 
 def _compute_transparency() -> dict:

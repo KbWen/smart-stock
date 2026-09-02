@@ -32,6 +32,9 @@ interface TransparencyData {
     }
     model: {
         status: ModelStatus
+        // Machine token for WHY the status is what it is. Display surfaces key off this rather
+        // than hardcoding one cause for a status that has several.
+        reason?: string | null
         version: string
         message: string
         trained_at?: string | null
@@ -58,12 +61,27 @@ const OOS_LABELS: { key: keyof OosMetrics; label: string; plain: string }[] = [
     { key: 'recall_buy', label: '買進召回率', plain: '實際的買進機會裡被模型抓到的比例。' },
 ]
 
-function statusChip(status: ModelStatus, version: string): { text: string; cls: string } {
+// `degraded` covers several different facts, and the chip used to assert only one of them —
+// so an upgrading user whose metrics are merely UNTRUSTWORTHY read 「AI 辨識力不足」 sitting
+// directly above a precision of 0.55. The backend now sends a machine `reason`; the label follows
+// it rather than guessing.
+const DEGRADED_CHIP: Record<string, string> = {
+    zero_power: 'AI 辨識力不足',
+    below_baseline: 'AI 未優於基準比例',
+    contaminated_metrics: '指標不可信 · 需重新訓練',
+    no_baseline: '缺少基準對照',
+    metrics_not_for_this_version: '找不到此版本的指標',
+}
+
+function statusChip(status: ModelStatus, version: string, reason?: string | null): { text: string; cls: string } {
     switch (status) {
         case 'ok':
             return { text: `AI 已訓練 · ${version}`, cls: 'border-sniper-green/40 bg-sniper-green/10 text-sniper-green' }
         case 'degraded':
-            return { text: 'AI 辨識力不足', cls: 'border-orange-500/40 bg-orange-500/10 text-orange-300' }
+            return {
+                text: (reason && DEGRADED_CHIP[reason]) || '模型狀態：需注意',
+                cls: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
+            }
         default:
             return { text: '示範模式 · AI 未訓練', cls: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300' }
     }
@@ -128,7 +146,7 @@ const Transparency: React.FC = () => {
                         <div className="rounded-xl border border-dark-border bg-dark-card p-5">
                             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-dark-muted">AI 模型狀態</div>
                             {(() => {
-                                const chip = statusChip(data.model.status, data.model.version)
+                                const chip = statusChip(data.model.status, data.model.version, data.model.reason)
                                 return (
                                     <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${chip.cls}`}>
                                         {chip.text}
@@ -175,8 +193,12 @@ const Transparency: React.FC = () => {
                                     <p className="mb-3 text-[11px] text-dark-muted">
                                         以下為訓練 universe 上的<strong className="text-dark-text">樣本外 (OOS)</strong> 評估，
                                         <strong className="text-dark-text">不是對未來的保證</strong>。
-                                        這些數字是在 <strong className="text-dark-text">80/20 切分</strong>的模型上量到的；
-                                        實際出貨的模型是用全部資料重新訓練的另一個模型。
+                                        {data.model.oos_metrics_scope === 'split_model' && (
+                                            <>
+                                                這些數字是在 <strong className="text-dark-text">80/20 切分</strong>的模型上量到的；
+                                                實際出貨的模型是用全部資料重新訓練的另一個模型。
+                                            </>
+                                        )}
                                     </p>
                                     {data.model.oos_metrics && !data.model.embargo && (
                                         <p className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-[11px] leading-relaxed text-red-300">
@@ -272,6 +294,11 @@ const LiftRow: React.FC<{ label: string; plain: string; value?: number | null }>
                 {noEdge && (
                     <div className="mt-1 text-[10px] font-semibold text-red-400">
                         未優於基準比例 —— 這個類別上模型沒有可用的優勢。
+                    </div>
+                )}
+                {!hasValue && (
+                    <div className="mt-1 text-[10px] text-dark-muted">
+                        這個模型是在開始記錄基準比例之前訓練的，無法計算提升倍數。
                     </div>
                 )}
             </div>

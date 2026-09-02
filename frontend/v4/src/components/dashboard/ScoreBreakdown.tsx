@@ -39,7 +39,10 @@ const SUBSCORE_CAPTION: Record<'trend' | 'momentum' | 'volatility', string> = {
 
 function healthCaption(h: ScoreModelHealth): string {
     if (h.message) return h.message
-    return h.status === 'unavailable' ? '示範模式 · AI 尚未訓練' : 'AI 模型辨識力不足，僅供參考'
+    // Without a message we do not know WHICH degraded cause applies, and asserting "辨識力不足"
+    // is a specific claim that may be false (the metrics may simply be untrustworthy). Say only
+    // what is actually known.
+    return h.status === 'unavailable' ? '示範模式 · AI 尚未訓練' : 'AI 模型狀態需注意，僅供參考'
 }
 
 function useCountUp(target: number, duration = 1000): number {

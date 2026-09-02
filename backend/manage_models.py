@@ -50,8 +50,12 @@ def cmd_list():
             pass
 
     print(f"\n{'='*95}")
-    print(f"{'Version':<25} {'Samples':>8} {'Acc':>6} {'P(SB)':>6} {'R(SB)':>6} {'PF(bt)':>6} {'WR(bt)':>7} {'Active':>7}")
-    print(f"{'='*95}")
+    # Lift is shown next to precision because precision alone is unreadable: 0.35 against a 14%
+    # base rate is an edge, against a 35% base rate it is worse than guessing. `-` means the entry
+    # predates the baseline being recorded (2026-09-02), which also means its metrics were
+    # produced under the old row-based embargo and are not out-of-sample.
+    print(f"{'Version':<25} {'Samples':>8} {'Acc':>6} {'P(SB)':>6} {'Lift':>6} {'R(SB)':>6} {'PF(bt)':>6} {'WR(bt)':>7} {'Active':>7}")
+    print(f"{'='*104}")
     for entry in reversed(history):
         v = entry.get('version', '?')
         samples = entry.get('samples', 0)
@@ -60,6 +64,8 @@ def cmd_list():
         acc = oos.get('accuracy', '-')
         p2 = oos.get('precision_strong', '-')
         r2 = oos.get('recall_strong', '-')
+        lift = oos.get('lift_strong')
+        lift = '-' if lift is None else lift
         pf = bt.get('profit_factor', '-')
         wr = bt.get('win_rate', '-')
         active = " *" if v == active_version else ""
@@ -67,9 +73,10 @@ def cmd_list():
         acc_s = f"{acc:.3f}" if isinstance(acc, (int, float)) else str(acc)
         p2_s = f"{p2:.3f}" if isinstance(p2, (int, float)) else str(p2)
         r2_s = f"{r2:.3f}" if isinstance(r2, (int, float)) else str(r2)
+        lift_s = f"{lift:.2f}x" if isinstance(lift, (int, float)) else str(lift)
         pf_s = f"{pf:.2f}" if isinstance(pf, (int, float)) else str(pf)
         wr_s = f"{wr:.1%}" if isinstance(wr, (int, float)) else str(wr)
-        print(f"{v:<25} {samples:>8} {acc_s:>6} {p2_s:>6} {r2_s:>6} {pf_s:>6} {wr_s:>7} {active:>7}")
+        print(f"{v:<25} {samples:>8} {acc_s:>6} {p2_s:>6} {lift_s:>6} {r2_s:>6} {pf_s:>6} {wr_s:>7} {active:>7}")
     print(f"{'='*95}")
     print(f"Active model: {active_version}\n")
 

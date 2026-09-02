@@ -6,6 +6,7 @@ import pandas as pd
 import joblib
 import os
 import json
+import math
 import logging
 import threading
 from collections import OrderedDict
@@ -179,22 +180,63 @@ def get_model_health() -> dict:
     if not version or version == "unknown":
         return {
             "status": "unavailable",
+            "reason": "not_trained",
             "version": version or "unknown",
             "message": "AI 模型尚未載入或尚未訓練，AI 機率暫時不可用。",
         }
 
     history = list_available_models()
     entry = next((h for h in history if h.get("version") == version), None)
+    borrowed_metrics = False
     if entry is None and history:
-        entry = history[-1]  # fall back to the latest recorded metrics
+        # The loaded model has no entry of its own -- a pruned or hand-edited history. The old
+        # behaviour borrowed the latest entry's numbers silently, which was tolerable when the
+        # output was a vague status but is not now that it is a specific public claim
+        # ("lift 0.98x"). Keep the fallback, but never present a borrowed figure as this model's.
+        entry = history[-1]
+        borrowed_metrics = True
     metrics = (entry or {}).get("oos_metrics") or {}
     if not metrics:
         return {
             "status": "unavailable",
+            "reason": "no_metrics",
             "version": version,
             "message": "AI 模型缺少評估指標，AI 機率僅供參考。",
         }
 
+    # The checks below run strictly worst-first: each one makes every check after it
+    # meaningless, so the order IS the semantics. All of them fail TOWARD disclosure.
+
+    # 1. These numbers belong to a different model. Nothing computed from them can be
+    #    attributed to the version actually loaded.
+    if borrowed_metrics:
+        return {
+            "status": "degraded",
+            "reason": "metrics_not_for_this_version",
+            "version": version,
+            "message": (
+                "找不到這個模型版本自己的評估指標（訓練紀錄可能已被輪替或修改過），"
+                "無法判斷它的表現。AI 機率僅供參考，請勿單獨作為買賣依據。"
+            ),
+        }
+
+    # 2. No `embargo` block => the entry predates 2026-09-02, when the train/test embargo was
+    #    measured in pooled ROWS rather than trading days. On the real panel that separated the
+    #    two sides by 0 days, so these were never out-of-sample numbers. This outranks the
+    #    metric-quality checks below: "we cannot trust these figures" and "these figures say the
+    #    model has no edge" are different facts for a reader to act on, and the first one wins.
+    if not (entry or {}).get("embargo"):
+        return {
+            "status": "degraded",
+            "reason": "contaminated_metrics",
+            "version": version,
+            "message": (
+                "此模型的評估指標是在舊的切分方式下產生的（訓練集與測試集實際上沒有隔離），"
+                "數字並非真正的樣本外結果。重新訓練後才會有可信的指標；在那之前 AI 機率僅供參考。"
+            ),
+        }
+
+    # 3. Literal zeros: the model produced no buy signal at all, whatever the base rate was.
     buy_signal_power = (
         _metric(metrics.get("precision_buy"))
         + _metric(metrics.get("recall_buy"))
@@ -204,6 +246,7 @@ def get_model_health() -> dict:
     if buy_signal_power <= 0:
         return {
             "status": "degraded",
+            "reason": "zero_power",
             "version": version,
             "message": (
                 "AI 模型對買訊的辨識力不足（買進/強買的準確率與召回率為 0）。"
@@ -211,48 +254,39 @@ def get_model_health() -> dict:
             ),
         }
 
-    # An entry without an `embargo` block predates 2026-09-02, when the train/test embargo was
-    # measured in pooled ROWS rather than trading days -- on the real panel that separated the two
-    # sides by 0 days, so the metrics above were never out-of-sample. Do not present them as a
-    # healthy model just because they look non-zero.
-    if not (entry or {}).get("embargo"):
-        return {
-            "status": "degraded",
-            "version": version,
-            "message": (
-                "此模型的評估指標是在舊的切分方式下產生的（訓練集與測試集實際上沒有隔離），"
-                "數字並非真正的樣本外結果。重新訓練後才會有可信的指標；在那之前 AI 機率僅供參考。"
-            ),
-        }
-
-    # Precision without its base rate is unreadable. A lift of 1.0 means the model is no better
-    # than guessing at the class prevalence, so <= 1.0 is disclosed as degraded rather than shown
-    # as a working model. Absent lift (older entry) does not trigger this branch -- the embargo
-    # check above already caught those.
-    # A post-embargo entry always carries lift_strong (trainer writes both together), so its
-    # absence means a hand-edited or partially-written entry -- something we cannot evaluate.
-    # The constraint is to fail TOWARD disclosure, so that resolves to degraded, not ok.
+    # 4. No usable base-rate comparison. The trainer writes `embargo` and `lift_strong` together,
+    #    so a post-embargo entry missing the lift is hand-edited or half-written. NaN and inf are
+    #    caught here too: `json.loads` accepts bare NaN/Infinity, and `nan <= 1.0` is False, so a
+    #    non-finite value would otherwise fall through every guard and read as healthy.
     lift_strong = metrics.get("lift_strong")
-    if lift_strong is None:
+    lift_value = _metric(lift_strong)
+    if lift_strong is None or not math.isfinite(lift_value):
         return {
             "status": "degraded",
+            "reason": "no_baseline",
             "version": version,
             "message": (
-                "此模型缺少與基準比例的對照（提升倍數），無法判斷它是否真的優於隨機猜測。"
+                "此模型缺少可用的基準比例對照（提升倍數缺漏或不是有效數字），"
+                "無法判斷它是否真的優於隨機猜測。"
                 "AI 機率僅供參考，請勿單獨作為買賣依據。"
             ),
         }
-    if _metric(lift_strong) <= 1.0:
+
+    # 5. Precision read against its base rate. A lift of 1.0 is exactly the prevalence, i.e. no
+    #    better than a coin weighted to the class -- inclusive, because matching the base rate is
+    #    not an edge.
+    if lift_value <= 1.0:
         return {
             "status": "degraded",
+            "reason": "below_baseline",
             "version": version,
             "message": (
-                f"AI 模型在「強買」上的準確率並未優於基準比例（提升倍數 {_metric(lift_strong):.2f}×，"
+                f"AI 模型在「強買」上的準確率並未優於基準比例（提升倍數 {lift_value:.2f}×，"
                 "1.0 代表與隨機猜測基準相同）。AI 機率僅供參考，請勿單獨作為買賣依據。"
             ),
         }
 
-    return {"status": "ok", "version": version, "message": ""}
+    return {"status": "ok", "reason": "ok", "version": version, "message": ""}
 
 
 def predict_prob(df, version: Optional[str] = None):

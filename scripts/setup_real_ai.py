@@ -75,6 +75,20 @@ def setup_real_ai(days: int = 1100, listed_only: bool = False, min_tickers: int 
         return {"backfill": bf, "trainable": trainable, "trained": False, "reason": "train_aborted"}
     print("[setup_real_ai] Step 3/3: recalculating scores so AI probabilities populate...")
     recalc_fn()
+    # Clearing the ticker floor is not the same as having a usable model. Print the health verdict
+    # the app will show, so the user is not told "Done" here and then met with a degraded banner
+    # with no explanation.
+    try:
+        from core.ai.predictor import get_model_health
+        h = get_model_health()
+        if h.get("status") != "ok":
+            print(f"[setup_real_ai] MODEL HEALTH: {h.get('status')} ({h.get('reason')})")
+            print(f"[setup_real_ai]   {h.get('message')}")
+            print("[setup_real_ai]   This is what the app will disclose. It is a measurement, not a bug.")
+        else:
+            print("[setup_real_ai] MODEL HEALTH: ok — StrongBuy precision is above the test-split base rate.")
+    except Exception as exc:  # never let a diagnostic break the setup path
+        print(f"[setup_real_ai] (could not read model health: {exc})")
     print("[setup_real_ai] Done. Start the app: python backend/main.py  ->  http://localhost:8000")
     return {"backfill": bf, "trainable": trainable, "trained": True, "reason": "trained"}
 
