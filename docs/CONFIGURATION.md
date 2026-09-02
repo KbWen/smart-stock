@@ -16,6 +16,29 @@ Configuration is managed in `core/config.py`. You can override these defaults by
 | `CACHE_DURATION` | `3600` | Expiry time for stock list and indicator cache (seconds). |
 | `LOG_LEVEL` | `INFO` | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 
+### Deployment Behind a Reverse Proxy
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TRUSTED_PROXY_COUNT` | `0` | How many reverse proxies **of yours** sit in front of the app. |
+
+The rate limiter has to decide who a request belongs to. `0` means the app is reached directly and
+it uses the connecting address — the only value that requires trusting nothing.
+
+**Both directions are wrong, and neither reports an error:**
+
+- **Left at `0` behind a proxy**, every request appears to come from the proxy, so all your users
+  share one rate-limit bucket and an innocent second user gets a `429`. Nothing logs a problem; the
+  limiter keeps working, it just counts everyone as one person.
+- **Set higher than the real number of proxies**, and the app starts reading a part of
+  `X-Forwarded-For` that the **caller** wrote, so a caller can pick a new identity per request and
+  never be limited at all.
+
+Count only the proxies you control, in the path between the internet and the app. One nginx or
+Caddy in front of the container is `1`; a CDN in front of that nginx is `2`. If the header does not
+match what you declared, the app falls back to the connecting address — degraded to per-proxy
+limiting, never open.
+
 ### AI Model Strategy
 
 | Variable | Default | Description |

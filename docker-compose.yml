@@ -13,6 +13,11 @@ services:
       LOG_LEVEL: INFO
       # Set your allowed frontend origins (comma-separated)
       # CORS_ORIGINS: https://your-frontend.example.com
+      # If you put a reverse proxy (nginx, Caddy, a CDN) in front of this container, say how many
+      # proxies YOU run -- otherwise every user shares one rate-limit bucket and innocent users get
+      # 429s. Setting it higher than the truth is worse: it lets callers choose their own identity.
+      # See docs/CONFIGURATION.md "Deployment Behind a Reverse Proxy".
+      # TRUSTED_PROXY_COUNT: 1
       # Optional: enable HMAC model signing
       # MODEL_SIGNING_KEY: your-secret-key-here
     restart: unless-stopped
