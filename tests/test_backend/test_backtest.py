@@ -15,6 +15,19 @@ sys.modules['core.data'] = fake_data
 from backend import backtest
 
 
+@pytest.fixture(autouse=True)
+def _no_db_calendar(monkeypatch):
+    """Every test in this module builds synthetic OHLC frames, so the run's `as_of` must come from
+    those frames -- not from the developer's real storage.db.
+
+    Without this the module passes in isolation (its core.data stub has no get_db_connection, so
+    the DB path returns None) but fails in a full-suite run, where another module has imported the
+    real core.data and the DB calendar wins: a 2026 as_of against 2024 fixtures excludes every
+    ticker. An order-dependent test is worse than a failing one.
+    """
+    monkeypatch.setattr(backtest, "resolve_as_of_date_from_db", lambda days_ago: None)
+
+
 def test_run_time_machine_uses_entry_day_features_and_limit(monkeypatch):
     dates = pd.date_range("2024-01-01", periods=6, freq="D")
     df = pd.DataFrame(
@@ -791,21 +804,30 @@ def test_every_pick_enters_on_the_same_calendar_date(monkeypatch):
     """`len(df) - days_ago` is a ROW offset, and row counts differ per ticker, so a ticker with
     missing bars entered on a different DAY. Rows are not time."""
     full = pd.bdate_range("2024-01-01", periods=10)
-    # SHORT is missing three mid-series bars, so its row offset points at a different date.
-    short = full.delete([4, 5, 6])
-    result = _two_ticker_run(monkeypatch, {"FULL": _frame(full), "SHORT": _frame(short)})
+    # The gap must sit AFTER the entry window, or the row offset and the calendar agree by
+    # accident and the test proves nothing. An earlier draft deleted [4,5,6] -- both schemes then
+    # produced 2024-01-10 and the test was vacuous. Deleting [8] makes the old scheme land on
+    # 2024-01-09 for SHORT and 2024-01-10 for FULL: two tickers, two days, one "cross-section".
+    short = full.delete([8])
+    days_ago = 3
+    assert (
+        pd.to_datetime(_frame(full).iloc[10 - days_ago]['date'])
+        != pd.to_datetime(_frame(short).iloc[9 - days_ago]['date'])
+    ), "fixture must actually exercise the defect"
+
+    result = _two_ticker_run(monkeypatch, {"FULL": _frame(full), "SHORT": _frame(short)},
+                             days_ago=days_ago)
 
     picks = result["top_picks"]
     assert len(picks) == 2
     as_of = pd.to_datetime(result["simulated_date"])
-    # Every entry is anchored to the run's single as_of -- at or before it, and within tolerance.
-    # (A ticker that did not trade on as_of legitimately enters on its last earlier bar; what it
-    # may NOT do is enter on an unrelated day because its row count differs.)
+    # Both tickers traded on as_of, so both must enter exactly there -- not merely "somewhere at
+    # or before it". The weaker form would pass under the row offset too.
     for p in picks:
-        entered = pd.to_datetime(p["entry_date"])
-        assert entered <= as_of
-        assert (as_of - entered).days <= backtest.ENTRY_DATE_TOLERANCE_DAYS
-    # The run reports its own as_of, not whichever pick happened to sort first.
+        assert pd.to_datetime(p["entry_date"]) == as_of, (
+            f"{p['ticker']} entered {p['entry_date']}, run as_of is {as_of}"
+        )
+    # And the run reports its own as_of, not whichever pick happened to sort first.
     assert result["simulated_date"] == str(as_of.date())
 
 
@@ -829,17 +851,24 @@ def test_model_temporal_scope_fails_toward_in_sample(monkeypatch):
     import core.ai.predictor as predictor
     monkeypatch.setattr(predictor, "get_model_version", lambda: "v4.x")
 
-    # Trained AFTER the scored window -> the model saw it.
+    # REAL models_history.json entries carry `timestamp` in %Y%m%d_%H%M form and have NO
+    # `trained_at` key at all -- that lives inside the pickled metadata. Reading only trained_at
+    # hard-wired this field to "in_sample" forever, and pd.to_datetime RAISES on the compact form,
+    # so a naive key swap would have stayed just as inert. These fixtures use the real shape.
     monkeypatch.setattr(predictor, "list_available_models",
-                        lambda: [{"version": "v4.x", "trained_at": "2024-06-01T00:00:00"}])
+                        lambda: [{"version": "v4.x", "timestamp": "20240601_2031"}])
     assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "in_sample"
 
-    # Trained BEFORE it -> a genuine as-of model.
+    monkeypatch.setattr(predictor, "list_available_models",
+                        lambda: [{"version": "v4.x", "timestamp": "20230101_0900"}])
+    assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "as_of_model"
+
+    # An explicit trained_at still works, in either form.
     monkeypatch.setattr(predictor, "list_available_models",
                         lambda: [{"version": "v4.x", "trained_at": "2023-01-01T00:00:00"}])
     assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "as_of_model"
 
-    # No trained_at at all -> pessimistic, not optimistic.
+    # Neither key -> pessimistic, not optimistic.
     monkeypatch.setattr(predictor, "list_available_models", lambda: [{"version": "v4.x"}])
     assert _two_ticker_run(monkeypatch, frames)["model_temporal_scope"] == "in_sample"
 

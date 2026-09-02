@@ -67,10 +67,24 @@ interface StrategyCompareProps {
 }
 
 const StrategyCompare: React.FC<StrategyCompareProps> = ({ results, context, onClose }) => {
+    // The compare table was the one user-facing surface with no temporal marker: the backtest
+    // page warns that its numbers are hindsight, and this showed the same numbers silently.
+    const anyInSample = results.some(
+        (r) => !isCompareError(r) && r.model_temporal_scope === 'in_sample',
+    )
     return (
         <div className="rounded-xl border border-dark-border bg-dark-card p-4 md:p-6 space-y-4 animate-fade-in">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">策略並排比較</h3>
+            </div>
+            {anyInSample && (
+                <div className="rounded-lg border border-slate-500/40 bg-slate-500/10 p-3 text-[11px] leading-relaxed text-slate-300">
+                    <strong className="text-slate-100">以下數字是事後回顧。</strong>
+                    評分用的 AI 模型，其訓練資料涵蓋了被回測的期間，所以這些是「對看過的資料的辨識力」，
+                    不是對未來的預測力 —— 用它來比較策略參數的相對高下，不要當成任一策略的實際期望報酬。
+                </div>
+            )}
+            <div className="flex items-center justify-between">
                 <button
                     type="button"
                     onClick={onClose}

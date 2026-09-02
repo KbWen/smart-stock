@@ -29,6 +29,32 @@ barrier. The old code fabricated a zero there. On the dev data at shipped settin
 the *only* number the release moves, because the honestly-weak model admits one candidate that
 touches no barrier.
 
+### The backtest now says when it is grading its own homework
+
+`run_time_machine` scores the **deployed** model over a window that model was trained on — labels
+look forward 20 trading days, so at `days_ago=30` it has already seen the outcomes. The page reads
+as evidence of skill; it is in-sample recall. The response now carries `model_temporal_scope`, and
+the Backtest page and Strategy Lab say so in words. **This is disclosed, not fixed** — removing the
+leak needs a model trained as-of each window.
+
+Entry is also resolved by **calendar date** instead of a row offset. `len(df) - days_ago` counts
+rows, and row counts differ per ticker (halts, stale data, partial backfills), so tickers entered on
+different days while the summary reported one date taken from the first pick. Every candidate now
+enters on its last bar at or before a single `as_of`, or leaves the run — and the count is reported
+(`excluded_no_data_at_as_of`, `excluded_no_price_rows`), because a thin cross-section should be
+visible rather than inferred. On the bundled dev data that is **284 of 300 candidates with no price
+history at all**; the run uses 16.
+
+`summary.holding_days` and `summary.exit_date_actual` are now `null` unless every pick agrees. A
+summary field taken from an arbitrary member of a collection is not a summary.
+
+`days_ago` must now be **≥ 2**: with `as_of` on the latest bar every pick has no outcome window.
+
+Two smaller corrections carried over from the settlement fix: a bar that gaps open **above** the
+target now settles HIT at the open (it filled on the session's first print, before any tick could
+reach the stop), and `best_stock` breaks ties deterministically instead of returning whichever row
+sorted first.
+
 ### Model rotation will now keep more files, on purpose
 
 Rotation and `manage_models prune` delete `.pkl` files — irreversibly — ranked by

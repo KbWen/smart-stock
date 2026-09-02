@@ -35,6 +35,62 @@ from typing import Optional
 ENTRY_DATE_TOLERANCE_DAYS = 6
 
 
+def _model_trained_at(entry):
+    """When the model behind a models_history entry was trained, or None.
+
+    Real entries carry `timestamp` in `%Y%m%d_%H%M` form and have **no** `trained_at` key at all --
+    that one lives inside the pickled model metadata, which nothing here loads.
+    `backend/routes/transparency.py` already compensates the same way. Reading only `trained_at`
+    hard-wired `model_temporal_scope` to "in_sample" forever, and `pd.to_datetime` raises on the
+    compact timestamp form, so a naive key swap would have landed in the caller's `except` and
+    stayed just as inert.
+    """
+    raw = (entry or {}).get("trained_at") or (entry or {}).get("timestamp")
+    if not raw:
+        return None
+    try:
+        return pd.to_datetime(raw, format="%Y%m%d_%H%M")
+    except (ValueError, TypeError):
+        pass
+    try:
+        return pd.to_datetime(raw)
+    except Exception:
+        return None
+
+
+def resolve_as_of_date_from_db(days_ago: int):
+    """The run's entry date, straight from the table's own trading calendar. None if unavailable.
+
+    One query over every date in stock_history, so the answer does not depend on which candidates
+    were sampled, on BACKTEST_CANDIDATE_POOL, or on whether the volume prefilter reordered them.
+    """
+    try:
+        from core.data import get_db_connection
+    except Exception:
+        return None
+    conn = None
+    try:
+        conn = get_db_connection()
+        rows = conn.execute(
+            "SELECT DISTINCT date FROM stock_history ORDER BY date DESC LIMIT ?",
+            (int(days_ago),),
+        ).fetchall()
+    except Exception:
+        return None
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    if len(rows) < days_ago:
+        return None
+    try:
+        return pd.to_datetime(rows[days_ago - 1][0])
+    except Exception:
+        return None
+
+
 def resolve_as_of_date(frames, days_ago: int):
     """The single calendar date every candidate enters on, `days_ago` trading days back.
 
@@ -111,6 +167,10 @@ def run_time_machine(
 
     if days_ago <= 0:
         return {"error": "days_ago must be > 0"}
+    if days_ago < 2:
+        # With as_of on the latest bar every ticker's entry row is its last, so nothing has an
+        # outcome window to walk. Say that, rather than returning "No stocks met requirements".
+        return {"error": "days_ago must be >= 2 so each pick has at least one day of outcome"}
     if limit <= 0:
         return {"error": "limit must be > 0"}
     
@@ -187,21 +247,35 @@ def run_time_machine(
     # every candidate anyway. It walks the WHOLE candidate list but stops as soon as it has a few
     # populated frames: a fixed head slice is not safe here, because the universe is ~1,800 codes
     # while the DB may hold far fewer, so the first N candidates can all be empty.
-    _CALENDAR_FRAMES_NEEDED = 5
-    _calendar_sample = []
-    for _s in candidates:
-        _t = _s.get("ticker") or _s.get("code")
-        if not _t:
-            continue
-        _df = get_stock_frame(_t)
-        if _df is not None and not _df.empty:
+    # The calendar comes from the WHOLE table, in one query. Deriving it from a sample of frames
+    # made as_of depend on which candidates happened to be sampled first -- so changing
+    # BACKTEST_CANDIDATE_POOL, enabling the volume prefilter, or adding tickers would silently
+    # shift every number, against this project's own reproducibility claim. It also cost ~90
+    # serial loads before the thread pool could start.
+    as_of_date = resolve_as_of_date_from_db(days_ago)
+    if as_of_date is None:
+        # No DB (tests stub core.data) -- fall back to the frames this run will load anyway.
+        _calendar_sample = []
+        for _s in candidates:
+            _t = _s.get("ticker") or _s.get("code")
+            if not _t:
+                continue
+            _df = get_stock_frame(_t)
+            if _df is None or _df.empty:
+                continue
             _calendar_sample.append(_df)
-            if len(_calendar_sample) >= _CALENDAR_FRAMES_NEEDED:
+            if resolve_as_of_date(_calendar_sample, days_ago) is not None:
                 break
-    as_of_date = resolve_as_of_date(_calendar_sample, days_ago)
+            if len(_calendar_sample) >= 40:
+                break
+        as_of_date = resolve_as_of_date(_calendar_sample, days_ago)
     if as_of_date is None:
         return {"error": f"Not enough trading history to resolve an entry date {days_ago} days back"}
-    excluded = []
+    # Why each candidate left the run. Counting them under one label would have been a number
+    # a reader cannot act on: "no bar at as_of" and "no outcome window after it" are
+    # different facts about the cross-section.
+    excluded = []           # no usable bar at or near as_of
+    excluded_no_data = []   # ticker has no price rows at all
 
     print(f"[Analysis] Analyzing {len(candidates)} random candidates as of {as_of_date.date()}...")
     
@@ -216,6 +290,7 @@ def run_time_machine(
             # 2. Fetch/Load Data (bounded window for speed)
             df_full = get_stock_frame(ticker)
             if df_full.empty:
+                excluded_no_data.append(ticker)
                 return None
             
             # 3. Time Machine Slicing, by CALENDAR DATE rather than row offset.
@@ -224,9 +299,9 @@ def run_time_machine(
             # with missing rows entered on a different DAY, so "Top Picks from 30 days ago"
             # was never one cross-section. Rows are not time -- the same confusion that
             # produced the zero-day training embargo, in a different file.
-            if len(df_full) <= days_ago:
-                return None
-
+            # No row-count gate here. `len(df) <= days_ago` was the very confusion AC1 removes:
+            # a ticker with 25 bars that cover as_of AND a full outcome window is perfectly
+            # usable in a days_ago=30 run. resolve_entry_index already rejects the real reasons.
             entry_idx = resolve_entry_index(df_full, as_of_date)
             if entry_idx is None:
                 excluded.append(ticker)
@@ -454,12 +529,13 @@ def run_time_machine(
     model_temporal_scope = "in_sample"
     try:
         from core.ai.predictor import get_model_version, list_available_models
-        _v = version or get_model_version()
+        # "latest" is a sentinel, not a version string -- it matches no models_history entry,
+        # so resolving it here is what made as_of_model unreachable on the default UI path.
+        _v = version if version and version != "latest" else get_model_version()
         _entry = next((h for h in list_available_models() if h.get("version") == _v), None)
-        _trained_at = (_entry or {}).get("trained_at")
-        if _trained_at:
-            if pd.to_datetime(_trained_at) < as_of_date:
-                model_temporal_scope = "as_of_model"
+        _trained = _model_trained_at(_entry)
+        if _trained is not None and _trained < as_of_date:
+            model_temporal_scope = "as_of_model"
     except Exception:
         pass  # indeterminate -> keep the pessimistic default
 
@@ -470,6 +546,7 @@ def run_time_machine(
         # from an arbitrary member of a collection.
         "simulated_date": as_of_date.strftime('%Y-%m-%d'),
         "excluded_no_data_at_as_of": len(excluded),
+        "excluded_no_price_rows": len(excluded_no_data),
         # "in_sample": the scoring model was trained on data covering this window, so the numbers
         # measure recall over data it has seen -- not predictive skill. Making the backtest
         # genuinely out-of-sample needs an as-of model per window; this marks the situation.

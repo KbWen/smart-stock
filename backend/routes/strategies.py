@@ -241,6 +241,14 @@ def compare_strategies(request: Request, ids: str = Query(..., min_length=1)):
                     "id": strategy["id"],
                     "name": strategy["name"],
                     "summary": summary,
+                    # Top-level on the backtest result, so it was being dropped here -- and
+                    # Strategy Lab could not tell the user its numbers are in-sample.
+                    "model_temporal_scope": (
+                        outcome.get("model_temporal_scope") if isinstance(outcome, dict) else None
+                    ),
+                    "simulated_date": (
+                        outcome.get("simulated_date") if isinstance(outcome, dict) else None
+                    ),
                 })
             except Exception as e:
                 logger.error("Compare backtest failed for strategy %s: %s", strategy["id"], e)

@@ -60,8 +60,13 @@ window being scored.
    **excluded from the run**, not silently entered on some other day.
 
 2. `simulated_date` is the run's `as_of`, not `top_picks[0]`'s date. The response
-   reports how many candidates were **excluded for having no data at `as_of`**, so a thin
-   cross-section is visible rather than inferred.
+   reports how many candidates were **excluded**, so a thin cross-section is visible rather than
+   inferred. **[AMENDED POST-REVIEW]** One count was not enough: the pre-mortem measured that on
+   the real DB ~285 of 300 candidates exit at the "no price rows at all" branch, which the first
+   implementation never counted — so the banner would have read "0 excluded" for a run using 16
+   tickers, *certifying* a thin cross-section as full. Two counts are reported
+   (`excluded_no_data_at_as_of`, `excluded_no_price_rows`) alongside the denominator, and the UI
+   renders them **outside** the temporal banner so the two facts do not share one conditional.
 
 3. Each pick carries its own `entry_date`, `holding_days` and `exit_date`, which it
    already does — but the **summary** stops borrowing one pick's values for the whole run. Where a
@@ -70,9 +75,16 @@ window being scored.
 
 4. The response states, in a machine field, whether the model scoring the run was
    trained over the scored window: `model_temporal_scope` is `"in_sample"` when the active model's
-   `trained_at` is at or after `as_of`, `"as_of_model"` when it precedes it, and `"unknown"` when
-   `trained_at` cannot be determined. It **fails toward `in_sample`** — the pessimistic reading —
-   because an unmarked in-sample number is the failure this epic exists to remove.
+   training date is at or after `as_of`, `"as_of_model"` when it precedes it. It **fails toward
+   `in_sample`** — the pessimistic reading — because an unmarked in-sample number is the failure
+   this epic exists to remove.
+
+   **[AMENDED POST-REVIEW]** The training date comes from `trained_at` **or `timestamp`**, and the
+   compact `%Y%m%d_%H%M` form is parsed explicitly. Real `models_history.json` entries have **no
+   `trained_at` key at all** — it lives inside the pickled model metadata — so the first
+   implementation was hard-wired to `"in_sample"` forever, and `pd.to_datetime` raises on the
+   compact form, meaning a naive key swap would have stayed just as inert. `"unknown"` is dropped:
+   the Constraint says indeterminate resolves to `in_sample`, so a third token was never emitted.
 
 5. The Backtest page and Strategy Lab surface that field in words, next to the
    headline metrics: an in-sample run is labelled as measuring recall over data the model has seen,
@@ -117,7 +129,12 @@ window being scored.
 
 - **Excluding a ticker is honest; entering it on the wrong day is not.** Where the calendar cannot be
   honoured, the candidate leaves the run and the count is reported.
-- **Fail toward the pessimistic reading.** An indeterminate `trained_at` yields `in_sample`.
+- **Fail toward the pessimistic reading.** An indeterminate training date yields `in_sample`.
+- **[POST-REVIEW] The run's calendar is a property of the data, not of the sample.** `as_of` comes
+  from one `SELECT DISTINCT date` over the whole table, falling back to the loaded frames only when
+  no DB is reachable. Deriving it from whichever frames happened to load first made `as_of` — and
+  therefore every number — shift with `BACKTEST_CANDIDATE_POOL`, the volume prefilter, or a DB
+  edit, against this project's own reproducibility claim.
 - **Honesty guard** (epic-wide): the sample size may shrink and the metrics may move. Nothing may be
   loosened to keep the numbers looking the same.
 

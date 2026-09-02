@@ -44,6 +44,9 @@ export interface CompareResultOk {
     id: number
     name: string
     summary: CompareSummary | null
+    /** Whether the model scoring this strategy was trained over the window it scored. */
+    model_temporal_scope?: 'in_sample' | 'as_of_model' | 'unknown'
+    simulated_date?: string | null
 }
 
 export interface CompareResultError {
