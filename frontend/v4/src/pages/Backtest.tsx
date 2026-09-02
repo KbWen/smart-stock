@@ -42,6 +42,16 @@ interface BacktestResponse {
     summary: BacktestSummary
     history?: BacktestHistoryPoint[]
     top_picks?: BacktestPick[]
+    /** The run's single entry date. Every pick is anchored to it. */
+    simulated_date?: string
+    /** Candidates dropped for having no data at that date — a thin cross-section made visible. */
+    excluded_no_data_at_as_of?: number
+    /**
+     * Whether the model that scored this run was trained over the window it scored.
+     * "in_sample" means these numbers measure recall over data the model has already seen.
+     * Machine token; the wording lives here, not in the API.
+     */
+    model_temporal_scope?: 'in_sample' | 'as_of_model' | 'unknown'
 }
 
 const fallbackVersion: ModelVersion[] = [{ version: 'v4.1.0-lite', timestamp: '2024-03-24' }]
@@ -254,6 +264,18 @@ const Backtest: React.FC = () => {
                 <div className="rounded-lg border border-red-500/50 bg-red-900/20 p-4 text-red-200">{data.error}</div>
             ) : (
                 <>
+                    {data.model_temporal_scope === 'in_sample' && (
+                        <div className="mb-4 rounded-xl border border-orange-500/40 bg-orange-500/10 p-4 text-[11px] leading-relaxed text-orange-200">
+                            <strong>這是「事後回顧」，不是預測能力的證據。</strong>
+                            評分用的 AI 模型，其訓練資料涵蓋了這段被回測的期間 —— 也就是說模型在被評分之前，
+                            就已經看過這段時間的結果。下面的數字衡量的是<strong>模型對看過的資料的辨識力</strong>，
+                            不是它對未來的預測力。要得到真正的樣本外回測，需要為每個回測視窗訓練一個「當時的模型」。
+                            {typeof data.excluded_no_data_at_as_of === 'number' && data.excluded_no_data_at_as_of > 0 && (
+                                <> 另有 <strong>{data.excluded_no_data_at_as_of}</strong> 檔候選在
+                                {data.simulated_date} 當日沒有資料，已排除在這次橫斷面之外。</>
+                            )}
+                        </div>
+                    )}
                     <div className={`grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6 transition-opacity duration-300 ${showLoadingOverlay ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                         {/* 1. Avg Net Return */}
                         <div className="rounded-xl border border-dark-border bg-dark-card p-4 shadow-lg relative overflow-hidden">

@@ -2,6 +2,7 @@ import sys
 import os
 import random
 import threading
+import numpy as np
 import pandas as pd
 import time
 # Add parent dir
@@ -27,6 +28,58 @@ from typing import Optional
 # labels. Training-label barriers live in core/config.py (ATR_*_MULT in the default 'atr'
 # mode; TARGET_GAIN / STOP_LOSS / BUY_TARGET in 'fixed' mode). The only config-sourced
 # constant used here is BACKTEST_AI_THRESHOLD (the candidate filter).
+
+# How far before `as_of` a ticker's last bar may sit and still count as "trading on that date".
+# Covers a long weekend plus a public holiday; beyond that the ticker is not in this cross-section
+# and is excluded from the run rather than entered on some other day.
+ENTRY_DATE_TOLERANCE_DAYS = 6
+
+
+def resolve_as_of_date(frames, days_ago: int):
+    """The single calendar date every candidate enters on, `days_ago` trading days back.
+
+    Built from the panel's OWN calendar -- the union of dates in the frames this run actually
+    loaded -- so it needs no holiday table, no DB round-trip, and no assumption that every ticker
+    trades every day. Returns None when the calendar is too short; the caller reports that rather
+    than papering over it.
+    """
+    all_dates = set()
+    for df in frames:
+        if df is None or getattr(df, 'empty', True) or 'date' not in df.columns:
+            continue
+        all_dates.update(pd.to_datetime(df['date']).tolist())
+    if len(all_dates) < days_ago:
+        return None
+    ordered = sorted(all_dates, reverse=True)
+    # days_ago counts BACK FROM THE LATEST BAR, matching the previous row-offset semantics
+    # (`len(df) - days_ago`): days_ago=1 is the most recent date, 2 the one before it. Only the
+    # unit changes -- rows become trading days -- not the meaning of the argument.
+    return ordered[days_ago - 1]
+
+
+def resolve_entry_index(df, as_of_date, tolerance_days: int = ENTRY_DATE_TOLERANCE_DAYS):
+    """Row index this ticker enters on for a run whose single entry date is `as_of_date`.
+
+    Returns None when the ticker cannot honestly join the cross-section: no bar at or before
+    `as_of`, its last such bar is more than `tolerance_days` earlier (it was not trading in this
+    window), or that bar is the frame's last one (no outcome window to walk).
+
+    Excluding a ticker is honest; entering it on some other day is not -- which is what the old
+    `len(df) - days_ago` row offset did whenever row counts differed.
+    """
+    if df is None or getattr(df, 'empty', True) or 'date' not in df.columns:
+        return None
+    dates = pd.to_datetime(df['date'])
+    at_or_before = np.flatnonzero((dates <= as_of_date).to_numpy())
+    if len(at_or_before) == 0:
+        return None
+    idx = int(at_or_before[-1])
+    if idx >= len(df) - 1:
+        return None
+    if (as_of_date - dates.iloc[idx]).days > tolerance_days:
+        return None
+    return idx
+
 
 def _passes_liquidity_filter(df: pd.DataFrame, min_avg_volume: int) -> bool:
     if min_avg_volume <= 0:
@@ -127,7 +180,30 @@ def run_time_machine(
                 prefiltered.append(s)
         candidates = prefiltered
     
-    print(f"[Analysis] Analyzing {len(candidates)} random candidates (No look-ahead bias)...")
+    # One calendar date for the whole run. Every candidate enters on its last bar at or before
+    # this date, or leaves the run -- a cross-section assembled from different days is not a
+    # cross-section.
+    # Frames are cached by get_stock_frame, so this pre-pass costs no extra I/O -- the run loads
+    # every candidate anyway. It walks the WHOLE candidate list but stops as soon as it has a few
+    # populated frames: a fixed head slice is not safe here, because the universe is ~1,800 codes
+    # while the DB may hold far fewer, so the first N candidates can all be empty.
+    _CALENDAR_FRAMES_NEEDED = 5
+    _calendar_sample = []
+    for _s in candidates:
+        _t = _s.get("ticker") or _s.get("code")
+        if not _t:
+            continue
+        _df = get_stock_frame(_t)
+        if _df is not None and not _df.empty:
+            _calendar_sample.append(_df)
+            if len(_calendar_sample) >= _CALENDAR_FRAMES_NEEDED:
+                break
+    as_of_date = resolve_as_of_date(_calendar_sample, days_ago)
+    if as_of_date is None:
+        return {"error": f"Not enough trading history to resolve an entry date {days_ago} days back"}
+    excluded = []
+
+    print(f"[Analysis] Analyzing {len(candidates)} random candidates as of {as_of_date.date()}...")
     
     from concurrent.futures import ThreadPoolExecutor
     
@@ -142,12 +218,18 @@ def run_time_machine(
             if df_full.empty:
                 return None
             
-            # 3. Time Machine Slicing
+            # 3. Time Machine Slicing, by CALENDAR DATE rather than row offset.
+            # `len(df) - days_ago` is a row offset, and row counts differ per ticker: halts
+            # drop rows, stale tickers stop updating, partial backfills leave gaps. A ticker
+            # with missing rows entered on a different DAY, so "Top Picks from 30 days ago"
+            # was never one cross-section. Rows are not time -- the same confusion that
+            # produced the zero-day training embargo, in a different file.
             if len(df_full) <= days_ago:
                 return None
-                
-            entry_idx = len(df_full) - days_ago
-            if entry_idx < 0 or entry_idx >= len(df_full):
+
+            entry_idx = resolve_entry_index(df_full, as_of_date)
+            if entry_idx is None:
+                excluded.append(ticker)
                 return None
 
             simulated_date = df_full.iloc[entry_idx]['date']
@@ -220,6 +302,19 @@ def run_time_machine(
 
                 max_gain_pct = max(max_gain_pct, day_high_pct)
                 max_drawdown_pct = min(max_drawdown_pct, day_low_pct)
+
+                # A bar that GAPS OPEN at or above the target is not ambiguous: the resting
+                # limit sell was marketable on the session's first print, so it filled there
+                # before any intrabar path could reach the stop. The stop-before-target
+                # precedence below exists for genuine intrabar ambiguity, which this is not.
+                # (#1 deferred this on measured grounds -- only 4 of 99,287 real bars are wide
+                # enough to touch both barriers -- and #3 closes the deferral.)
+                if day_open_pct is not None and day_open_pct >= target_gain:
+                    sniper_result = 'HIT'
+                    locked_roi = day_open_pct
+                    actual_holding_days = i + 1
+                    exit_date_actual = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
+                    break
 
                 # Conservative same-day ordering: stop has precedence over target.
                 if day_low_pct <= -stop_loss:  # Hit stop loss
@@ -343,21 +438,57 @@ def run_time_machine(
         else None
     )
 
+    # Since settlement realism landed, every no-gap HIT settles at exactly target_gain, so ties on
+    # actual_return are the norm and idxmax() picked whichever row sorted first. Break ties on
+    # net_return, then ticker, so the answer is deterministic rather than an artifact of ordering.
     best_pick = None
     if not top_df.empty:
-        best_idx = top_df['actual_return'].idxmax()
-        if pd.notna(best_idx):
-            best_pick = top_df.loc[best_idx]
+        ranked = top_df.sort_values(
+            ['actual_return', 'net_return', 'ticker'], ascending=[False, False, True]
+        )
+        best_pick = ranked.iloc[0]
     
+    # Does the model that scored this run predate the window it scored? Fails toward the
+    # pessimistic reading: an unmarked in-sample number is the failure this epic exists to remove,
+    # so anything indeterminate reports `in_sample`.
+    model_temporal_scope = "in_sample"
+    try:
+        from core.ai.predictor import get_model_version, list_available_models
+        _v = version or get_model_version()
+        _entry = next((h for h in list_available_models() if h.get("version") == _v), None)
+        _trained_at = (_entry or {}).get("trained_at")
+        if _trained_at:
+            if pd.to_datetime(_trained_at) < as_of_date:
+                model_temporal_scope = "as_of_model"
+    except Exception:
+        pass  # indeterminate -> keep the pessimistic default
+
     return {
         "days_ago": days_ago,
         "model_version": version or "latest",
-        "simulated_date": top_picks[0]['entry_date'] if top_picks else "N/A",
+        # The run's own as_of, not top_picks[0]'s date. A summary-level field must never be taken
+        # from an arbitrary member of a collection.
+        "simulated_date": as_of_date.strftime('%Y-%m-%d'),
+        "excluded_no_data_at_as_of": len(excluded),
+        # "in_sample": the scoring model was trained on data covering this window, so the numbers
+        # measure recall over data it has seen -- not predictive skill. Making the backtest
+        # genuinely out-of-sample needs an as-of model per window; this marks the situation.
+        "model_temporal_scope": model_temporal_scope,
         "candidate_pool_size": len(results),
         "top_picks": top_picks,
         "summary": {
-            "holding_days": top_picks[0]['holding_days'] if top_picks else max(days_ago - 1, 0),
-            "exit_date_actual": top_picks[0]['exit_date'] if top_picks else "今日",
+            # These were read off top_picks[0] and presented as the whole run's. Picks exit on
+            # different days, so a single value is only honest when they agree.
+            "holding_days": (
+                top_picks[0]['holding_days']
+                if top_picks and len({p['holding_days'] for p in top_picks}) == 1
+                else None
+            ),
+            "exit_date_actual": (
+                top_picks[0]['exit_date']
+                if top_picks and len({p['exit_date'] for p in top_picks}) == 1
+                else None
+            ),
             "avg_return": avg_return,
             "avg_net_return": avg_net_return,
             "win_rate": win_count / len(top_picks) if top_picks else 0,
