@@ -41,7 +41,7 @@ The API field `risk_level` is renamed **`breadth_level`** and carries a stable m
 in the frontend. **No compatibility alias is kept** — keeping the misleading name available would
 defeat the point. If you script against `/api/market_status`, update the field name.
 
-Same market state, new words: 偏多 (廣度高) / 中性 / 偏空 (廣度低). Colours are unchanged.
+Same market state, new words: 偏多 (廣度高) / 中性 / 偏空 (廣度低), with unchanged colours. The no-data state is the one exception: it was a yellow `unknown` and is now a muted `—`, so an empty database no longer looks like a neutral market reading.
 
 ### The integrity documentation now matches the code
 

@@ -24,7 +24,7 @@ interface MarketRiskHistoryChartProps {
 const MarketRiskHistoryChart: React.FC<MarketRiskHistoryChartProps> = ({ history }) => {
     return (
         <div className="rounded-xl border border-dark-border bg-dark-card p-6 shadow-lg">
-            <h3 className="mb-6 text-lg font-semibold text-white">風險趨勢歷史 (History)</h3>
+            <h3 className="mb-6 text-lg font-semibold text-white">市場廣度歷史 (Breadth History)</h3>
             <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={history} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>

@@ -52,11 +52,11 @@ Current market status (breadth, model version, model health) + 30-day history.
 ```json
 {
   "status": "open",
-  "bull_ratio": 0.62,
+  "bull_ratio": 62.0,
   "breadth_level": "BULLISH",
   "model_version": "v4.20260319_0800",
   "model_health": { "status": "degraded", "version": "v4.20260319_0800", "message": "..." },
-  "history": [ { "date": "2026-03-19", "bull_ratio": 0.62 } ]
+  "history": [ { "date": "2026-03-19", "bull_ratio": 62.0 } ]
 }
 ```
 

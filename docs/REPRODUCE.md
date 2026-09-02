@@ -70,7 +70,9 @@ slippage) plus Sharpe and worst drawdown. Exposed at `GET /api/backtest`, and th
 python scripts/eval_label_modes.py
 ```
 Out-of-sample precision/recall for Buy/StrongBuy, comparing `atr` vs `fixed`
-labeling on a chronological split with an embargo. This is the evidence tool
+labeling on a chronological split with a `PRED_DAYS`-**trading-day** embargo
+(fixed 2026-09-02; before that the embargo measured 0 trading days on this
+project's panel, so any number produced earlier was not out-of-sample). This is the evidence tool
 behind [`ml-label-oos-evaluation.md`](specs/ml-label-oos-evaluation.md): at
 92-ticker scale the degeneracy did **not** reproduce (it was a small-data
 artifact) — but absolute precision stays low. Results at demo scale are

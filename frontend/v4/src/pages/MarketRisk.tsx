@@ -18,7 +18,7 @@ const MarketRisk: React.FC = () => {
     const riskColorClass = useMemo(() => BREADTH_COLOR[breadth], [breadth])
 
     if (loading && !data) {
-        return <div className="p-6 text-dark-muted">市場風險掃描中…</div>
+        return <div className="p-6 text-dark-muted">市場廣度掃描中…</div>
     }
 
     if (error && !data) {
@@ -99,7 +99,7 @@ const MarketRisk: React.FC = () => {
             </div>
 
             <ErrorBoundary>
-            <Suspense fallback={<div className="rounded-xl border border-dark-border bg-dark-card p-6 text-dark-muted">載入風險歷史圖表中…</div>}>
+            <Suspense fallback={<div className="rounded-xl border border-dark-border bg-dark-card p-6 text-dark-muted">載入市場廣度歷史圖表中…</div>}>
                 {data.history && data.history.length > 0 ? <MarketRiskHistoryChart history={data.history} /> : null}
             </Suspense>
             </ErrorBoundary>

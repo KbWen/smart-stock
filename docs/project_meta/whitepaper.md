@@ -83,12 +83,12 @@ To solve the "black box" problem of AI, the system includes an explanation layer
 
 ## 4. Data Integrity & "No Look-ahead" Policy
 
-To prevent overfitting and survivorship bias:
+Against overfitting and temporal leakage — **survivorship bias is NOT among these; it is a known unmitigated limitation**, see `docs/DATA_INTEGRITY.md`:
 
-* **Time-Series Splitting**: We use strict historical splitting for training. The model never "sees" the future during its training phase.
+* **Time-Series Splitting**: training uses a chronological split with an embargo of `PRED_DAYS` **trading days** taken from the panel's own calendar (`core/ai/trainer.py:chronological_split`), so a training row's forward-looking label window cannot reach the test set. Until 2026-09-02 that embargo was measured in pooled rows and separated the two sides by 0 trading days on this project's panel.
 * **OHLC adjustment basis — a known open issue, not a guarantee**: the per-ticker yfinance path
-  (`core/data.py`) fetches with `auto_adjust=True`, but the bulk path (`core/bulk_history.py`) writes
-  **raw** TWSE/TPEX closes, and `stock_history` has no `source` column to distinguish them. A single
+  (`core/data.py:622,628`) fetches with `auto_adjust=True`, but the bulk path (`core/bulk_history.py:9-11,190`) writes
+  **raw** TWSE/TPEX closes, and `stock_history` has no `source` column to distinguish them (`core/data.py:120-131`). A single
   ticker's series can therefore mix both bases, and each splice point turns a dividend or split into
   a fake overnight return that feeds `return_1d`, ATR and the triple-barrier labels. Corporate actions
   specific to Taiwan (減資, rights issues) are not handled at all. Until 2026-09-02 this line asserted

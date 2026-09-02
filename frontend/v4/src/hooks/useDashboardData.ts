@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCachedApi } from './useCachedApi'
 import { invalidateApiCache } from '../lib/apiClient'
-import { BREADTH_COLOR, BREADTH_LABEL, breadthOf } from '../lib/breadth'
+import { BREADTH_COLOR, breadthOf } from '../lib/breadth'
 
 export interface MarketHistory {
     timestamp: string
@@ -80,7 +80,6 @@ export const useDashboardData = () => {
 
     const breadth = useMemo(() => breadthOf(market?.breadth_level), [market])
     const riskColorClass = useMemo(() => BREADTH_COLOR[breadth], [breadth])
-    const breadthLabel = useMemo(() => BREADTH_LABEL[breadth], [breadth])
 
     const lastUpdated = useMemo(() => {
         return market?.history?.[market.history.length - 1]?.timestamp || '未知'
@@ -170,7 +169,6 @@ export const useDashboardData = () => {
         isPlaceholder,
         marketError,
         riskColorClass,
-        breadthLabel,
         lastUpdated,
         dbUpdatedAt,
         isDbStale,

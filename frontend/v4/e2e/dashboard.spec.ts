@@ -15,7 +15,7 @@ test('renders three MarketStatusHeader cards', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByText('大盤多空比')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('AI 情緒指數')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText('風險等級')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('多頭廣度')).toBeVisible({ timeout: 10_000 })
 })
 
 test('Top Candidates panel renders without crash', async ({ page }) => {
