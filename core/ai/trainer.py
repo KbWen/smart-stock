@@ -200,6 +200,91 @@ def prepare_features(df, is_training=True):
         return pd.DataFrame(), pd.Series()
     return df_clean[FEATURE_COLS], df_clean['target']
 
+class InsufficientPanelHistory(Exception):
+    """The panel cannot support a clean date-based embargo.
+
+    Raised instead of silently shrinking the embargo, because `oos_metrics` is published on
+    /transparency — a contaminated number is worse than an absent model.
+    """
+
+
+def chronological_split(df_all, pred_days=PRED_DAYS, test_fraction=0.2):
+    """Split a cross-sectional panel by DATE, embargoing `pred_days` TRADING DAYS.
+
+    An embargo is a statement about time, not about rows. On a stacked panel one calendar day
+    contributes N rows (N = tickers), so an `iloc[:split_idx - pred_days]` embargo removes
+    `pred_days / N` days — at 92 tickers, about 0.2 of a day against a 20-day label horizon.
+    The two are only equivalent when N == 1, which is why the defect survived: on a
+    single-ticker frame the row arithmetic was accidentally correct.
+
+    `df_all` must carry a `date` column and be sorted by it. Trading days come from the panel's
+    own sorted unique dates — no external holiday calendar, and no assumption that every ticker
+    trades every day.
+
+    Returns `(train_mask, test_mask, meta)` where `meta` carries `cut_date`, `embargo_date`,
+    `gap_dates` (distinct panel dates strictly between the last train date and the first test
+    date, inclusive of the boundary handling in AC2) and `cv_gap` (the sample-count gap to hand
+    to `TimeSeriesSplit`, scaled by the widest date in the training split).
+
+    Raises `InsufficientPanelHistory` when a clean split is impossible.
+    """
+    if 'date' not in df_all.columns:
+        raise InsufficientPanelHistory(
+            "panel has no 'date' column, so a date-based embargo cannot be computed"
+        )
+
+    dates = pd.to_datetime(df_all['date'])
+    unique_dates = np.sort(dates.unique())
+    if len(unique_dates) < pred_days + 2:
+        raise InsufficientPanelHistory(
+            f"panel spans {len(unique_dates)} distinct dates; a {pred_days}-day embargo plus a "
+            f"non-empty train and test split needs at least {pred_days + 2}"
+        )
+
+    split_idx = int(len(df_all) * (1.0 - test_fraction))
+    cut_date = dates.iloc[min(split_idx, len(df_all) - 1)]
+
+    cut_pos = int(np.searchsorted(unique_dates, np.datetime64(cut_date)))
+    if cut_pos - pred_days < 1:
+        raise InsufficientPanelHistory(
+            f"only {cut_pos} distinct dates precede the split date {pd.Timestamp(cut_date).date()}; "
+            f"a {pred_days}-day embargo would leave no training data"
+        )
+    embargo_date = unique_dates[cut_pos - pred_days]
+
+    train_mask = (dates < embargo_date).to_numpy()
+    test_mask = (dates >= cut_date).to_numpy()
+    if not train_mask.any() or not test_mask.any():
+        raise InsufficientPanelHistory(
+            f"date-based split produced {int(train_mask.sum())} train and {int(test_mask.sum())} "
+            f"test rows; the panel is too short for a clean holdout"
+        )
+
+    # Distinct panel dates separating the two sides. AC2's invariant.
+    gap_dates = int(
+        np.searchsorted(unique_dates, np.datetime64(cut_date))
+        - np.searchsorted(unique_dates, np.datetime64(dates[train_mask].max()))
+    )
+
+    # TimeSeriesSplit counts `gap` in SAMPLES, so scale by the widest date in the train split.
+    # The max (not the mean) is the only choice that GUARANTEES the gap spans >= pred_days
+    # distinct dates on an uneven panel, where tickers do not all trade every day.
+    train_counts = dates[train_mask].value_counts()
+    max_rows_per_date = int(train_counts.max()) if not train_counts.empty else 1
+    cv_gap = pred_days * max_rows_per_date
+
+    meta = {
+        'cut_date': pd.Timestamp(cut_date),
+        'embargo_date': pd.Timestamp(embargo_date),
+        'gap_dates': gap_dates,
+        'max_rows_per_date': max_rows_per_date,
+        'cv_gap': cv_gap,
+        'n_train': int(train_mask.sum()),
+        'n_test': int(test_mask.sum()),
+    }
+    return train_mask, test_mask, meta
+
+
 def train_and_save(all_dfs):
     print("=" * 60)
     print("SNIPER AI - Training (Hardened with Out-of-Sample Split)")
@@ -232,14 +317,26 @@ def train_and_save(all_dfs):
         y_all = df_all['target']
 
     X_all = X_all.replace([np.inf, -np.inf], np.nan).fillna(0)
-    
-    # 2. Chronological Split (Final Evaluation set with temporal embargo)
-    split_idx = int(len(X_all) * 0.8)
-    X_train_full = X_all.iloc[:max(0, split_idx - PRED_DAYS)]
-    y_train_full = y_all.iloc[:max(0, split_idx - PRED_DAYS)]
-    X_test = X_all.iloc[split_idx:]
-    y_test = y_all.iloc[split_idx:]
-    
+
+    # 2. Chronological Split (Final Evaluation set with temporal embargo).
+    # Measured in TRADING DAYS from the panel's own calendar — see chronological_split().
+    try:
+        train_mask, test_mask, split_meta = chronological_split(df_all, PRED_DAYS)
+    except InsufficientPanelHistory as exc:
+        print(f"Aborting training: {exc}.")
+        print("Refusing to shrink the embargo — a contaminated oos_metrics is worse than no model.")
+        return
+
+    X_train_full = X_all[train_mask]
+    y_train_full = y_all[train_mask]
+    X_test = X_all[test_mask]
+    y_test = y_all[test_mask]
+
+    print(
+        f"Embargo: train ends before {split_meta['embargo_date'].date()}, test starts "
+        f"{split_meta['cut_date'].date()} ({split_meta['gap_dates']} trading days apart)."
+    )
+
     win_rate_2 = (y_train_full == 2).mean() if not y_train_full.empty else 0.0
     win_rate_1 = (y_train_full == 1).mean() if not y_train_full.empty else 0.0
     win_rate_0 = (y_train_full == 0).mean() if not y_train_full.empty else 1.0
@@ -259,9 +356,17 @@ def train_and_save(all_dfs):
     
     print("\nTraining Ensemble (GB + RF + MLP) with TimeSeries Cross-Validation on Train Set...")
     
-    # Cross Validation on Training part (with PRED_DAYS gap to prevent temporal leakage)
-    tscv = TimeSeriesSplit(n_splits=3, gap=PRED_DAYS)
-    for fold, (t_idx, v_idx) in enumerate(tscv.split(X_train_full)):
+    # Cross Validation on Training part. TimeSeriesSplit's `gap` counts SAMPLES, not days, so it
+    # is scaled by the widest date in the train split (see chronological_split()).
+    cv_gap = split_meta['cv_gap']
+    try:
+        tscv = TimeSeriesSplit(n_splits=3, gap=cv_gap)
+        cv_folds = list(tscv.split(X_train_full))
+    except ValueError as exc:
+        print(f"Aborting training: cannot build 3 CV folds with a {cv_gap}-sample gap ({exc}).")
+        print("Refusing to shrink the gap — a contaminated oos_metrics is worse than no model.")
+        return
+    for fold, (t_idx, v_idx) in enumerate(cv_folds):
         X_t, X_v = X_train_full.iloc[t_idx], X_train_full.iloc[v_idx]
         y_t, y_v = y_train_full.iloc[t_idx], y_train_full.iloc[v_idx]
         w_t = train_weights.iloc[t_idx]

@@ -3,7 +3,7 @@ status: living
 title: Product Backlog — Honest Metrics
 source: 2026-09-02 quant-expert panel audit (3 independent read-only auditors, batch A+B+C selected by user)
 created: 2026-09-02
-last_updated: 2026-09-02 (intake — #1 selected as starting point)
+last_updated: 2026-09-02 (#1 Shipped via PR #64; #2 spec frozen, in progress)
 ---
 
 # Product Backlog
@@ -46,8 +46,8 @@ feature set or label definition.
 ## Feature Inventory
 | # | Feature | Kind | Labels | Priority | Spec File | Tier | Status | Dependencies |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in the magnitude-based metrics (`avg_return`, `profit_factor`, `sharpe_ratio`, `best_return`); win rates are structurally unaffected because trade signs do not change (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | hotfix | In Progress | — |
-| 2 | Date-based train/test embargo — measure the embargo in trading days rather than pooled rows, scale the `TimeSeriesSplit` gap by per-date row count, and apply the same correction in `scripts/eval_label_modes.py` (F1, 3/3 auditors) | review-finding | ml | P0 | — | feature | Pending | — |
+| 1 | Backtest settlement realism — book a HIT at `target_gain` instead of the session high, and handle a gap-through stop at the open; removes the one-directional inflation in the magnitude-based metrics (`avg_return`, `profit_factor`, `sharpe_ratio`, `best_return`); win rates are structurally unaffected because trade signs do not change (F2, 3/3 auditors) | review-finding | backtest | P0 | docs/specs/backtest-settlement-realism.md | hotfix | Shipped | — |
+| 2 | Date-based train/test embargo — measure the embargo in trading days rather than pooled rows, scale the `TimeSeriesSplit` gap by per-date row count, and apply the same correction in `scripts/eval_label_modes.py` (F1, 3/3 auditors) | review-finding | ml | P0 | docs/specs/date-based-train-test-embargo.md | feature | In Progress | — |
 | 3 | Backtest temporal guard — refuse or explicitly badge a run whose model `trained_at` post-dates the entry date, and resolve the entry point by calendar date per ticker instead of a row offset (F5, F6). **Carries two #1 review deferrals**: a bar that gaps open above the target while also breaching the stop still books a STOP (measured at ≤0.004% of real bars, and structurally near-impossible under TW's ±10% limit), and `best_stock` is now an arbitrary tie-break because every no-gap HIT settles at exactly `target_gain` | review-finding | backtest | P1 | — | feature | Pending | #1 |
 | 4 | Model rotation ranking honesty — move the rotation backtest window past the final fit's label horizon, and stop sorting a `None` profit factor below 0.0 (F7). **Raised in priority by #1**: `backtest_30d.profit_factor` entries written before and after the settlement fix are not comparable, `core/ai/trainer.py:472` ranks them together, and `:487` then irreversibly `os.remove`s the `.pkl` files outside the top 5 — so a genuinely better pre-fix model can be deleted for being measured with a different ruler. Needs a settlement marker on the persisted structure | review-finding | ml | **P0** | — | feature | Pending | #2 |
 | 5 | OOS metric attribution and baseline lift — attribute holdout metrics to the split model that earned them, record test-split class prevalence, report precision as lift over prevalence, and let `get_model_health` call a below-prevalence model degraded (F8, F9, F10) | review-finding | ml, transparency | P1 | — | feature | Pending | #2 |
