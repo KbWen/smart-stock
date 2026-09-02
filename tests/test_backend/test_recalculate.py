@@ -87,3 +87,53 @@ def test_recalculate_uses_bounded_lookback_window(monkeypatch):
     recalculate.recalculate_all(incremental=True, stale_hours=6)
 
     assert captured["days"] == recalculate.RECALC_LOOKBACK_DAYS
+
+
+def test_recalculate_hands_the_model_an_unfilled_frame(monkeypatch):
+    """docs/specs/unknown-is-not-zero-ml-features.md: the display fill must not reach the model.
+
+    `recalculate` zero-fills the frame so NaN never reaches the API payload. That fill also
+    erases what predict_prob() needs in order to refuse: a feature that could not be computed
+    arrives as a real number. This is the path that writes ai_prob for the whole universe, so
+    a substitution here is stored, not merely displayed.
+
+    Falsifiable: pass `df` instead of `df_for_model` and the captured frame has no NaN left.
+    """
+    import numpy as np
+    import pandas as pd
+
+    captured = {}
+
+    monkeypatch.setattr(recalculate, "_load_target_tickers", lambda **_kwargs: ["2330"])
+    monkeypatch.setattr(recalculate, "get_model_version", lambda: "v4.1")
+    monkeypatch.setattr(
+        recalculate, "load_from_db",
+        lambda _ticker, days=730: pd.DataFrame({
+            "date": pd.date_range("2024-01-01", periods=80, freq="D"),
+            "close": [100.0 + i for i in range(80)],
+        }),
+    )
+
+    import core.indicators_v2 as indicators_v2
+    import core.rise_score_v2 as rise_score_v2
+    # One uncomputable indicator, exactly as a short history produces.
+    monkeypatch.setattr(indicators_v2, "compute_v4_indicators", lambda df: df.assign(dist_sma240=np.nan))
+    monkeypatch.setattr(
+        rise_score_v2, "calculate_rise_score_v2",
+        lambda df: df.assign(total_score_v2=1, trend_score_v2=1, momentum_score_v2=1, volatility_score_v2=1),
+    )
+    monkeypatch.setattr(recalculate, "generate_analysis_report", lambda *_a, **_k: "ok")
+    monkeypatch.setattr(recalculate, "save_score_to_db", lambda *_a, **_k: None)
+
+    def capture(df):
+        captured["frame"] = df.copy()
+        return None
+
+    monkeypatch.setattr(recalculate, "predict_prob", capture)
+
+    recalculate.recalculate_all(incremental=False)
+
+    frame = captured["frame"]
+    assert frame["dist_sma240"].isna().all(), (
+        "the model was handed a display-filled frame; an uncomputable feature arrived as 0"
+    )

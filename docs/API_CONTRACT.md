@@ -250,6 +250,7 @@ V4 stock detail: scores, indicators, signals.
     "volatility": 50.0
   },
   "ai_probability": 74.0,
+  "ai_unavailable_reason": null,
   "analyst_summary": "Strong Uptrend: Price is consistently above SMA20 & SMA60.",
   "signals": {
     "squeeze": false,
@@ -258,6 +259,26 @@ V4 stock detail: scores, indicators, signals.
   }
 }
 ```
+
+`ai_probability` is `null` whenever no prediction was made — never a fake `0.0`, which would be
+indistinguishable from a genuinely low probability.
+
+`ai_unavailable_reason` says **why**, when the cause can be attributed to this stock's data:
+
+```
+"insufficient_history" | null
+```
+
+`insufficient_history` means the price history is shorter than the longest indicator window the
+feature set needs (`MIN_FEATURE_ROWS`, 250 rows = the 240-period SMA plus its 10-row slope), so at
+least one model input could not be computed. The model is **not** given a substitute value; it is
+not consulted at all. The technical scores are unaffected and still returned.
+
+The reason is `null` when `ai_probability` is present, when the cause is the model rather than the
+data (no model trained, load failure — `model_health` reports those and this field must not
+relabel them as a data problem), and on the cached-DB branch of `/api/v4/stock/{ticker}`, which
+deliberately does not load price history and therefore cannot attribute the cause.
+
 
 ---
 

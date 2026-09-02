@@ -29,6 +29,15 @@ MODEL_PATH = config.MODEL_PATH
 MIN_TRAIN_ROWS = config.MIN_TRAIN_ROWS    # Minimum rows for training (needs SMA240)
 MIN_PREDICT_ROWS = config.MIN_PREDICT_ROWS  # Minimum rows for prediction (more lenient)
 
+# History before EVERY FEATURE_COLS entry is computable: the longest indicator window
+# (sma_240) plus its slope lookback (`sma240_slope = sma_240.pct_change(10)`,
+# core/indicators_v2.py:59) -> 240 + 10. MIN_TRAIN_ROWS keeps 10 rows of margin over it.
+#
+# This is used ONLY to explain a refusal to the user. It does NOT gate prediction:
+# uncomputable_features() below is the sole gate, because a row-count constant covers only
+# the windows that existed when it was written, while the finite check follows the features.
+MIN_FEATURE_ROWS = 240 + 10
+
 # Backtest Filtering
 BACKTEST_AI_THRESHOLD = config.BACKTEST_AI_THRESHOLD
 
@@ -127,6 +136,33 @@ def select_for_deletion(history: list, keep: int, protected_versions=None) -> tu
         if id(h) not in keepers and h.get('version') not in protected_versions
     ]
     return to_delete, unrankable
+
+def uncomputable_features(row) -> list:
+    """Names of FEATURE_COLS whose value on this row is not a finite number.
+
+    NaN and +/-inf both mean "could not be computed" and are treated identically: they come out
+    of the same divisions, and ``json.loads`` accepts a bare ``Infinity``. Neither may reach a
+    model as though it were an observation -- filling ``dist_sma240`` with 0 asserts *the price
+    sits exactly on its 240-day mean*, and filling a slope with 0 asserts *flat*. Both are among
+    the most ordinary states a stock can be in, which is what makes the substitution invisible
+    downstream. See docs/specs/unknown-is-not-zero-ml-features.md.
+
+    A column that is absent entirely counts as uncomputable, not as an error.
+    """
+    missing = []
+    for col in FEATURE_COLS:
+        try:
+            value = row[col]
+        except (KeyError, IndexError, TypeError):
+            missing.append(col)
+            continue
+        try:
+            if not math.isfinite(float(value)):
+                missing.append(col)
+        except (TypeError, ValueError):
+            missing.append(col)
+    return missing
+
 
 # ===== FEATURE ENGINEERING =====
 FEATURE_COLS = [

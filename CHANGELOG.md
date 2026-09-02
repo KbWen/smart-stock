@@ -1,5 +1,40 @@
 # Changelog
 
+## [Unknown Is Not Zero] - 2026-09-02
+
+An epic opened from a triage of the 12 GitHub issues left untouched since 2026-06-05. Two of its
+three items share one cause: a value that cannot be computed is filled with `0`, and everything
+downstream then treats the unknown as known. In progress.
+
+### Some stocks will stop showing an AI probability
+
+A feature the model needs but the data cannot support used to be filled with `0`. That is not a
+blank. `dist_sma240 = 0` asserts *the price sits exactly on its 240-day mean*; a slope of `0`
+asserts *flat*. Both are among the most ordinary states a stock can be in, which is exactly why
+nothing downstream could tell that anything was missing.
+
+Measured on ticker 2330's real last trading day: with full history `dist_sma240` is **+0.3429** —
+the price sat 34.3% above its annual mean, a pronounced uptrend. Given 150 rows of history the
+model was told **0.0**. The substitution did not lose a signal, it replaced it with a confident
+neutral falsehood.
+
+A stock whose history is shorter than **250 trading days** (the 240-period SMA plus its 10-row
+slope) therefore now shows **N/A** for the AI probability instead of a number, and the detail panel
+says why: 「歷史資料不足」, rather than the old blanket 「尚未訓練 AI 模型」, which would have sent
+you to retrain a model that was working fine. **Technical scores are unaffected** — only the AI
+number is withheld.
+
+On the bundled dev data **nothing changes**: all 92 tickers carry 729+ rows. This fires on a fresh
+install, a newly listed stock, or a partial backfill.
+
+Three quieter substitutions were removed alongside it: the prediction path no longer forward-fills
+yesterday's indicator into today's prediction row; a model asking for a column the frame does not
+have is no longer given it as `0`; and the two request paths that zero-fill the frame for the JSON
+payload now hand the model the **unfilled** frame, because that fill was erasing the very evidence
+the refusal depends on.
+
+What is still filled is named in `docs/DATA_INTEGRITY.md` rather than left for the next audit.
+
 ## [Honest Metrics] - 2026-09-02
 
 An epic correcting 說到做不到 gaps found in the **mathematics** layer by a three-auditor quant panel

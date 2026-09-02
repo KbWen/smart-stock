@@ -9,7 +9,8 @@ from backend.repositories.indicator_repo import IndicatorRepository
 from backend.repositories.score_repo import ScoreRepository
 from backend.repositories.stock_repo import StockRepository
 from backend.repositories.system_repo import SystemRepository
-from core.ai import get_model_health, predict_prob
+from core.ai import get_model_health, predict_prob, get_model_version
+from core.ai.common import MIN_FEATURE_ROWS
 from core.utils import safe_float, to_ai_percent
 
 
@@ -210,6 +211,10 @@ class V4StockDetailService:
                     "volatility": round(safe_float(db_score.get("volatility_score", 0)), 1),
                 },
                 "ai_probability": to_ai_percent(ai_prob),
+                # The cached-DB branch deliberately does not load price history (a test
+                # asserts it must not), so the cause of a missing number is unknown here
+                # rather than guessed. It is attributed on the recompute branch below.
+                "ai_unavailable_reason": None,
                 "analyst_summary": " ".join(analyst_text) if analyst_text else "目前為中性盤整，留意進場訊號。",
                 "signals": {
                     "squeeze": squeeze_flag,
@@ -240,6 +245,12 @@ class V4StockDetailService:
             ai_prob = ai_result.get("prob")
         elif isinstance(ai_result, float):
             ai_prob = ai_result
+
+        # Why there is no number, when it can be attributed to this stock's data. An absent or
+        # unloadable model is reported by model_health and is NOT relabelled as a data problem.
+        ai_unavailable_reason = None
+        if ai_prob is None and len(df) < MIN_FEATURE_ROWS and get_model_version() != "unknown":
+            ai_unavailable_reason = "insufficient_history"
 
         squeeze_flag = self._to_bool(cached_indicators.get("is_squeeze")) if cached_indicators else self._to_bool(latest.get("is_squeeze", False))
         golden_cross_flag = (
@@ -278,6 +289,7 @@ class V4StockDetailService:
                 "volatility": round(safe_float(latest["volatility_score_v2"]), 1),
             },
             "ai_probability": to_ai_percent(ai_prob),
+            "ai_unavailable_reason": ai_unavailable_reason,
             "analyst_summary": " ".join(analyst_text) if analyst_text else "目前為中性盤整，留意進場訊號。",
             "signals": {
                 "squeeze": squeeze_flag,

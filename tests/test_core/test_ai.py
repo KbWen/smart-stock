@@ -63,20 +63,28 @@ def test_predict_prob_mocked(mock_exists, mock_load, _mock_sidecar, sample_stock
 @patch('core.ai.trainer.prepare_features')
 @patch('joblib.load')
 @patch('os.path.exists')
-def test_predict_prob_legacy_model_handles_missing_features(mock_exists, mock_load, mock_prepare, _mock_sidecar):
-    """Legacy model path should reindex missing features to zero instead of KeyError."""
+def test_predict_prob_legacy_model_refuses_missing_features(mock_exists, mock_load, mock_prepare, _mock_sidecar):
+    """Legacy model path returns None rather than inventing an absent feature as 0.
+
+    This test previously asserted the opposite -- ``float(X.iloc[0]['f2']) == 0.0``, with the
+    docstring "should reindex missing features to zero instead of KeyError". Filling an absent
+    feature with 0 is not a null: for the real feature set it asserts things like "the price sits
+    exactly on its 240-day mean". The original intent (no KeyError) still holds; the frame simply
+    yields no prediction now. See docs/specs/unknown-is-not-zero-ml-features.md.
+    """
     import numpy as np
     from core.ai.predictor import _model_cache
 
     _model_cache.clear()
     mock_exists.return_value = True
 
+    consulted = []
+
     class LegacyModel:
         feature_names_in_ = np.array(['f1', 'f2'])
 
         def predict_proba(self, X):
-            assert list(X.columns) == ['f1', 'f2']
-            assert float(X.iloc[0]['f2']) == 0.0
+            consulted.append(X)
             return [[0.2, 0.3, 0.5]]
 
     mock_load.return_value = LegacyModel()
@@ -85,7 +93,8 @@ def test_predict_prob_legacy_model_handles_missing_features(mock_exists, mock_lo
     df = pd.DataFrame({'close': [1] * 120, 'high': [1] * 120, 'low': [1] * 120, 'volume': [1] * 120})
     result = predict_prob(df)
 
-    assert result['prob'] == pytest.approx(0.8)
+    assert result is None
+    assert consulted == [], "the model was handed a frame with an invented feature"
 
 
 def test_prepare_features_target_labeling_buy_before_stop(monkeypatch):
