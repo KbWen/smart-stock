@@ -100,7 +100,7 @@ implying a command exists.
   `core/ai/trainer.py` fit on all rows up to today. For `days_ago=30` this measures in-sample recall.
   Tracked as backlog #3.
 - **Survivorship** — see the table above. Unmitigated.
-- **Model rotation ranks profit factors measured under different settlement rules** (backlog #4).
+- **Model rotation no longer ranks profit factors measured under different settlement rules** (fixed 2026-09-02). It compares only entries sharing a `settlement` marker and benchmark window, and **protects** everything else from deletion rather than sorting it last, so the model store may exceed `MAX_SAVED_MODELS`. **Still true**: the rotation benchmark is scored on a window inside the training data (`backtest_30d.in_sample: true`) — it is a relative yardstick between models, not a measure of live skill. A genuinely out-of-sample rotation score needs an as-of model per window (backlog #3).
 - **`oos_metrics` still describe the 80%-split ensemble, not the shipped full-data refit** — but this
   is now *recorded and disclosed* rather than implied: the entry carries
   `oos_metrics_scope: "split_model"`, and the transparency panel says so. The measurement itself is

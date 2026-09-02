@@ -1,3 +1,4 @@
+import math
 import re
 from core import config
 
@@ -45,14 +46,87 @@ def validate_version_string(version: str) -> bool:
     return bool(VERSION_RE.match(version))
 
 
-def profit_factor_sort_key(h: dict) -> float:
-    """Sort key for model history entries by profit_factor (descending-friendly).
+# The fill model the benchmark backtest currently uses. Entries recorded before 2026-09-02 booked
+# a winning trade at the session HIGH and a loser at the session LOW, which on the same seed and
+# window moved profit factor 0.74 -> 0.80. A profit factor measured under one settlement rule is
+# not comparable to one measured under another, and rotation DELETES files based on that comparison.
+CURRENT_SETTLEMENT = "achievable_fill"
 
-    None profit_factor (backtest failed) ranks below any real score, including 0.0.
-    Use with ``sorted(..., key=profit_factor_sort_key, reverse=True)``.
+# (days_ago, holding_days) the benchmark backtest uses. Part of the comparability key: a
+# profit factor measured over a different span is a different measurement, and PRED_DAYS is
+# env-configurable so this is reachable without any code change.
+BENCHMARK_WINDOW = (30, 20)
+
+
+def is_rankable(h: dict, settlement: str = CURRENT_SETTLEMENT, window=BENCHMARK_WINDOW) -> bool:
+    """True when this entry's profit factor may be compared with others'.
+
+    Requires a matching settlement marker AND a finite profit factor. An entry that fails either
+    test is NOT ranked last -- it is protected from automatic deletion. Sorting an unknown to the
+    bottom is a silent decision to delete it, and the two things `profit_factor: None` used to mean
+    (a flawless backtest with no losing trades, and a backtest that raised) are both unknowns, not
+    failures.
     """
-    pf = h.get('backtest_30d', {}).get('profit_factor')
-    return float(pf) if pf is not None else -1.0
+    if not isinstance(h, dict):
+        return False
+    bt = h.get('backtest_30d')
+    # A hand-edited history can hold anything here. Anything that is not a dict is unreadable,
+    # which means unrankable -- it must NOT raise, because this function stands between a
+    # malformed file and an irreversible os.remove.
+    if not isinstance(bt, dict):
+        return False
+    if bt.get('settlement') != settlement:
+        return False
+    # The window is part of the ruler, not decoration. PRED_DAYS is env-configurable
+    # (core/config.py), so two runs can carry the same settlement marker and still be measured
+    # over different spans. Require the window to be recorded AND to match the current one.
+    if (bt.get('days_ago'), bt.get('holding_days')) != window:
+        return False
+    pf = bt.get('profit_factor')
+    if pf is None or isinstance(pf, bool):
+        return False
+    try:
+        return math.isfinite(float(pf))
+    except (TypeError, ValueError):
+        return False
+
+
+def profit_factor_sort_key(h: dict) -> float:
+    """Sort key for RANKABLE model history entries, descending-friendly.
+
+    Only meaningful for entries where ``is_rankable(h)`` is True -- callers must filter first.
+    Unrankable entries have no position in this ordering by design; giving them one is what let a
+    flawless backtest and a crashed one both sort below a model that lost money on every trade.
+    """
+    return float((h.get('backtest_30d') or {}).get('profit_factor'))
+
+
+def select_for_deletion(history: list, keep: int, protected_versions=None) -> tuple:
+    """Return ``(to_delete, protected)`` for a rotation/prune pass.
+
+    The single rule this module exists to enforce: **an irreversible action requires a comparable
+    measurement.** Only rankable entries compete for the ``keep`` slots; everything else is
+    protected, even when its profit factor is the lowest present. The store growing past ``keep``
+    is the correct outcome of refusing a bad comparison.
+    """
+    protected_versions = set(protected_versions or ())
+    # A negative keep would slice from the end and silently mark good models for deletion.
+    # Clamping it to 0 would be worse -- that deletes EVERY comparable model, i.e. it fails toward
+    # deletion, the exact opposite of this function's rule. A negative keep is a caller bug and
+    # must be heard, not guessed at.
+    keep = int(keep)
+    if keep < 0:
+        raise ValueError(f"keep must be >= 0, got {keep}; refusing to guess before an irreversible delete")
+    # An entry with no `version` cannot be deleted by the version-keyed path, and discovering
+    # that mid-loop would leave a partially pruned store. Treat it as unrankable up front.
+    rankable = [h for h in history if is_rankable(h) and h.get('version')]
+    unrankable = [h for h in history if not (is_rankable(h) and h.get('version'))]
+    keepers = {id(h) for h in sorted(rankable, key=profit_factor_sort_key, reverse=True)[:keep]}
+    to_delete = [
+        h for h in rankable
+        if id(h) not in keepers and h.get('version') not in protected_versions
+    ]
+    return to_delete, unrankable
 
 # ===== FEATURE ENGINEERING =====
 FEATURE_COLS = [
@@ -67,3 +141,24 @@ FEATURE_COLS = [
     'k', 'd', 'kd_diff',
     'total_score_v2', 'trend_score_v2', 'momentum_score_v2', 'volatility_score_v2'
 ]
+
+
+def timestamps_to_delete(history: list, keep: int, protected_versions=None,
+                         fresh_timestamp: str = None) -> set:
+    """Model-file timestamps that a rotation pass may delete. Shared by the trainer and its tests.
+
+    Wraps :func:`select_for_deletion` with the file-level guards, because the mapping from entries
+    to filenames is where protection can leak: timestamps are minute-resolution, so two history
+    entries can name the SAME .pkl, and deleting on a rankable entry's behalf would take a
+    protected entry's file with it.
+
+    Returns an ALLOW-LIST. Callers must delete exactly these and nothing else -- the previous
+    "glob every .pkl and remove anything not in a keep-set" shape silently expired the protection,
+    because `history` is truncated and a protected file eventually fell out of the keep-set.
+    """
+    to_delete, protected = select_for_deletion(history, keep=keep,
+                                               protected_versions=protected_versions)
+    stamps = {h['timestamp'] for h in to_delete if h.get('timestamp')}
+    stamps -= {h['timestamp'] for h in protected if h.get('timestamp')}
+    stamps.discard(fresh_timestamp)
+    return stamps

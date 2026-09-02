@@ -29,6 +29,31 @@ barrier. The old code fabricated a zero there. On the dev data at shipped settin
 the *only* number the release moves, because the honestly-weak model admits one candidate that
 touches no barrier.
 
+### Model rotation will now keep more files, on purpose
+
+Rotation and `manage_models prune` delete `.pkl` files — irreversibly — ranked by
+`backtest_30d.profit_factor`. That number was not comparable across the entries it ranked: before the
+settlement fix above, a winning trade was booked at the session high, which on the same seed and
+window moved profit factor 0.74 → 0.80. **A genuinely better old model could be deleted for having
+been measured with a different ruler.**
+
+The rule is now: an irreversible action requires a comparable measurement. Only entries sharing a
+`settlement` marker *and* a benchmark window compete for the retention slots. Everything else — every
+pre-2026-09-02 entry, anything whose benchmark failed — is **protected**, not ranked last. So your
+model store may hold more than `MAX_SAVED_MODELS` files. That is the cost of refusing a bad
+comparison; the run logs it and names `manage_models delete <version>` to prune by hand.
+
+`profit_factor: None` used to mean two opposite things — "no losing trades" (a flawless run) and "the
+backtest raised" — and the old sort key ranked both *below* a model that lost money on every trade.
+The entry now records `status`: `ok` / `no_losing_trades` / `failed`.
+
+Honest note on the rotation benchmark: it scores the model over a window **inside** its own training
+data, and no choice of window fixes that under a full-data refit. The entry says so
+(`backtest_30d.in_sample: true`). It is a relative yardstick between models, not a measure of skill.
+
+`manage_models delete` now refuses the **active** version without `force=True`: `MODEL_PATH` is a
+copy, not a symlink, so deleting its history entry would leave the running model with no provenance.
+
 ### Your model will turn orange on upgrade. Nothing about it changed.
 
 `get_model_health` used to return `ok` for any model whose metrics were merely non-zero. It now

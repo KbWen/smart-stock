@@ -79,7 +79,7 @@ Applied to: `GET /api/stock/{ticker}`, `GET /api/stock/{ticker}/verify`, `GET /a
 Three new exports to eliminate duplication:
 - `MAX_PREDICTION_CACHE_SIZE = 3` — LRU cap for in-process model cache
 - `validate_version_string(version: str) -> bool` — wraps `VERSION_RE`
-- `profit_factor_sort_key(h: dict) -> float` — `None`-safe sort key for model rotation
+- `profit_factor_sort_key(h: dict) -> float` — sort key for model rotation. **No longer `None`-safe as of 2026-09-02**: it is only valid for entries where `is_rankable(h)` is True, and callers must filter first (`select_for_deletion` does). Giving an unknown a position in the ordering is what deleted flawless and crashed backtests alike.
 
 ## Known Limitations / Follow-up
 
