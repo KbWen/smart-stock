@@ -117,3 +117,8 @@ Agent reads this file at bootstrap to find relevant past context without scannin
 - D: "Changing behaviour without touching the display layer is how a chip ends up asserting a fact the panel beneath it contradicts — a status with several causes needs a machine `reason`" → feat-oos-metric-lift-20260902.md
 - D: "Never borrow another entry when the active version is missing from history — a vague status could survive that, a specific numeric claim cannot" → feat-oos-metric-lift-20260902.md
 - D: "A test that cannot fail is worse than no test: it reports coverage that does not exist. Two rounds of theatre in one feature, one caught by me, one by the reviewer" → feat-oos-metric-lift-20260902.md
+- D: "An irreversible action requires a comparable measurement — where one is unavailable the action does not happen. Unrankable means PROTECTED, not sorted last" → feat-rotation-ranking-honesty-20260902.md
+- D: "Deletion must be an ALLOW-LIST, never 'everything not kept' — history is truncated, so a keep-set silently stops covering older files (the protection expired at ~50 entries)" → feat-rotation-ranking-honesty-20260902.md
+- D: "A claim a spec cannot deliver gets REMOVED with the derivation, not reworded — no benchmark window is out-of-sample under a full-data refit" → feat-rotation-ranking-honesty-20260902.md
+- D: "A test that duplicates the logic it tests can only confirm the duplicate — three separate sets of tests in this epic defended the bugs they were meant to catch" → feat-rotation-ranking-honesty-20260902.md
+- D: "The entry-to-filename mapping is where protection leaks: minute-resolution timestamps mean two history entries can name the same .pkl" → feat-rotation-ranking-honesty-20260902.md
